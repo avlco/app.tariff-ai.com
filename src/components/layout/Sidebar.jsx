@@ -51,13 +51,13 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
       `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800/50">
+          <div className="px-6 py-6 border-b border-slate-200 dark:border-slate-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <img 
                   src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6944f7300c31b18399592a2a/89873d7e0_logotariff_ai2.png"
                   alt="TariffAI"
-                  className="h-8 object-contain"
+                  className="h-10 w-auto object-contain"
                 />
               </div>
               <button onClick={onClose} className="lg:hidden p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
