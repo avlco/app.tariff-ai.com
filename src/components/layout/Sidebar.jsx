@@ -54,13 +54,11 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
           <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#114B5F] to-[#42C0B9] flex items-center justify-center shadow-lg shadow-[#114B5F]/20">
-                  <FileText className="w-4.5 h-4.5 text-white" />
-                </div>
-                <div>
-                  <span className="text-base font-bold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">TariffAI</span>
-                  <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-medium">{language === 'he' ? 'סיווג מכס' : 'HS Classification'}</p>
-                </div>
+                <img 
+                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6944f7300c31b18399592a2a/89873d7e0_logotariff_ai2.png"
+                  alt="TariffAI"
+                  className="h-8 object-contain"
+                />
               </div>
               <button onClick={onClose} className="lg:hidden p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
                 <X className="w-5 h-5 text-[#475569] dark:text-[#94A3B8]" />
