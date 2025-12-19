@@ -60,8 +60,43 @@ export default function Support() {
         status: 'open',
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      
+      // Update UserMasterData
+      const user = await base44.auth.me();
+      const existingUserData = await base44.entities.UserMasterData.filter({ user_email: user.email });
+      const allTickets = await base44.entities.SupportTicket.filter({ created_by: user.email });
+      const openTickets = allTickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
+      const resolvedTickets = allTickets.filter(t => t.status === 'resolved' || t.status === 'closed').length;
+      const lastTicketDate = allTickets.length > 0 ? allTickets.sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0].created_date : null;
+      
+      if (existingUserData.length > 0) {
+        await base44.entities.UserMasterData.update(existingUserData[0].id, {
+          support_tickets_summary: {
+            total_tickets: allTickets.length,
+            open_tickets: openTickets,
+            resolved_tickets: resolvedTickets,
+            last_ticket_date: lastTicketDate
+          }
+        });
+      } else {
+        await base44.entities.UserMasterData.create({
+          user_email: user.email,
+          full_name: user.full_name,
+          role: user.role,
+          subscription_plan: user.subscription_plan || 'free',
+          preferred_language: user.preferred_language || 'he',
+          theme: user.theme || 'light',
+          support_tickets_summary: {
+            total_tickets: allTickets.length,
+            open_tickets: openTickets,
+            resolved_tickets: resolvedTickets,
+            last_ticket_date: lastTicketDate
+          }
+        });
+      }
+      
       setDialogOpen(false);
       setNewTicket({ subject: '', category: 'technical', message: '' });
       toast.success(language === 'he' ? 'הפנייה נשלחה בהצלחה' : 'Ticket submitted successfully');
