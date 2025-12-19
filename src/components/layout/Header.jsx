@@ -32,9 +32,6 @@ export default function Header({ user, onMenuClick }) {
       </div>
       
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#114B5F] to-[#42C0B9] flex items-center justify-center text-white text-xs font-bold shadow-sm">
-          {user?.full_name?.charAt(0) || 'U'}
-        </div>
       </div>
     </header>
   );
