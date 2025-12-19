@@ -13,43 +13,49 @@ export default function Header({ user, onMenuClick }) {
   const { t, isRTL, language } = useLanguage();
   
   return (
-    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 lg:px-6 flex items-center justify-between">
+    <header className="sticky top-0 z-40 h-14 bg-white dark:bg-[#1A1F2E] border-b border-slate-200 dark:border-slate-800/50 px-4 lg:px-6 flex items-center justify-between">
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"
           onClick={onMenuClick}
-          className="lg:hidden"
+          className="lg:hidden h-9 w-9"
         >
           <Menu className="w-5 h-5" />
         </Button>
         
         <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
             {t('welcomeBack')}, {user?.full_name?.split(' ')[0] || 'User'}
           </h2>
         </div>
       </div>
       
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-              <span className="absolute top-1 end-1 w-2 h-2 bg-[#D89C42] rounded-full" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9">
+              <Bell className="w-4.5 h-4.5" />
+              <span className="absolute top-1.5 end-1.5 w-1.5 h-1.5 bg-[#D89C42] rounded-full ring-2 ring-white dark:ring-[#1A1F2E]" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align={isRTL ? 'start' : 'end'} className="w-72">
-            <DropdownMenuItem className="py-3">
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">{language === 'he' ? 'דוח הושלם' : 'Report Completed'}</span>
-                <span className="text-sm text-slate-500">Standard Smartwatch - HS: 9102.19.20</span>
+          <DropdownMenuContent align={isRTL ? 'start' : 'end'} className="w-80">
+            <div className="p-4">
+              <h3 className="font-semibold text-sm text-slate-900 dark:text-white mb-3">
+                {language === 'he' ? 'התראות' : 'Notifications'}
+              </h3>
+              <div className="space-y-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    {language === 'he' ? 'אין התראות חדשות' : 'No new notifications'}
+                  </p>
+                </div>
               </div>
-            </DropdownMenuItem>
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
         
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#42C0B9] to-[#114B5F] flex items-center justify-center text-white font-semibold">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#114B5F] to-[#42C0B9] flex items-center justify-center text-white text-xs font-bold shadow-sm">
           {user?.full_name?.charAt(0) || 'U'}
         </div>
       </div>

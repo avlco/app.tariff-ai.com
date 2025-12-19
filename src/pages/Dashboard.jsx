@@ -41,15 +41,23 @@ export default function Dashboard() {
   }).length;
   
   return (
-    <div className="space-y-6">
-      {/* Quick Action */}
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex justify-end"
+        className="flex items-center justify-between"
       >
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+            {t('dashboard')}
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {language === 'he' ? 'סקירה כללית של הפעילות שלך' : 'Overview of your activity'}
+          </p>
+        </div>
         <Link to={createPageUrl('NewReport')}>
-          <Button className="bg-[#42C0B9] hover:bg-[#42C0B9]/90 shadow-lg shadow-[#42C0B9]/25">
+          <Button className="bg-gradient-to-r from-[#114B5F] to-[#42C0B9] hover:opacity-90 text-white shadow-lg">
             <Plus className="w-4 h-4 me-2" />
             {t('createNewReport')}
           </Button>
