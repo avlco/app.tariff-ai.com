@@ -13,7 +13,7 @@ import { FileText, TrendingUp, Clock, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Dashboard() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [user, setUser] = useState(null);
   
   useEffect(() => {
