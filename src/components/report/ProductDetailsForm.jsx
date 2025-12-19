@@ -12,21 +12,26 @@ import {
 } from "@/components/ui/select";
 
 const countries = [
-  { code: 'IL', name: { he: 'ישראל', en: 'Israel' } },
-  { code: 'US', name: { he: 'ארצות הברית', en: 'United States' } },
-  { code: 'CN', name: { he: 'סין', en: 'China' } },
-  { code: 'DE', name: { he: 'גרמניה', en: 'Germany' } },
-  { code: 'GB', name: { he: 'בריטניה', en: 'United Kingdom' } },
-  { code: 'FR', name: { he: 'צרפת', en: 'France' } },
-  { code: 'JP', name: { he: 'יפן', en: 'Japan' } },
-  { code: 'KR', name: { he: 'דרום קוריאה', en: 'South Korea' } },
-  { code: 'IN', name: { he: 'הודו', en: 'India' } },
-  { code: 'IT', name: { he: 'איטליה', en: 'Italy' } },
-  { code: 'NL', name: { he: 'הולנד', en: 'Netherlands' } },
-  { code: 'ES', name: { he: 'ספרד', en: 'Spain' } },
-  { code: 'CA', name: { he: 'קנדה', en: 'Canada' } },
-  { code: 'AU', name: { he: 'אוסטרליה', en: 'Australia' } },
-  { code: 'TR', name: { he: 'טורקיה', en: 'Turkey' } },
+  'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria',
+  'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bermuda',
+  'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei Darussalam', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cambodia',
+  'Cameroon', 'Canada', 'Cape Verde', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo (Republic of the)',
+  'Cook Islands', 'Costa Rica', 'Côte d\'Ivoire', 'Croatia', 'Cuba', 'Curaçao', 'Cyprus', 'Czech Republic', 'Democratic Republic of the Congo', 'Denmark',
+  'Djibouti', 'Dominica', 'Dominican Republic', 'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini',
+  'Ethiopia', 'Fiji', 'Finland', 'France', 'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece',
+  'Grenada', 'Guatemala', 'Guinea', 'Guinea‑Bissau', 'Guyana', 'Haiti', 'Honduras', 'Hong Kong, China', 'Hungary', 'Iceland',
+  'India', 'Indonesia', 'Iran (Islamic Republic of)', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Jamaica', 'Japan', 'Jordan',
+  'Kazakhstan', 'Kenya', 'Kiribati', 'Korea (Republic of)', 'Kosovo', 'Kuwait', 'Kyrgyzstan', 'Lao PDR', 'Latvia', 'Lebanon',
+  'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Macau, China', 'Madagascar', 'Malawi', 'Malaysia',
+  'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritius', 'Mauritania', 'Mexico', 'Micronesia', 'Moldova', 'Mongolia',
+  'Montenegro', 'Morocco', 'Mozambique', 'Namibia', 'Nepal', 'Netherlands', 'New Caledonia (French Terr.)', 'New Zealand', 'Nicaragua', 'Niger',
+  'Nigeria', 'Niue', 'North Macedonia', 'Norway', 'Oman', 'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea',
+  'Paraguay', 'Peru', 'Philippines', 'Poland', 'Polynesia (French Terr.)', 'Portugal', 'Qatar', 'Romania', 'Russian Federation', 'Rwanda',
+  'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Pierre and Miquelon', 'Saint Vincent and the Grenadines', 'Samoa', 'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles',
+  'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Sudan', 'Spain', 'Sri Lanka',
+  'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syrian Arab Republic', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor‑Leste', 'Togo',
+  'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Türkiye', 'Turkmenistan', 'Tuvalu', 'Uganda', 'Ukraine', 'Union of Myanmar', 'United Arab Emirates',
+  'United Kingdom', 'USA', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Venezuela', 'Viet Nam', 'Wallis and Futuna', 'Yemen', 'Zambia', 'Zimbabwe'
 ];
 
 export default function ProductDetailsForm({ details, onChange }) {
@@ -71,8 +76,8 @@ export default function ProductDetailsForm({ details, onChange }) {
               </SelectTrigger>
               <SelectContent>
                 {countries.map((country) => (
-                  <SelectItem key={country.code} value={country.name.en}>
-                    {country.name[language]}
+                  <SelectItem key={country} value={country}>
+                    {country}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -92,8 +97,8 @@ export default function ProductDetailsForm({ details, onChange }) {
               </SelectTrigger>
               <SelectContent>
                 {countries.map((country) => (
-                  <SelectItem key={country.code} value={country.name.en}>
-                    {country.name[language]}
+                  <SelectItem key={country} value={country}>
+                    {country}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -113,8 +118,8 @@ export default function ProductDetailsForm({ details, onChange }) {
               </SelectTrigger>
               <SelectContent>
                 {countries.map((country) => (
-                  <SelectItem key={country.code} value={country.name.en}>
-                    {country.name[language]}
+                  <SelectItem key={country} value={country}>
+                    {country}
                   </SelectItem>
                 ))}
               </SelectContent>
