@@ -20,45 +20,53 @@ function LayoutContent({ children, currentPageName }) {
   }, []);
   
   return (
-    <div className={`min-h-screen bg-[#F8FAFC] dark:bg-slate-950 ${isRTL ? 'font-heebo' : 'font-sans'}`}>
+    <div className={`min-h-screen bg-[#FAFBFC] dark:bg-[#0B1120] ${isRTL ? 'font-heebo' : 'font-sans'}`}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
-        
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+
         :root {
           --primary-navy: #114B5F;
           --primary-teal: #42C0B9;
           --primary-gold: #D89C42;
         }
-        
+
         .font-heebo {
           font-family: 'Heebo', sans-serif;
         }
-        
+
         .font-sans {
           font-family: 'Inter', sans-serif;
         }
-        
+
         .dark {
           color-scheme: dark;
         }
-        
+
         /* Custom scrollbar */
         ::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
+          width: 8px;
+          height: 8px;
         }
-        
+
         ::-webkit-scrollbar-track {
           background: transparent;
         }
-        
+
         ::-webkit-scrollbar-thumb {
-          background: #CBD5E1;
-          border-radius: 3px;
+          background: #D1D5DB;
+          border-radius: 4px;
         }
-        
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: #9CA3AF;
+        }
+
         .dark ::-webkit-scrollbar-thumb {
-          background: #475569;
+          background: #374151;
+        }
+
+        .dark ::-webkit-scrollbar-thumb:hover {
+          background: #4B5563;
         }
       `}</style>
       
