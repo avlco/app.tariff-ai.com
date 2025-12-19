@@ -44,31 +44,32 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
       
       <aside className={`
         fixed top-0 ${isRTL ? 'right-0' : 'left-0'} h-full w-64 
-        bg-[#114B5F] text-white z-50
+        bg-white dark:bg-[#1A1F2E] border-e border-slate-200 dark:border-slate-800/50 z-50
         transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full'}
-        lg:translate-x-0
+        lg:translate-x-0 shadow-xl lg:shadow-none
       `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-6 border-b border-white/10">
+          <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <img 
-                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/user_680e05f48b22dd123802c416/0096d91fe_tarifficon.png"
-                  alt="Logo"
-                  className="w-10 h-10 object-contain"
-                />
-                <span className="text-xl font-bold">TariffAI</span>
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#114B5F] to-[#42C0B9] flex items-center justify-center shadow-lg shadow-[#114B5F]/20">
+                  <FileText className="w-4.5 h-4.5 text-white" />
+                </div>
+                <div>
+                  <span className="text-base font-bold text-slate-900 dark:text-white tracking-tight">TariffAI</span>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{language === 'he' ? 'סיווג מכס' : 'HS Classification'}</p>
+                </div>
               </div>
-              <button onClick={onClose} className="lg:hidden p-1 hover:bg-white/10 rounded">
-                <X className="w-5 h-5" />
+              <button onClick={onClose} className="lg:hidden p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                <X className="w-5 h-5 text-slate-600 dark:text-slate-400" />
               </button>
             </div>
           </div>
           
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentPage === item.name;
@@ -78,41 +79,40 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
                   to={createPageUrl(item.name)}
                   onClick={onClose}
                   className={`
-                    flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200
+                    flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm
                     ${isActive 
-                      ? 'bg-[#42C0B9] text-white shadow-lg shadow-[#42C0B9]/30' 
-                      : 'hover:bg-white/10 text-white/80 hover:text-white'
+                      ? 'bg-gradient-to-r from-[#114B5F]/10 to-[#42C0B9]/10 text-[#114B5F] dark:text-[#42C0B9] font-semibold border border-[#42C0B9]/20' 
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 font-medium'
                     }
                   `}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
+                  <Icon className="w-4.5 h-4.5 flex-shrink-0" />
+                  <span>{item.label}</span>
                 </Link>
               );
             })}
           </nav>
           
           {/* Bottom controls */}
-          <div className="p-4 border-t border-white/10 space-y-3">
+          <div className="px-3 py-4 border-t border-slate-200 dark:border-slate-800/50 space-y-2">
             {/* Language & Theme */}
             <div className="flex items-center gap-2">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => setLanguage(language === 'he' ? 'en' : 'he')}
-                className="flex-1 text-white/80 hover:text-white hover:bg-white/10"
+                className="flex-1 h-9 text-xs font-semibold"
               >
-                <Globe className="w-4 h-4 me-2" />
+                <Globe className="w-3.5 h-3.5 me-1.5" />
                 {language === 'he' ? 'EN' : 'עב'}
               </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-                className="flex-1 text-white/80 hover:text-white hover:bg-white/10"
+                className="flex-1 h-9"
               >
-                {theme === 'light' ? <Moon className="w-4 h-4 me-2" /> : <Sun className="w-4 h-4 me-2" />}
-                {theme === 'light' ? t('dark') : t('light')}
+                {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
               </Button>
             </div>
             
@@ -120,9 +120,9 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
             <Button
               variant="ghost"
               onClick={handleLogout}
-              className="w-full justify-start text-white/80 hover:text-white hover:bg-white/10"
+              className="w-full justify-start text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 h-9"
             >
-              <LogOut className="w-5 h-5 me-3" />
+              <LogOut className="w-4 h-4 me-2" />
               {t('logout')}
             </Button>
           </div>
