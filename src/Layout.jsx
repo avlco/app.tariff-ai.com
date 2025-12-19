@@ -28,6 +28,15 @@ function LayoutContent({ children, currentPageName }) {
           --primary-navy: #114B5F;
           --primary-teal: #42C0B9;
           --primary-gold: #D89C42;
+          --text-primary: #0F172A;
+          --text-secondary: #475569;
+          --text-tertiary: #64748B;
+        }
+
+        .dark {
+          --text-primary: #F8FAFC;
+          --text-secondary: #CBD5E1;
+          --text-tertiary: #94A3B8;
         }
 
         .font-heebo {
@@ -53,20 +62,20 @@ function LayoutContent({ children, currentPageName }) {
         }
 
         ::-webkit-scrollbar-thumb {
-          background: #D1D5DB;
+          background: #CBD5E1;
           border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-          background: #9CA3AF;
+          background: #94A3B8;
         }
 
         .dark ::-webkit-scrollbar-thumb {
-          background: #374151;
+          background: #475569;
         }
 
         .dark ::-webkit-scrollbar-thumb:hover {
-          background: #4B5563;
+          background: #64748B;
         }
       `}</style>
       

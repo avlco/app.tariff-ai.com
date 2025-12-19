@@ -25,7 +25,7 @@ export default function Header({ user, onMenuClick }) {
         </Button>
         
         <div>
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+          <h2 className="text-sm font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
             {t('welcomeBack')}, {user?.full_name?.split(' ')[0] || 'User'}
           </h2>
         </div>
@@ -41,12 +41,12 @@ export default function Header({ user, onMenuClick }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align={isRTL ? 'start' : 'end'} className="w-80">
             <div className="p-4">
-              <h3 className="font-semibold text-sm text-slate-900 dark:text-white mb-3">
+              <h3 className="font-semibold text-sm text-[#0F172A] dark:text-[#F8FAFC] mb-3">
                 {language === 'he' ? 'התראות' : 'Notifications'}
               </h3>
               <div className="space-y-3">
                 <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                  <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
                     {language === 'he' ? 'אין התראות חדשות' : 'No new notifications'}
                   </p>
                 </div>

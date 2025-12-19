@@ -58,12 +58,12 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
                   <FileText className="w-4.5 h-4.5 text-white" />
                 </div>
                 <div>
-                  <span className="text-base font-bold text-slate-900 dark:text-white tracking-tight">TariffAI</span>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{language === 'he' ? 'סיווג מכס' : 'HS Classification'}</p>
+                  <span className="text-base font-bold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">TariffAI</span>
+                  <p className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-medium">{language === 'he' ? 'סיווג מכס' : 'HS Classification'}</p>
                 </div>
               </div>
               <button onClick={onClose} className="lg:hidden p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
-                <X className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                <X className="w-5 h-5 text-[#475569] dark:text-[#94A3B8]" />
               </button>
             </div>
           </div>
@@ -82,7 +82,7 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
                     flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm
                     ${isActive 
                       ? 'bg-gradient-to-r from-[#114B5F]/10 to-[#42C0B9]/10 text-[#114B5F] dark:text-[#42C0B9] font-semibold border border-[#42C0B9]/20' 
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 font-medium'
+                      : 'text-[#475569] dark:text-[#CBD5E1] hover:bg-slate-50 dark:hover:bg-slate-800/50 font-medium'
                     }
                   `}
                 >
