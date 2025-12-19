@@ -57,6 +57,30 @@ export default function Profile() {
     setSaving(true);
     try {
       await base44.auth.updateMe(formData);
+
+      // Update UserMasterData
+      const updatedUser = await base44.auth.me();
+      const existingUserData = await base44.entities.UserMasterData.filter({ user_email: updatedUser.email });
+
+      if (existingUserData.length > 0) {
+        await base44.entities.UserMasterData.update(existingUserData[0].id, {
+          full_name: formData.full_name,
+          company_name: formData.company_name,
+          phone: formData.phone
+        });
+      } else {
+        await base44.entities.UserMasterData.create({
+          user_email: updatedUser.email,
+          full_name: formData.full_name,
+          company_name: formData.company_name,
+          phone: formData.phone,
+          role: updatedUser.role,
+          subscription_plan: updatedUser.subscription_plan || 'free',
+          preferred_language: updatedUser.preferred_language || 'he',
+          theme: updatedUser.theme || 'light'
+        });
+      }
+
       toast.success(language === 'he' ? 'הפרטים נשמרו בהצלחה' : 'Profile saved successfully');
     } catch (error) {
       toast.error(language === 'he' ? 'שגיאה בשמירה' : 'Error saving profile');
@@ -70,6 +94,17 @@ export default function Profile() {
       await base44.auth.updateMe({ [key]: value });
       if (key === 'preferred_language') setLanguage(value);
       if (key === 'theme') setTheme(value);
+
+      // Update UserMasterData
+      const updatedUser = await base44.auth.me();
+      const existingUserData = await base44.entities.UserMasterData.filter({ user_email: updatedUser.email });
+
+      if (existingUserData.length > 0) {
+        await base44.entities.UserMasterData.update(existingUserData[0].id, {
+          [key]: value
+        });
+      }
+
       toast.success(language === 'he' ? 'ההעדפה נשמרה' : 'Preference saved');
     } catch (error) {
       toast.error(language === 'he' ? 'שגיאה בשמירה' : 'Error saving');
@@ -80,6 +115,17 @@ export default function Profile() {
     try {
       await base44.auth.updateMe({ subscription_plan: planId });
       setUser(prev => ({ ...prev, subscription_plan: planId }));
+
+      // Update UserMasterData
+      const updatedUser = await base44.auth.me();
+      const existingUserData = await base44.entities.UserMasterData.filter({ user_email: updatedUser.email });
+
+      if (existingUserData.length > 0) {
+        await base44.entities.UserMasterData.update(existingUserData[0].id, {
+          subscription_plan: planId
+        });
+      }
+
       toast.success(language === 'he' ? 'התוכנית עודכנה בהצלחה' : 'Plan updated successfully');
     } catch (error) {
       toast.error(language === 'he' ? 'שגיאה בעדכון התוכנית' : 'Error updating plan');

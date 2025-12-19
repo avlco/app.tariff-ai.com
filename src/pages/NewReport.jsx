@@ -122,7 +122,41 @@ Provide a comprehensive HS classification report in ${language === 'he' ? 'Hebre
       await base44.auth.updateMe({
         reports_used_this_month: (user.reports_used_this_month || 0) + 1
       });
-      
+
+      // Update UserMasterData
+      const existingUserData = await base44.entities.UserMasterData.filter({ user_email: user.email });
+      const userReports = await base44.entities.ClassificationReport.filter({ created_by: user.email });
+      const completedReports = userReports.filter(r => r.status === 'completed').length;
+      const pendingReports = userReports.filter(r => r.status === 'pending').length;
+      const failedReports = userReports.filter(r => r.status === 'failed').length;
+      const mostRecentReportDate = userReports.length > 0 ? userReports.sort((a, b) => new Date(b.created_date) - new Date(a.created_date))[0].created_date : null;
+
+      const userDataUpdate = {
+        user_email: user.email,
+        full_name: user.full_name,
+        company_name: user.company_name || '',
+        phone: user.phone || '',
+        role: user.role,
+        subscription_plan: user.subscription_plan || 'free',
+        reports_used_this_month: (user.reports_used_this_month || 0) + 1,
+        total_reports_created: userReports.length,
+        preferred_language: user.preferred_language || 'he',
+        theme: user.theme || 'light',
+        reports_summary: {
+          total_reports: userReports.length,
+          completed_reports: completedReports,
+          pending_reports: pendingReports,
+          failed_reports: failedReports,
+          most_recent_report_date: mostRecentReportDate
+        }
+      };
+
+      if (existingUserData.length > 0) {
+        await base44.entities.UserMasterData.update(existingUserData[0].id, userDataUpdate);
+      } else {
+        await base44.entities.UserMasterData.create(userDataUpdate);
+      }
+
       toast.success(language === 'he' ? 'הדוח נוצר בהצלחה!' : 'Report created successfully!');
       navigate(createPageUrl(`ReportView?id=${report.id}`));
       
