@@ -36,9 +36,14 @@ export default function NewShipment() {
       const newShipment = await base44.entities.Shipment.create(shipmentData);
       
       toast.success(isRTL ? 'משלוח נוצר בהצלחה' : 'Shipment created successfully');
-      navigate(createPageUrl(`ShipmentView?id=${newShipment.id}`));
+      
+      // Navigate after a short delay to show the success message
+      setTimeout(() => {
+        navigate(createPageUrl('Shipments'));
+      }, 500);
     } catch (error) {
-      toast.error(isRTL ? 'שגיאה ביצירת משלוח' : 'Error creating shipment');
+      console.error('Error creating shipment:', error);
+      toast.error(isRTL ? 'שגיאה ביצירת משלוח: ' + error.message : 'Error creating shipment: ' + error.message);
       setIsCreating(false);
     }
   };
