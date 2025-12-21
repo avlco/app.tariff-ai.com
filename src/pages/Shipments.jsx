@@ -15,7 +15,9 @@ import {
   DollarSign,
   Filter,
   Download,
-  Upload
+  Upload,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,8 +30,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import NewShipmentAIDialog from '../components/shipments/NewShipmentAIDialog';
+import ShipmentForm from '../components/shipments/ShipmentForm';
 
 const statusConfig = {
   draft: { 
@@ -66,6 +76,10 @@ export default function Shipments() {
   const { t, language, isRTL } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
+  const [aiAnalyzedData, setAiAnalyzedData] = useState(null);
+  const [identifiedCustomer, setIdentifiedCustomer] = useState(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: shipments = [], isLoading } = useQuery({
@@ -123,6 +137,39 @@ export default function Shipments() {
     e.target.value = '';
   };
 
+  const handleAiAnalysisComplete = (data) => {
+    setAiAnalyzedData(data.shipmentData);
+    setIdentifiedCustomer(data.identifiedCustomer);
+    setIsAiDialogOpen(false);
+    setShowReviewForm(true);
+  };
+
+  const createShipmentMutation = useMutation({
+    mutationFn: async (formData) => {
+      const shipmentId = `SHP-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      const shipmentData = {
+        ...formData,
+        shipment_id: shipmentId,
+        status: 'draft'
+      };
+      return await base44.entities.Shipment.create(shipmentData);
+    },
+    onSuccess: (newShipment) => {
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      toast.success(isRTL ? 'משלוח נוצר בהצלחה!' : 'Shipment created successfully!');
+      setShowReviewForm(false);
+      setAiAnalyzedData(null);
+      setIdentifiedCustomer(null);
+    },
+    onError: (error) => {
+      toast.error(isRTL ? 'שגיאה ביצירת משלוח' : 'Error creating shipment');
+    }
+  });
+
+  const handleSubmitShipment = (formData) => {
+    createShipmentMutation.mutate(formData);
+  };
+
   const filteredShipments = shipments.filter(shipment => {
     const matchesSearch = 
       shipment.shipment_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -165,17 +212,18 @@ export default function Shipments() {
             className="hidden"
           />
           <Link to={createPageUrl('NewShipment')}>
-            <Button variant="outline" className="text-white">
+            <Button className="bg-[#0F766E] hover:bg-[#0D6D63] text-white">
               <Plus className="w-4 h-4 me-2" />
               {isRTL ? 'משלוח חדש' : 'New Shipment'}
             </Button>
           </Link>
-          <Link to={createPageUrl('NewShipmentAI')}>
-            <Button className="bg-gradient-to-r from-[#114B5F] to-[#42C0B9] hover:from-[#0D3A4A] hover:to-[#3AB0A8] text-white">
-              <span className="me-2">✨</span>
-              {isRTL ? 'משלוח AI' : 'AI Shipment'}
-            </Button>
-          </Link>
+          <Button 
+            onClick={() => setIsAiDialogOpen(true)}
+            className="bg-gradient-to-r from-[#114B5F] to-[#42C0B9] hover:from-[#0D3A4A] hover:to-[#3AB0A8] text-white"
+          >
+            <span className="me-2">✨</span>
+            {isRTL ? 'משלוח AI' : 'AI Shipment'}
+          </Button>
         </div>
       </div>
 
@@ -312,6 +360,72 @@ export default function Shipments() {
           ))}
         </div>
       )}
+
+      {/* AI Dialog */}
+      <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <NewShipmentAIDialog 
+            onAnalysisComplete={handleAiAnalysisComplete}
+            onCancel={() => setIsAiDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Form Dialog */}
+      <Dialog open={showReviewForm} onOpenChange={setShowReviewForm}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#42C0B9] to-[#D89C42] flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <DialogTitle>
+                  {isRTL ? 'בדוק ושלים פרטים' : 'Review & Complete Details'}
+                </DialogTitle>
+                {aiAnalyzedData?.confidence_score && (
+                  <p className="text-sm text-[#64748B] dark:text-[#94A3B8]">
+                    {isRTL ? 'רמת ביטחון AI: ' : 'AI Confidence: '}
+                    <span className="font-semibold text-[#42C0B9]">{aiAnalyzedData.confidence_score}%</span>
+                  </p>
+                )}
+              </div>
+            </div>
+            <p className="text-sm text-[#64748B] dark:text-[#94A3B8] mt-2">
+              {isRTL 
+                ? 'ה-AI מילא את הפרטים הבאים מהמסמכים. אנא סקור, ערוך והשלם במידת הצורך לפני שמירה.'
+                : 'AI has pre-filled the following details from your documents. Please review, edit, and complete as needed before saving.'
+              }
+            </p>
+          </DialogHeader>
+
+          {identifiedCustomer && (
+            <Card className="p-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                    {isRTL ? 'לקוח חדש זוהה' : 'New Customer Identified'}
+                  </h3>
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    {isRTL ? 'מצאנו לקוח חדש במסמכים: ' : 'Found a new customer in documents: '}
+                    <span className="font-semibold">{identifiedCustomer.customer_name}</span>
+                    {identifiedCustomer.email && ` (${identifiedCustomer.email})`}
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          <ShipmentForm
+            initialData={aiAnalyzedData}
+            customers={customers}
+            onSubmit={handleSubmitShipment}
+            isLoading={createShipmentMutation.isPending}
+            isAiGenerated={true}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

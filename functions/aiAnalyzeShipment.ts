@@ -9,14 +9,16 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { fileUrls } = await req.json();
+        const { fileUrls, freeText } = await req.json();
 
-        if (!fileUrls || fileUrls.length === 0) {
-            return Response.json({ error: 'No files provided for analysis' }, { status: 400 });
+        if ((!fileUrls || fileUrls.length === 0) && !freeText) {
+            return Response.json({ error: 'No files or text provided for analysis' }, { status: 400 });
         }
 
         // Build comprehensive prompt for LLM
-        const llmPrompt = `You are an expert in international trade, customs classification, and logistics. Analyze the provided documents (invoices, packing lists, bills of lading, certificates, product images, etc.) and extract all relevant information for creating an international shipment record.
+        let llmPrompt = `You are an expert in international trade, customs classification, and logistics. Analyze the provided ${freeText ? 'information and documents' : 'documents (invoices, packing lists, bills of lading, certificates, product images, etc.)'} and extract all relevant information for creating an international shipment record.
+
+${freeText ? `\n\nUser provided description:\n${freeText}\n` : ''}
 
 Your task:
 1. Identify product details: description, characteristics, materials, purpose
@@ -116,7 +118,7 @@ Be thorough and precise. Use internet context to access current tariff rates, HS
             prompt: llmPrompt,
             add_context_from_internet: true,
             response_json_schema: llmResponseSchema,
-            file_urls: fileUrls
+            file_urls: fileUrls && fileUrls.length > 0 ? fileUrls : undefined
         });
 
         if (!llmResult) {

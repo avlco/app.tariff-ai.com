@@ -27,7 +27,6 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
     { name: 'Reports', icon: FileText, label: t('reports') },
     { name: 'Customers', icon: User, label: isRTL ? 'לקוחות' : 'Customers' },
     { name: 'Shipments', icon: Package, label: isRTL ? 'משלוחים' : 'Shipments' },
-    { name: 'NewShipmentAI', icon: Package, label: isRTL ? '✨ משלוח AI' : '✨ AI Shipment', highlight: true },
     { name: 'Support', icon: Headphones, label: t('support') },
     { name: 'Profile', icon: User, label: t('profile') },
   ];
@@ -84,8 +83,6 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
                     flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm
                     ${isActive 
                       ? 'bg-gradient-to-r from-[#114B5F]/10 to-[#42C0B9]/10 text-[#114B5F] dark:text-[#42C0B9] font-semibold border border-[#42C0B9]/20' 
-                      : item.highlight
-                      ? 'text-[#42C0B9] dark:text-[#42C0B9] hover:bg-gradient-to-r hover:from-[#114B5F]/5 hover:to-[#42C0B9]/5 font-semibold'
                       : 'text-[#475569] dark:text-[#CBD5E1] hover:bg-slate-50 dark:hover:bg-slate-800/50 font-medium'
                     }
                   `}
