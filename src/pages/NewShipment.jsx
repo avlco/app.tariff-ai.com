@@ -27,13 +27,45 @@ export default function NewShipment() {
       // Generate unique shipment ID
       const shipmentId = `SHP-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
       
+      // Ensure all required fields are properly set
       const shipmentData = {
-        ...formData,
         shipment_id: shipmentId,
-        status: 'draft'
+        description: formData.description || '',
+        incoterms: formData.incoterms || 'EXW',
+        origin: {
+          country: formData.origin?.country || '',
+          city: formData.origin?.city || '',
+          port_airport_name: formData.origin?.port_airport_name || ''
+        },
+        destination: {
+          country: formData.destination?.country || '',
+          city: formData.destination?.city || '',
+          port_airport_name: formData.destination?.port_airport_name || ''
+        },
+        total_product_value: parseFloat(formData.total_product_value) || 0,
+        currency: formData.currency || 'USD',
+        hs_code: formData.hs_code || '',
+        status: 'draft',
+        // Optional fields
+        customer_id: formData.customer_id || null,
+        manufacture_country: formData.manufacture_country || null,
+        total_weight: formData.total_weight || null,
+        total_volume: formData.total_volume || null,
+        classification_reasoning: formData.classification_reasoning || null,
+        product_characteristics: formData.product_characteristics || null,
+        tariff_description: formData.tariff_description || null,
+        import_requirements: formData.import_requirements || null,
+        ai_analysis_summary: formData.ai_analysis_summary || null,
+        estimated_duties_and_taxes: formData.estimated_duties_and_taxes || null,
+        estimated_shipping_costs: formData.estimated_shipping_costs || null,
+        uploaded_documents: formData.uploaded_documents || null,
+        tracking_number: formData.tracking_number || null,
+        carrier_name: formData.carrier_name || null
       };
 
+      console.log('Creating shipment with data:', shipmentData);
       const newShipment = await base44.entities.Shipment.create(shipmentData);
+      console.log('Shipment created successfully:', newShipment);
       
       toast.success(isRTL ? 'משלוח נוצר בהצלחה' : 'Shipment created successfully');
       
@@ -43,7 +75,7 @@ export default function NewShipment() {
       }, 500);
     } catch (error) {
       console.error('Error creating shipment:', error);
-      toast.error(isRTL ? 'שגיאה ביצירת משלוח: ' + error.message : 'Error creating shipment: ' + error.message);
+      toast.error(isRTL ? `שגיאה ביצירת משלוח: ${error.message}` : `Error creating shipment: ${error.message}`);
       setIsCreating(false);
     }
   };
