@@ -49,7 +49,8 @@ export default function Reports() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [isNewReportOpen, setIsNewReportOpen] = useState(false);
+  const urlParams = new URLSearchParams(window.location.search);
+  const [isNewReportOpen, setIsNewReportOpen] = useState(urlParams.get('openNewReport') === 'true');
   const [currentUser, setCurrentUser] = useState(null);
   
   const { data: reports = [], isLoading, refetch } = useQuery({

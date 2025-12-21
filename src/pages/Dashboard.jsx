@@ -56,7 +56,7 @@ export default function Dashboard() {
             {language === 'he' ? 'סקירה כללית של הפעילות שלך' : 'Overview of your activity'}
           </p>
         </div>
-        <Link to={createPageUrl('NewReport')}>
+        <Link to={createPageUrl('Reports?openNewReport=true')}>
           <Button className="bg-gradient-to-r from-[#114B5F] to-[#42C0B9] hover:opacity-90 text-white shadow-lg">
             <Plus className="w-4 h-4 me-2" />
             {t('createNewReport')}
