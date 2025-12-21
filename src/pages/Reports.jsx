@@ -185,6 +185,7 @@ export default function Reports() {
               <TableBody>
                 <AnimatePresence>
                   {filteredReports.map((report, index) => {
+                    if (!report) return null;
                     const StatusIcon = statusConfig[report.status]?.icon || Clock;
                     return (
                       <motion.tr
@@ -197,37 +198,37 @@ export default function Reports() {
                       >
                         <TableCell>
                           <div className="font-medium text-slate-900 dark:text-white">
-                            {report.product_name}
+                            {report?.product_name || 'N/A'}
                           </div>
                           <div className="text-sm text-slate-500">
-                            ID: {report.report_id}
+                            ID: {report?.report_id || 'N/A'}
                           </div>
                         </TableCell>
                         <TableCell>
                           <span className="font-mono font-medium text-[#114B5F] dark:text-[#42C0B9]">
-                            {report.hs_code || '---'}
+                            {report?.hs_code || '---'}
                           </span>
                         </TableCell>
                         <TableCell className="text-slate-600 dark:text-slate-300">
-                          {report.destination_country || '---'}
+                          {report?.destination_country || '---'}
                         </TableCell>
                         <TableCell>
-                          <Badge className={`${statusConfig[report.status]?.color} border`}>
+                          <Badge className={`${statusConfig[report?.status]?.color} border`}>
                             <StatusIcon className="w-3 h-3 me-1" />
-                            {t(report.status)}
+                            {t(report?.status)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-slate-500">
-                          {format(new Date(report.created_date), 'dd/MM/yyyy')}
+                          {report?.created_date ? format(new Date(report.created_date), 'dd/MM/yyyy') : '---'}
                         </TableCell>
                         {currentUser?.role === 'admin' && (
                           <TableCell className="text-slate-600 dark:text-slate-400">
-                            {report.created_by || '---'}
+                            {report?.created_by || '---'}
                           </TableCell>
                         )}
                         <TableCell>
                           <div className="flex items-center justify-end gap-2">
-                            <Link to={createPageUrl(`ReportView?id=${report.id}`)}>
+                            <Link to={createPageUrl(`ReportView?id=${report?.id}`)}>
                               <Button variant="ghost" size="icon" className="h-8 w-8">
                                 <Eye className="w-4 h-4 text-slate-500" />
                               </Button>
@@ -236,7 +237,7 @@ export default function Reports() {
                               variant="ghost" 
                               size="icon" 
                               className="h-8 w-8"
-                              onClick={() => handleDelete(report.id)}
+                              onClick={() => handleDelete(report?.id)}
                             >
                               <Trash2 className="w-4 h-4 text-red-500" />
                             </Button>

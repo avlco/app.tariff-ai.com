@@ -4,9 +4,9 @@ import NewShipment from './pages/NewShipment';
 import Profile from './pages/Profile';
 import ReportView from './pages/ReportView';
 import Reports from './pages/Reports';
+import ShipmentView from './pages/ShipmentView';
 import Shipments from './pages/Shipments';
 import Support from './pages/Support';
-import ShipmentView from './pages/ShipmentView';
 import __Layout from './Layout.jsx';
 
 
@@ -17,9 +17,9 @@ export const PAGES = {
     "Profile": Profile,
     "ReportView": ReportView,
     "Reports": Reports,
+    "ShipmentView": ShipmentView,
     "Shipments": Shipments,
     "Support": Support,
-    "ShipmentView": ShipmentView,
 }
 
 export const pagesConfig = {

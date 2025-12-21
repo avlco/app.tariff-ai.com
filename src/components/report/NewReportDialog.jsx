@@ -119,21 +119,18 @@ Format your response as a JSON object with the following structure:
     });
 
     const user = await base44.auth.me();
-    const currentData = await base44.entities.User.list();
-    const userData = currentData.find(u => u.email === user.email);
-    
-    if (userData) {
+    if (user) {
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
-      const reportsThisMonth = (userData.reports_used_this_month || 0);
-      const lastUpdate = userData.updated_date ? new Date(userData.updated_date) : null;
+      const reportsUsedThisMonth = (user.reports_used_this_month || 0);
+      const lastUpdate = user.updated_date ? new Date(user.updated_date) : null;
       const shouldReset = !lastUpdate || 
         lastUpdate.getMonth() !== currentMonth || 
         lastUpdate.getFullYear() !== currentYear;
 
       await base44.auth.updateMe({
-        reports_used_this_month: shouldReset ? 1 : reportsThisMonth + 1,
-        total_reports_created: (userData.total_reports_created || 0) + 1
+        reports_used_this_month: shouldReset ? 1 : reportsUsedThisMonth + 1,
+        total_reports_created: (user.total_reports_created || 0) + 1
       });
     }
 
