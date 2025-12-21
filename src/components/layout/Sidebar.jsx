@@ -23,9 +23,9 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
   
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, label: t('dashboard') },
+    { name: 'Shipments', icon: Package, label: isRTL ? 'משלוחים' : 'Shipments' },
     { name: 'Reports', icon: FileText, label: t('reports') },
     { name: 'Customers', icon: User, label: isRTL ? 'לקוחות' : 'Customers' },
-    { name: 'Shipments', icon: Package, label: isRTL ? 'משלוחים' : 'Shipments' },
     { name: 'Support', icon: Headphones, label: t('support') },
     { name: 'Profile', icon: User, label: t('profile') },
   ];
