@@ -50,12 +50,23 @@ export default function Reports() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isNewReportOpen, setIsNewReportOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   
   const { data: reports, isLoading, refetch } = useQuery({
     queryKey: ['reports'],
     queryFn: () => base44.entities.ClassificationReport.list('-created_date'),
     initialData: [],
   });
+
+  React.useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const user = await base44.auth.me();
+        setCurrentUser(user);
+      } catch (e) {}
+    };
+    loadUser();
+  }, []);
   
   const handleReportCreated = (reportId) => {
     queryClient.invalidateQueries({ queryKey: ['reports'] });
@@ -165,6 +176,9 @@ export default function Reports() {
                   <TableHead>{t('destinationCountry')}</TableHead>
                   <TableHead>{language === 'he' ? 'סטטוס' : 'Status'}</TableHead>
                   <TableHead>{language === 'he' ? 'תאריך' : 'Date'}</TableHead>
+                  {currentUser?.role === 'admin' && (
+                    <TableHead>{language === 'he' ? 'נוצר על ידי' : 'Created By'}</TableHead>
+                  )}
                   <TableHead className="text-end">{language === 'he' ? 'פעולות' : 'Actions'}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -206,6 +220,11 @@ export default function Reports() {
                         <TableCell className="text-slate-500">
                           {format(new Date(report.created_date), 'dd/MM/yyyy')}
                         </TableCell>
+                        {currentUser?.role === 'admin' && (
+                          <TableCell className="text-slate-600 dark:text-slate-400">
+                            {report.created_by || '---'}
+                          </TableCell>
+                        )}
                         <TableCell>
                           <div className="flex items-center justify-end gap-2">
                             <Link to={createPageUrl(`ReportView?id=${report.id}`)}>
