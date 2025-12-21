@@ -19,34 +19,42 @@ const countries = [
   'Italy', 'Spain', 'Netherlands', 'Switzerland', 'Sweden', 'Poland', 'Belgium'
 ];
 
-export default function ShipmentForm({ customers, onSubmit, isLoading }) {
+export default function ShipmentForm({ customers, onSubmit, isLoading, initialData = {}, isAiGenerated = false }) {
   const { isRTL } = useLanguage();
   const [formData, setFormData] = useState({
-    customer_id: '',
-    description: '',
-    incoterms: '',
+    customer_id: initialData.customer_id || '',
+    description: initialData.description || '',
+    incoterms: initialData.incoterms || '',
     origin: {
-      country: '',
-      city: '',
-      port_airport_name: ''
+      country: initialData.origin?.country || '',
+      city: initialData.origin?.city || '',
+      port_airport_name: initialData.origin?.port_airport_name || ''
     },
     destination: {
-      country: '',
-      city: '',
-      port_airport_name: ''
+      country: initialData.destination?.country || '',
+      city: initialData.destination?.city || '',
+      port_airport_name: initialData.destination?.port_airport_name || ''
     },
-    manufacture_country: '',
-    total_product_value: '',
-    currency: 'USD',
+    manufacture_country: initialData.manufacture_country || '',
+    total_product_value: initialData.total_product_value || '',
+    currency: initialData.currency || 'USD',
     total_weight: {
-      value: '',
-      unit: 'kg'
+      value: initialData.total_weight?.value || '',
+      unit: initialData.total_weight?.unit || 'kg'
     },
     total_volume: {
-      value: '',
-      unit: 'cbm'
+      value: initialData.total_volume?.value || '',
+      unit: initialData.total_volume?.unit || 'cbm'
     },
-    hs_code: ''
+    hs_code: initialData.hs_code || '',
+    classification_reasoning: initialData.classification_reasoning || '',
+    product_characteristics: initialData.product_characteristics || [],
+    tariff_description: initialData.tariff_description || '',
+    import_requirements: initialData.import_requirements || [],
+    ai_analysis_summary: initialData.ai_analysis_summary || '',
+    estimated_duties_and_taxes: initialData.estimated_duties_and_taxes || null,
+    estimated_shipping_costs: initialData.estimated_shipping_costs || [],
+    uploaded_documents: initialData.uploaded_documents || []
   });
 
   const handleChange = (field, value) => {
@@ -326,6 +334,93 @@ export default function ShipmentForm({ customers, onSubmit, isLoading }) {
           </div>
         </div>
       </div>
+
+      {/* AI Analysis Summary */}
+      {formData.ai_analysis_summary && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+            {isRTL ? 'סיכום ניתוח AI' : 'AI Analysis Summary'}
+          </h3>
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-[#475569] dark:text-[#CBD5E1] whitespace-pre-wrap">
+              {formData.ai_analysis_summary}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Estimated Duties & Taxes */}
+      {formData.estimated_duties_and_taxes?.total_amount && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+            {isRTL ? 'הערכת מכסים ומיסים' : 'Estimated Duties & Taxes'}
+          </h3>
+          <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium text-[#475569] dark:text-[#CBD5E1]">
+                {isRTL ? 'סכום משוער כולל:' : 'Estimated Total:'}
+              </span>
+              <span className="text-lg font-bold text-[#0F172A] dark:text-[#F8FAFC]">
+                {formData.estimated_duties_and_taxes.total_amount.toLocaleString()} {formData.estimated_duties_and_taxes.currency}
+              </span>
+            </div>
+            {formData.estimated_duties_and_taxes.breakdown?.length > 0 && (
+              <div className="mt-3 space-y-1">
+                {formData.estimated_duties_and_taxes.breakdown.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-sm text-[#64748B] dark:text-[#94A3B8]">
+                    <span>{item.type} ({item.rate})</span>
+                    <span>{item.amount.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Estimated Shipping Costs */}
+      {formData.estimated_shipping_costs?.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+            {isRTL ? 'הערכת עלויות שילוח' : 'Estimated Shipping Costs'}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {formData.estimated_shipping_costs.map((cost, idx) => (
+              <div key={idx} className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h4 className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">{cost.carrier}</h4>
+                    <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">{cost.service} - {cost.mode}</p>
+                  </div>
+                  <span className="font-bold text-[#42C0B9]">
+                    {cost.estimated_cost.toLocaleString()} {cost.currency}
+                  </span>
+                </div>
+                <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
+                  {isRTL ? 'זמן משוער: ' : 'Est. Transit: '}{cost.estimated_transit_time}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Import Requirements */}
+      {formData.import_requirements?.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+            {isRTL ? 'דרישות יבוא' : 'Import Requirements'}
+          </h3>
+          <div className="space-y-3">
+            {formData.import_requirements.map((req, idx) => (
+              <div key={idx} className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <h4 className="font-semibold text-[#0F172A] dark:text-[#F8FAFC] mb-1">{req.title}</h4>
+                <p className="text-sm text-[#64748B] dark:text-[#94A3B8]">{req.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Submit */}
       <div className="flex justify-end gap-3 pt-4 border-t">

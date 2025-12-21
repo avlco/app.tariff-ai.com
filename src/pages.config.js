@@ -7,6 +7,7 @@ import Support from './pages/Support';
 import Customers from './pages/Customers';
 import Shipments from './pages/Shipments';
 import NewShipment from './pages/NewShipment';
+import NewShipmentAI from './pages/NewShipmentAI';
 import __Layout from './Layout.jsx';
 
 
@@ -20,6 +21,7 @@ export const PAGES = {
     "Customers": Customers,
     "Shipments": Shipments,
     "NewShipment": NewShipment,
+    "NewShipmentAI": NewShipmentAI,
 }
 
 export const pagesConfig = {

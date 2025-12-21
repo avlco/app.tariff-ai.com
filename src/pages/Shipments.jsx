@@ -165,9 +165,15 @@ export default function Shipments() {
             className="hidden"
           />
           <Link to={createPageUrl('NewShipment')}>
-            <Button className="bg-[#42C0B9] hover:bg-[#3AB0A8] text-white">
+            <Button variant="outline" className="text-white">
               <Plus className="w-4 h-4 me-2" />
               {isRTL ? 'משלוח חדש' : 'New Shipment'}
+            </Button>
+          </Link>
+          <Link to={createPageUrl('NewShipmentAI')}>
+            <Button className="bg-gradient-to-r from-[#114B5F] to-[#42C0B9] hover:from-[#0D3A4A] hover:to-[#3AB0A8] text-white">
+              <span className="me-2">✨</span>
+              {isRTL ? 'משלוח AI' : 'AI Shipment'}
             </Button>
           </Link>
         </div>
