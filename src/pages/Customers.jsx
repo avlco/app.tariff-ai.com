@@ -12,7 +12,9 @@ import {
   MapPin,
   Edit,
   Trash2,
-  Building2
+  Building2,
+  Download,
+  Upload
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -116,6 +118,46 @@ export default function Customers() {
     }
   };
 
+  const handleExport = () => {
+    const dataStr = JSON.stringify(customers, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `customers-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(isRTL ? 'הנתונים יוצאו בהצלחה' : 'Data exported successfully');
+  };
+
+  const handleImport = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const importedData = JSON.parse(event.target?.result);
+        if (!Array.isArray(importedData)) {
+          toast.error(isRTL ? 'פורמט קובץ לא תקין' : 'Invalid file format');
+          return;
+        }
+
+        for (const customer of importedData) {
+          const { id, created_date, updated_date, created_by, ...customerData } = customer;
+          await base44.entities.Customer.create(customerData);
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['customers'] });
+        toast.success(isRTL ? `${importedData.length} לקוחות יובאו בהצלחה` : `${importedData.length} customers imported successfully`);
+      } catch (error) {
+        toast.error(isRTL ? 'שגיאה בייבוא נתונים' : 'Error importing data');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -130,32 +172,49 @@ export default function Customers() {
           </p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) setEditingCustomer(null);
-        }}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#42C0B9] hover:bg-[#3AB0A8] text-white">
-              <Plus className="w-4 h-4 me-2" />
-              {isRTL ? 'לקוח חדש' : 'New Customer'}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingCustomer 
-                  ? (isRTL ? 'עריכת לקוח' : 'Edit Customer')
-                  : (isRTL ? 'לקוח חדש' : 'New Customer')
-                }
-              </DialogTitle>
-            </DialogHeader>
-            <CustomerForm
-              customer={editingCustomer}
-              onSubmit={handleSubmit}
-              isLoading={createMutation.isPending || updateMutation.isPending}
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport} disabled={customers.length === 0}>
+            <Download className="w-4 h-4 me-2" />
+            {isRTL ? 'יצא' : 'Export'}
+          </Button>
+          <Button variant="outline" onClick={() => document.getElementById('import-customers')?.click()}>
+            <Upload className="w-4 h-4 me-2" />
+            {isRTL ? 'יבא' : 'Import'}
+          </Button>
+          <input
+            id="import-customers"
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            className="hidden"
+          />
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) setEditingCustomer(null);
+          }}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#42C0B9] hover:bg-[#3AB0A8] text-white">
+                <Plus className="w-4 h-4 me-2" />
+                {isRTL ? 'לקוח חדש' : 'New Customer'}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingCustomer 
+                    ? (isRTL ? 'עריכת לקוח' : 'Edit Customer')
+                    : (isRTL ? 'לקוח חדש' : 'New Customer')
+                  }
+                </DialogTitle>
+              </DialogHeader>
+              <CustomerForm
+                customer={editingCustomer}
+                onSubmit={handleSubmit}
+                isLoading={createMutation.isPending || updateMutation.isPending}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Search */}

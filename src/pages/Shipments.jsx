@@ -13,7 +13,9 @@ import {
   Calendar,
   MapPin,
   DollarSign,
-  Filter
+  Filter,
+  Download,
+  Upload
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,6 +82,46 @@ export default function Shipments() {
     return customer?.customer_name || (isRTL ? 'לא צוין' : 'Not specified');
   };
 
+  const handleExport = () => {
+    const dataStr = JSON.stringify(shipments, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `shipments-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success(isRTL ? 'הנתונים יוצאו בהצלחה' : 'Data exported successfully');
+  };
+
+  const handleImport = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const importedData = JSON.parse(event.target?.result);
+        if (!Array.isArray(importedData)) {
+          toast.error(isRTL ? 'פורמט קובץ לא תקין' : 'Invalid file format');
+          return;
+        }
+
+        for (const shipment of importedData) {
+          const { id, created_date, updated_date, created_by, ...shipmentData } = shipment;
+          await base44.entities.Shipment.create(shipmentData);
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['shipments'] });
+        toast.success(isRTL ? `${importedData.length} משלוחים יובאו בהצלחה` : `${importedData.length} shipments imported successfully`);
+      } catch (error) {
+        toast.error(isRTL ? 'שגיאה בייבוא נתונים' : 'Error importing data');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const filteredShipments = shipments.filter(shipment => {
     const matchesSearch = 
       shipment.shipment_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -105,12 +147,29 @@ export default function Shipments() {
           </p>
         </div>
         
-        <Link to={createPageUrl('NewShipment')}>
-          <Button className="bg-[#42C0B9] hover:bg-[#3AB0A8] text-white">
-            <Plus className="w-4 h-4 me-2" />
-            {isRTL ? 'משלוח חדש' : 'New Shipment'}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExport} disabled={shipments.length === 0}>
+            <Download className="w-4 h-4 me-2" />
+            {isRTL ? 'יצא' : 'Export'}
           </Button>
-        </Link>
+          <Button variant="outline" onClick={() => document.getElementById('import-shipments')?.click()}>
+            <Upload className="w-4 h-4 me-2" />
+            {isRTL ? 'יבא' : 'Import'}
+          </Button>
+          <input
+            id="import-shipments"
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            className="hidden"
+          />
+          <Link to={createPageUrl('NewShipment')}>
+            <Button className="bg-[#42C0B9] hover:bg-[#3AB0A8] text-white">
+              <Plus className="w-4 h-4 me-2" />
+              {isRTL ? 'משלוח חדש' : 'New Shipment'}
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

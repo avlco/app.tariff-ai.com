@@ -6,6 +6,7 @@ import Reports from './pages/Reports';
 import Support from './pages/Support';
 import Customers from './pages/Customers';
 import Shipments from './pages/Shipments';
+import NewShipment from './pages/NewShipment';
 import __Layout from './Layout.jsx';
 
 
@@ -18,6 +19,7 @@ export const PAGES = {
     "Support": Support,
     "Customers": Customers,
     "Shipments": Shipments,
+    "NewShipment": NewShipment,
 }
 
 export const pagesConfig = {
