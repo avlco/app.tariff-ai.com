@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLanguage } from '../components/providers/LanguageContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -37,11 +41,15 @@ import {
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import NewReportDialog from '../components/report/NewReportDialog';
 
 export default function Reports() {
   const { t, language, isRTL } = useLanguage();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [isNewReportOpen, setIsNewReportOpen] = useState(false);
   
   const { data: reports, isLoading, refetch } = useQuery({
     queryKey: ['reports'],
@@ -49,6 +57,13 @@ export default function Reports() {
     initialData: [],
   });
   
+  const handleReportCreated = (reportId) => {
+    queryClient.invalidateQueries({ queryKey: ['reports'] });
+    setIsNewReportOpen(false);
+    toast.success(language === 'he' ? 'דוח נוצר בהצלחה!' : 'Report created successfully!');
+    navigate(createPageUrl(`ReportView?reportId=${reportId}`));
+  };
+
   const filteredReports = reports.filter(report => {
     const matchesSearch = report.product_name?.toLowerCase().includes(search.toLowerCase()) ||
                          report.hs_code?.toLowerCase().includes(search.toLowerCase());
@@ -80,12 +95,13 @@ export default function Reports() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
           {t('reports')}
         </h1>
-        <Link to={createPageUrl('NewReport')}>
-          <Button className="bg-[#42C0B9] hover:bg-[#42C0B9]/90 shadow-lg shadow-[#42C0B9]/25">
-            <Plus className="w-4 h-4 me-2" />
-            {t('createNewReport')}
-          </Button>
-        </Link>
+        <Button 
+          onClick={() => setIsNewReportOpen(true)}
+          className="bg-[#42C0B9] hover:bg-[#42C0B9]/90 shadow-lg shadow-[#42C0B9]/25"
+        >
+          <Plus className="w-4 h-4 me-2" />
+          {t('createNewReport')}
+        </Button>
       </div>
       
       {/* Filters */}
@@ -131,12 +147,13 @@ export default function Reports() {
             <p className="text-slate-500 dark:text-slate-400 mb-4">
               {language === 'he' ? 'צור את הדוח הראשון שלך' : 'Create your first report'}
             </p>
-            <Link to={createPageUrl('NewReport')}>
-              <Button className="bg-[#42C0B9] hover:bg-[#42C0B9]/90">
-                <Plus className="w-4 h-4 me-2" />
-                {t('createNewReport')}
-              </Button>
-            </Link>
+            <Button 
+              onClick={() => setIsNewReportOpen(true)}
+              className="bg-[#42C0B9] hover:bg-[#42C0B9]/90"
+            >
+              <Plus className="w-4 h-4 me-2" />
+              {t('createNewReport')}
+            </Button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -215,6 +232,16 @@ export default function Reports() {
           </div>
         )}
       </Card>
+
+      {/* New Report Dialog */}
+      <Dialog open={isNewReportOpen} onOpenChange={setIsNewReportOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <NewReportDialog 
+            onReportCreated={handleReportCreated}
+            onCancel={() => setIsNewReportOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
