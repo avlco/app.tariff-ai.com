@@ -20,7 +20,6 @@ import { base44 } from '@/api/base44Client';
 
 export default function Sidebar({ currentPage, isOpen, onClose }) {
   const { t, language, setLanguage, theme, setTheme, isRTL } = useLanguage();
-  const { Users, Package } = require('lucide-react');
   
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, label: t('dashboard') },
