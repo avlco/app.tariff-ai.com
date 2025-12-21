@@ -137,11 +137,31 @@ export default function Shipments() {
     e.target.value = '';
   };
 
-  const handleAiAnalysisComplete = (data) => {
-    setAiAnalyzedData(data.shipmentData);
-    setIdentifiedCustomer(data.identifiedCustomer);
+  const handleAiAnalysisComplete = async (data) => {
     setIsAiDialogOpen(false);
-    setShowReviewForm(true);
+    
+    if (!data.shipmentData) {
+      toast.error(isRTL ? 'לא התקבלו נתוני משלוח' : 'No shipment data received');
+      return;
+    }
+
+    // Create shipment directly from AI analysis
+    try {
+      const shipmentId = `SHP-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      
+      const shipmentData = {
+        ...data.shipmentData,
+        shipment_id: shipmentId,
+        status: 'draft'
+      };
+
+      await base44.entities.Shipment.create(shipmentData);
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      toast.success(isRTL ? 'משלוח נוצר בהצלחה!' : 'Shipment created successfully!');
+    } catch (error) {
+      console.error('Error creating shipment from AI:', error);
+      toast.error(isRTL ? `שגיאה ביצירת משלוח: ${error.message}` : `Error creating shipment: ${error.message}`);
+    }
   };
 
   const createShipmentMutation = useMutation({
@@ -162,7 +182,7 @@ export default function Shipments() {
       setIdentifiedCustomer(null);
     },
     onError: (error) => {
-      toast.error(isRTL ? 'שגיאה ביצירת משלוח' : 'Error creating shipment');
+      toast.error(isRTL ? `שגיאה ביצירת משלוח: ${error.message}` : `Error creating shipment: ${error.message}`);
     }
   });
 

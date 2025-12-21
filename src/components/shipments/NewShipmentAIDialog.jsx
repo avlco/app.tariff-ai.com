@@ -55,12 +55,14 @@ export default function NewShipmentAIDialog({ onAnalysisComplete, onCancel }) {
         freeText: freeText.trim() || null
       });
       
+      setIsAnalyzing(false);
+      
       if (response.data.status === 'success') {
-        setIsAnalyzing(false);
         toast.success(isRTL ? 'ניתוח AI הושלם בהצלחה!' : 'AI analysis completed successfully!');
         onAnalysisComplete(response.data);
       } else {
-        throw new Error(response.data.error || 'Analysis failed');
+        toast.error(isRTL ? `שגיאה: ${response.data.details || 'הניתוח נכשל'}` : `Error: ${response.data.details || 'Analysis failed'}`);
+        throw new Error(response.data.details || 'Analysis failed');
       }
     } catch (error) {
       setIsUploading(false);
