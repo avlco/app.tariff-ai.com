@@ -212,7 +212,7 @@ export default function Shipments() {
             className="hidden"
           />
           <Link to={createPageUrl('NewShipment')}>
-            <Button className="bg-[#0F766E] hover:bg-[#0D6D63] text-white">
+            <Button className="bg-[#114B5F] hover:bg-[#0D3A4A] text-white">
               <Plus className="w-4 h-4 me-2" />
               {isRTL ? 'משלוח חדש' : 'New Shipment'}
             </Button>
