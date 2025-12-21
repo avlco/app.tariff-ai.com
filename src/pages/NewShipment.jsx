@@ -27,30 +27,26 @@ export default function NewShipment() {
       // Generate unique shipment ID
       const shipmentId = `SHP-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
       
+      // Clean up weight and volume - only include if value is present
+      const cleanWeight = formData.total_weight?.value ? formData.total_weight : null;
+      const cleanVolume = formData.total_volume?.value ? formData.total_volume : null;
+      
       // Ensure all required fields are properly set
       const shipmentData = {
         shipment_id: shipmentId,
-        description: formData.description || '',
-        incoterms: formData.incoterms || 'EXW',
-        origin: {
-          country: formData.origin?.country || '',
-          city: formData.origin?.city || '',
-          port_airport_name: formData.origin?.port_airport_name || ''
-        },
-        destination: {
-          country: formData.destination?.country || '',
-          city: formData.destination?.city || '',
-          port_airport_name: formData.destination?.port_airport_name || ''
-        },
-        total_product_value: parseFloat(formData.total_product_value) || 0,
-        currency: formData.currency || 'USD',
-        hs_code: formData.hs_code || '',
+        description: formData.description,
+        incoterms: formData.incoterms,
+        origin: formData.origin,
+        destination: formData.destination,
+        total_product_value: parseFloat(formData.total_product_value),
+        currency: formData.currency,
+        hs_code: formData.hs_code,
         status: 'draft',
         // Optional fields
         customer_id: formData.customer_id || null,
         manufacture_country: formData.manufacture_country || null,
-        total_weight: formData.total_weight || null,
-        total_volume: formData.total_volume || null,
+        total_weight: cleanWeight,
+        total_volume: cleanVolume,
         classification_reasoning: formData.classification_reasoning || null,
         product_characteristics: formData.product_characteristics || null,
         tariff_description: formData.tariff_description || null,
@@ -76,6 +72,7 @@ export default function NewShipment() {
     } catch (error) {
       console.error('Error creating shipment:', error);
       toast.error(isRTL ? `שגיאה ביצירת משלוח: ${error.message}` : `Error creating shipment: ${error.message}`);
+    } finally {
       setIsCreating(false);
     }
   };
