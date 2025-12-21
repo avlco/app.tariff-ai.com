@@ -52,10 +52,9 @@ export default function Reports() {
   const [isNewReportOpen, setIsNewReportOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   
-  const { data: reports, isLoading, refetch } = useQuery({
+  const { data: reports = [], isLoading, refetch } = useQuery({
     queryKey: ['reports'],
     queryFn: () => base44.entities.ClassificationReport.list('-created_date'),
-    initialData: [],
   });
 
   React.useEffect(() => {
@@ -75,7 +74,8 @@ export default function Reports() {
     navigate(createPageUrl(`ReportView?reportId=${reportId}`));
   };
 
-  const filteredReports = reports.filter(report => {
+  const filteredReports = (reports || []).filter(report => {
+    if (!report) return false;
     const matchesSearch = report.product_name?.toLowerCase().includes(search.toLowerCase()) ||
                          report.hs_code?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
