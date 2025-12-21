@@ -1,23 +1,23 @@
+import Customers from './pages/Customers';
 import Dashboard from './pages/Dashboard';
+import NewShipment from './pages/NewShipment';
 import Profile from './pages/Profile';
 import ReportView from './pages/ReportView';
 import Reports from './pages/Reports';
-import Support from './pages/Support';
-import Customers from './pages/Customers';
 import Shipments from './pages/Shipments';
-import NewShipment from './pages/NewShipment';
+import Support from './pages/Support';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "Customers": Customers,
     "Dashboard": Dashboard,
+    "NewShipment": NewShipment,
     "Profile": Profile,
     "ReportView": ReportView,
     "Reports": Reports,
-    "Support": Support,
-    "Customers": Customers,
     "Shipments": Shipments,
-    "NewShipment": NewShipment,
+    "Support": Support,
 }
 
 export const pagesConfig = {
