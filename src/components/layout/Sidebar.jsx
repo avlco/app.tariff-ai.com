@@ -12,18 +12,22 @@ import {
   Sun,
   Moon,
   Globe,
-  X
+  X,
+  Package
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 
 export default function Sidebar({ currentPage, isOpen, onClose }) {
   const { t, language, setLanguage, theme, setTheme, isRTL } = useLanguage();
+  const { Users, Package } = require('lucide-react');
   
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, label: t('dashboard') },
     { name: 'NewReport', icon: FilePlus, label: t('newReport') },
     { name: 'Reports', icon: FileText, label: t('reports') },
+    { name: 'Customers', icon: User, label: isRTL ? 'לקוחות' : 'Customers' },
+    { name: 'Shipments', icon: Package, label: isRTL ? 'משלוחים' : 'Shipments' },
     { name: 'Support', icon: Headphones, label: t('support') },
     { name: 'Profile', icon: User, label: t('profile') },
   ];
