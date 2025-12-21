@@ -50,10 +50,10 @@ export default function RecentReportsTable({ reports, loading }) {
         </Link>
       </CardHeader>
       <CardContent>
-        {reports.length === 0 ? (
+        {!reports || reports.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-slate-500 dark:text-slate-400">{t('noResults')}</p>
-            <Link to={createPageUrl('NewReport')}>
+            <Link to={createPageUrl('Reports')}>
               <Button className="mt-4 bg-[#42C0B9] hover:bg-[#42C0B9]/90">
                 {t('createNewReport')}
               </Button>
@@ -61,29 +61,29 @@ export default function RecentReportsTable({ reports, loading }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {reports.slice(0, 5).map((report) => (
+            {reports.slice(0, 5).filter(r => r).map((report) => (
               <div
-                key={report.id}
+                key={report?.id}
                 className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <h4 className="font-medium text-slate-900 dark:text-white truncate">
-                    {report.product_name}
+                    {report?.product_name || 'N/A'}
                   </h4>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-sm text-slate-500 dark:text-slate-400">
-                      {report.hs_code || '---'}
+                      {report?.hs_code || '---'}
                     </span>
                     <span className="text-xs text-slate-400">
-                      {format(new Date(report.created_date), 'dd/MM/yyyy')}
+                      {report?.created_date ? format(new Date(report.created_date), 'dd/MM/yyyy') : '---'}
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge className={`${statusColors[report.status]} border`}>
-                    {t(report.status)}
+                  <Badge className={`${statusColors[report?.status] || statusColors.pending} border`}>
+                    {t(report?.status || 'pending')}
                   </Badge>
-                  <Link to={createPageUrl(`ReportView?id=${report.id}`)}>
+                  <Link to={createPageUrl(`ReportView?id=${report?.id}`)}>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
                       <Eye className="w-4 h-4 text-slate-500" />
                     </Button>

@@ -26,15 +26,15 @@ export default function Dashboard() {
     loadUser();
   }, []);
   
-  const { data: reports, isLoading } = useQuery({
+  const { data: reports = [], isLoading } = useQuery({
     queryKey: ['reports'],
     queryFn: () => base44.entities.ClassificationReport.list('-created_date', 10),
-    initialData: [],
   });
   
-  const completedReports = reports.filter(r => r.status === 'completed').length;
-  const pendingReports = reports.filter(r => r.status === 'pending').length;
-  const thisMonthReports = reports.filter(r => {
+  const completedReports = (reports || []).filter(r => r && r.status === 'completed').length;
+  const pendingReports = (reports || []).filter(r => r && r.status === 'pending').length;
+  const thisMonthReports = (reports || []).filter(r => {
+    if (!r || !r.created_date) return false;
     const created = new Date(r.created_date);
     const now = new Date();
     return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
