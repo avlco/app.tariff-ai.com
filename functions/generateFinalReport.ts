@@ -81,10 +81,16 @@ Provide:
       ? 'completed'
       : 'failed';
     
+    // Prepare error details if failed
+    const errorDetails = finalStatus === 'failed' 
+      ? `איכות נמוכה: ${qaResult.issues?.join(', ') || 'הדוח לא עמד בבדיקות האיכות'}`
+      : undefined;
+    
     // Update report with final status
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: finalStatus,
-      status: finalStatus
+      status: finalStatus,
+      ...(errorDetails && { error_details: errorDetails })
     });
     
     // Update user statistics
@@ -113,14 +119,17 @@ Provide:
     console.error('Error generating final report:', error);
     
     // Update report status to failed
-    if (req.json) {
-      const { reportId } = await req.json();
-      if (reportId) {
-        await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+    try {
+      const body = await req.json();
+      if (body.reportId) {
+        await base44.asServiceRole.entities.ClassificationReport.update(body.reportId, {
           processing_status: 'failed',
-          status: 'failed'
+          status: 'failed',
+          error_details: error.message || 'שגיאה לא צפויה ביצירת הדוח הסופי'
         });
       }
+    } catch (e) {
+      // Ignore if can't parse request body
     }
     
     return Response.json({ 
