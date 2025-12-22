@@ -15,10 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
+
 import {
   Table,
   TableBody,
@@ -41,7 +38,7 @@ import {
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import NewReportDialog from '../components/report/NewReportDialog';
+
 
 export default function Reports() {
   const { t, language, isRTL } = useLanguage();
@@ -49,7 +46,7 @@ export default function Reports() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [isNewReportOpen, setIsNewReportOpen] = useState(false);
+
   const [currentUser, setCurrentUser] = useState(null);
   
   const { data: reports = [], isLoading, refetch } = useQuery({
@@ -67,12 +64,7 @@ export default function Reports() {
     loadUser();
   }, []);
   
-  const handleReportCreated = (reportId) => {
-    queryClient.invalidateQueries({ queryKey: ['reports'] });
-    setIsNewReportOpen(false);
-    toast.success(language === 'he' ? 'דוח נוצר בהצלחה!' : 'Report created successfully!');
-    navigate(createPageUrl(`ReportView?reportId=${reportId}`));
-  };
+
 
   const filteredReports = (reports || []).filter(report => {
     if (!report) return false;
@@ -106,13 +98,6 @@ export default function Reports() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
           {t('reports')}
         </h1>
-        <Button 
-          onClick={() => setIsNewReportOpen(true)}
-          className="bg-[#42C0B9] hover:bg-[#42C0B9]/90 shadow-lg shadow-[#42C0B9]/25"
-        >
-          <Plus className="w-4 h-4 me-2" />
-          {t('createNewReport')}
-        </Button>
       </div>
       
       {/* Filters */}
@@ -156,15 +141,8 @@ export default function Reports() {
               {t('noResults')}
             </h3>
             <p className="text-slate-500 dark:text-slate-400 mb-4">
-              {language === 'he' ? 'צור את הדוח הראשון שלך' : 'Create your first report'}
+              {language === 'he' ? 'אין דוחות זמינים' : 'No reports available'}
             </p>
-            <Button 
-              onClick={() => setIsNewReportOpen(true)}
-              className="bg-[#42C0B9] hover:bg-[#42C0B9]/90"
-            >
-              <Plus className="w-4 h-4 me-2" />
-              {t('createNewReport')}
-            </Button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -252,16 +230,6 @@ export default function Reports() {
           </div>
         )}
       </Card>
-
-      {/* New Report Dialog */}
-      <Dialog open={isNewReportOpen} onOpenChange={setIsNewReportOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <NewReportDialog 
-            onReportCreated={handleReportCreated}
-            onCancel={() => setIsNewReportOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-    </div>
+      </div>
   );
 }

@@ -53,11 +53,6 @@ export default function RecentReportsTable({ reports, loading }) {
         {!reports || reports.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-slate-500 dark:text-slate-400">{t('noResults')}</p>
-            <Link to={createPageUrl('Reports')}>
-              <Button className="mt-4 bg-[#42C0B9] hover:bg-[#42C0B9]/90">
-                {t('createNewReport')}
-              </Button>
-            </Link>
           </div>
         ) : (
           <div className="space-y-3">
