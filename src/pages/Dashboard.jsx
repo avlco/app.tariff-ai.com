@@ -34,8 +34,8 @@ export default function Dashboard() {
     queryFn: () => base44.entities.ClassificationReport.list('-created_date', 10),
   });
   
-  const completedReports = (reports || []).filter(r => r && r.status === 'completed').length;
-  const pendingReports = (reports || []).filter(r => r && r.status === 'pending').length;
+  const completedReports = (reports || []).filter(r => r && r.status === 'completed' && r.confidence_score > 85).length;
+  const pendingReports = (reports || []).filter(r => r && r.status === 'processing').length;
   const thisMonthReports = (reports || []).filter(r => {
     if (!r || !r.created_date) return false;
     const created = new Date(r.created_date);

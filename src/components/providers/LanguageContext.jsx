@@ -82,7 +82,7 @@ const translations = {
     contactUs: 'צור קשר',
     
     // Status
-    pending: 'ממתין',
+    processing: 'בתהליך',
     completed: 'הושלם',
     failed: 'נכשל',
     open: 'פתוח',
@@ -185,7 +185,7 @@ const translations = {
     contactUs: 'Contact Us',
     
     // Status
-    pending: 'Pending',
+    processing: 'Processing',
     completed: 'Completed',
     failed: 'Failed',
     open: 'Open',

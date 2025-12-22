@@ -15,6 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import {
   Table,
@@ -89,7 +95,7 @@ export default function Reports() {
   };
   
   const statusConfig = {
-    pending: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42] border-[#D89C42]/20' },
+    processing: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42] border-[#D89C42]/20' },
     completed: { icon: CheckCircle2, color: 'bg-[#42C0B9]/10 text-[#42C0B9] border-[#42C0B9]/20' },
     failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600 border-red-200' },
   };
@@ -130,7 +136,7 @@ export default function Reports() {
             <SelectContent>
               <SelectItem value="all">{language === 'he' ? 'כל הסטטוסים' : 'All Status'}</SelectItem>
               <SelectItem value="completed">{t('completed')}</SelectItem>
-              <SelectItem value="pending">{t('pending')}</SelectItem>
+              <SelectItem value="processing">{language === 'he' ? 'בתהליך' : 'Processing'}</SelectItem>
               <SelectItem value="failed">{t('failed')}</SelectItem>
             </SelectContent>
           </Select>
@@ -200,10 +206,26 @@ export default function Reports() {
                           {report?.destination_country || '---'}
                         </TableCell>
                         <TableCell>
-                          <Badge className={`${statusConfig[report?.status]?.color} border`}>
-                            <StatusIcon className="w-3 h-3 me-1" />
-                            {t(report?.status)}
-                          </Badge>
+                          {report?.status === 'failed' && report?.error_details ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge className={`${statusConfig[report?.status]?.color} border cursor-help`}>
+                                    <StatusIcon className="w-3 h-3 me-1" />
+                                    {t(report?.status)}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p className="text-sm">{report.error_details}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <Badge className={`${statusConfig[report?.status]?.color} border`}>
+                              <StatusIcon className="w-3 h-3 me-1" />
+                              {t(report?.status)}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-slate-500">
                           {report?.created_date ? format(new Date(report.created_date), 'dd/MM/yyyy') : '---'}

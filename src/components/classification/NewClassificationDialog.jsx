@@ -69,7 +69,7 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
         country_of_manufacture: formData.country_of_manufacture,
         country_of_origin: formData.country_of_origin,
         destination_country: formData.destination_country,
-        status: 'pending',
+        status: 'processing',
         processing_status: 'collecting_info',
         chat_history: chatMessages,
         uploaded_file_urls: uploadedFiles,
@@ -92,7 +92,7 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
             if (thisReport.status === 'completed') {
               clearInterval(pollInterval);
               setProcessingModalOpen(false);
-              setShowReadyNotification(true);
+              navigate(createPageUrl('Reports'));
             } else if (thisReport.status === 'failed') {
               clearInterval(pollInterval);
               setProcessingModalOpen(false);
