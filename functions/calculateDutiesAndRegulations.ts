@@ -44,8 +44,13 @@ Deno.serve(async (req) => {
       }
     }
     
+    // Get current date for LLM context
+    const today = new Date().toISOString().split('T')[0];
+    
     // Research duties and regulations
     const dutiesPrompt = `
+CURRENT DATE: ${today}
+
 You are a customs duty and regulation expert.
 
 PRODUCT CLASSIFICATION:

@@ -29,8 +29,13 @@ Deno.serve(async (req) => {
       ? report.chat_history.map(msg => `${msg.role}: ${msg.content}`).join('\n')
       : 'No additional chat information provided';
     
+    // Get current date for LLM context
+    const today = new Date().toISOString().split('T')[0];
+    
     // Analyze chat and extract insights using LLM
     const analysisPrompt = `
+CURRENT DATE: ${today}
+
 You are an expert in product analysis for customs classification. 
 Analyze the following product information and extract key details:
 

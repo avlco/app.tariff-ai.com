@@ -24,6 +24,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Report not found' }, { status: 404 });
     }
     
+    // Get current date for LLM context
+    const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    
     // Update status
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'qa_pending'
@@ -31,6 +34,8 @@ Deno.serve(async (req) => {
     
     // Perform quality assurance
     const qaPrompt = `
+CURRENT DATE: ${today}
+
 You are a quality assurance expert for customs classification reports.
 
 Review the following classification report for accuracy, consistency, and completeness:
@@ -38,20 +43,26 @@ Review the following classification report for accuracy, consistency, and comple
 REPORT DATA:
 ${JSON.stringify(report, null, 2)}
 
+CRITICAL INSTRUCTIONS:
+1. Today's date is ${today}. Any dates on or before this date are NOT in the future.
+2. Distinguish between CRITICAL FAILURES and QUALITY IMPROVEMENTS:
+   - CRITICAL FAILURES: Missing HS code, invalid format, completely wrong classification, processing errors
+   - QUALITY IMPROVEMENTS: Minor details missing, could be more explicit, suggestions for better wording
+
 QUALITY CHECKS:
-1. Is the HS code format correct for the destination country?
+1. Is the HS code present and in a valid format?
 2. Is the classification reasoning clear and well-supported?
 3. Are the alternative classifications relevant and explained?
-4. Is the tariff information accurate and complete?
-5. Are all import requirements properly documented?
-6. Are official sources credible and accessible?
-7. Is the confidence score justified?
+4. Is the tariff information present?
+5. Are import requirements documented?
+6. Are all dates valid (not in the future relative to ${today})?
 
 Provide:
-- Overall quality score (0-100)
-- List of any issues found
-- Suggestions for improvement
-- Final approval status (approved/needs_revision)
+- is_failed: true ONLY if there are CRITICAL FAILURES (missing HS code, invalid data, processing error)
+- is_failed: false if the report is complete and usable, even if there are quality improvement suggestions
+- quality_score: Overall score (0-100)
+- qa_notes: List of quality improvement suggestions (e.g., "Classification reasoning could be more explicit", "Country of origin details could be expanded")
+- critical_errors: List ONLY truly critical errors that prevent the report from being used
 `;
     
     const qaResult = await base44.integrations.Core.InvokeLLM({
@@ -59,37 +70,38 @@ Provide:
       response_json_schema: {
         type: "object",
         properties: {
+          is_failed: { 
+            type: "boolean",
+            description: "True only if there are critical failures that prevent the report from being used"
+          },
           quality_score: { type: "number" },
-          issues: {
+          qa_notes: {
             type: "array",
-            items: { type: "string" }
+            items: { type: "string" },
+            description: "Quality improvement suggestions, not critical errors"
           },
-          suggestions: {
+          critical_errors: {
             type: "array",
-            items: { type: "string" }
-          },
-          approval_status: {
-            type: "string",
-            enum: ["approved", "needs_revision"]
+            items: { type: "string" },
+            description: "Only truly critical errors"
           }
         }
       }
     });
     
-    // Determine final status
-    const finalStatus = qaResult.approval_status === 'approved' && qaResult.quality_score >= 70
-      ? 'completed'
-      : 'failed';
+    // Determine final status based on is_failed flag from LLM
+    const finalStatus = qaResult.is_failed ? 'failed' : 'completed';
     
-    // Prepare error details if failed
-    const errorDetails = finalStatus === 'failed' 
-      ? `איכות נמוכה: ${qaResult.issues?.join(', ') || 'הדוח לא עמד בבדיקות האיכות'}`
+    // Prepare error details only if truly failed
+    const errorDetails = finalStatus === 'failed' && qaResult.critical_errors?.length > 0
+      ? `שגיאות קריטיות: ${qaResult.critical_errors.join(', ')}`
       : undefined;
     
-    // Update report with final status
+    // Update report with final status and QA notes
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: finalStatus,
       status: finalStatus,
+      qa_notes: qaResult.qa_notes || [],
       ...(errorDetails && { error_details: errorDetails })
     });
     
