@@ -16,11 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import {
   Table,
@@ -55,6 +58,8 @@ export default function Reports() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [classifyDialogOpen, setClassifyDialogOpen] = useState(false);
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+  const [selectedError, setSelectedError] = useState('');
 
   const [currentUser, setCurrentUser] = useState(null);
   
@@ -114,6 +119,24 @@ export default function Reports() {
         open={classifyDialogOpen} 
         onOpenChange={setClassifyDialogOpen} 
       />
+      
+      <AlertDialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {language === 'he' ? 'פרטי השגיאה' : 'Error Details'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              {selectedError}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setErrorDialogOpen(false)}>
+              {language === 'he' ? 'סגור' : 'Close'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
       {/* Filters */}
       <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm p-4">
@@ -207,19 +230,16 @@ export default function Reports() {
                         </TableCell>
                         <TableCell>
                           {report?.status === 'failed' && report?.error_details ? (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge className={`${statusConfig[report?.status]?.color} border cursor-help`}>
-                                    <StatusIcon className="w-3 h-3 me-1" />
-                                    {t(report?.status)}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs">
-                                  <p className="text-sm">{report.error_details}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            <Badge 
+                              className={`${statusConfig[report?.status]?.color} border cursor-pointer hover:opacity-80`}
+                              onClick={() => {
+                                setSelectedError(report.error_details);
+                                setErrorDialogOpen(true);
+                              }}
+                            >
+                              <StatusIcon className="w-3 h-3 me-1" />
+                              {t(report?.status)}
+                            </Badge>
                           ) : (
                             <Badge className={`${statusConfig[report?.status]?.color} border`}>
                               <StatusIcon className="w-3 h-3 me-1" />
