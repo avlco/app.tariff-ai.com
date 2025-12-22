@@ -78,7 +78,6 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
       });
       
       setCurrentReportId(report.id);
-      onOpenChange(false);
       setProcessingModalOpen(true);
       
       // Start polling for status updates
@@ -94,9 +93,6 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
               clearInterval(pollInterval);
               setProcessingModalOpen(false);
               setShowReadyNotification(true);
-              
-              // Auto-hide notification after 10 seconds
-              setTimeout(() => setShowReadyNotification(false), 10000);
             } else if (thisReport.status === 'failed') {
               clearInterval(pollInterval);
               setProcessingModalOpen(false);
