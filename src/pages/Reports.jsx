@@ -76,8 +76,8 @@ export default function Reports() {
 
   const filteredReports = (reports || []).filter(report => {
     if (!report) return false;
-    const matchesSearch = report.product_name?.toLowerCase().includes(search.toLowerCase()) ||
-                         report.hs_code?.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = (report.product_name?.toLowerCase() ?? '').includes(search.toLowerCase()) ||
+                         (report.hs_code?.toLowerCase() ?? '').includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
