@@ -38,6 +38,8 @@ import {
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import ClassifyButton from '../components/classification/ClassifyButton';
+import NewClassificationDialog from '../components/classification/NewClassificationDialog';
 
 
 export default function Reports() {
@@ -46,6 +48,7 @@ export default function Reports() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [classifyDialogOpen, setClassifyDialogOpen] = useState(false);
 
   const [currentUser, setCurrentUser] = useState(null);
   
@@ -98,7 +101,13 @@ export default function Reports() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
           {t('reports')}
         </h1>
+        <ClassifyButton onClick={() => setClassifyDialogOpen(true)} />
       </div>
+      
+      <NewClassificationDialog 
+        open={classifyDialogOpen} 
+        onOpenChange={setClassifyDialogOpen} 
+      />
       
       {/* Filters */}
       <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm p-4">
