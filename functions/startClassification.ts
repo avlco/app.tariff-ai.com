@@ -73,7 +73,8 @@ Deno.serve(async (req) => {
         const base44 = createClientFromRequest(req);
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
           processing_status: 'failed',
-          status: 'failed'
+          status: 'failed',
+          error_details: error.message || 'שגיאה לא צפויה בתהליך הסיווג'
         });
       } catch (updateError) {
         console.error('Failed to update report status:', updateError);
