@@ -1,6 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 Deno.serve(async (req) => {
+  // Parse request body once at the beginning
+  const body = await req.json();
+  const { reportId, spreadsheetId } = body;
+  
   try {
     const base44 = createClientFromRequest(req);
     
@@ -9,8 +13,6 @@ Deno.serve(async (req) => {
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    const { reportId, spreadsheetId } = await req.json();
     
     if (!reportId) {
       return Response.json({ error: 'Report ID is required' }, { status: 400 });
@@ -66,13 +68,16 @@ Deno.serve(async (req) => {
     console.error('Error in classification workflow:', error);
     
     // Update report status to failed
-    const { reportId } = await req.json();
     if (reportId) {
-      const base44 = createClientFromRequest(req);
-      await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
-        processing_status: 'failed',
-        status: 'failed'
-      });
+      try {
+        const base44 = createClientFromRequest(req);
+        await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+          processing_status: 'failed',
+          status: 'failed'
+        });
+      } catch (updateError) {
+        console.error('Failed to update report status:', updateError);
+      }
     }
     
     return Response.json({ 

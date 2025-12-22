@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '../providers/LanguageContext';
 import ProductDetailsForm from './ProductDetailsForm';
 import ChatInterface from './ChatInterface';
+import ProcessingModal from './ProcessingModal';
+import ReportReadyNotification from './ReportReadyNotification';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +26,10 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [externalLinks, setExternalLinks] = useState([]);
   const [generating, setGenerating] = useState(false);
+  const [processingModalOpen, setProcessingModalOpen] = useState(false);
+  const [currentProcessingStatus, setCurrentProcessingStatus] = useState('collecting_info');
+  const [showReadyNotification, setShowReadyNotification] = useState(false);
+  const [currentReportId, setCurrentReportId] = useState(null);
   
   const handleSendMessage = (message) => {
     setChatMessages([...chatMessages, { role: 'user', content: message, timestamp: new Date().toISOString() }]);
@@ -71,25 +77,67 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
         report_id: `RPT-${Date.now()}`
       });
       
-      toast.success(language === 'he' ? 'הדוח נוצר, מתחיל סיווג...' : 'Report created, starting classification...');
-      
-      // Navigate to report view
-      navigate(createPageUrl(`ReportView?id=${report.id}`));
+      setCurrentReportId(report.id);
       onOpenChange(false);
+      setProcessingModalOpen(true);
       
-      // Trigger backend processing
-      await base44.functions.invoke('startClassification', { reportId: report.id });
+      // Start polling for status updates
+      const pollInterval = setInterval(async () => {
+        try {
+          const updatedReport = await base44.entities.ClassificationReport.list();
+          const thisReport = updatedReport.find(r => r.id === report.id);
+          
+          if (thisReport) {
+            setCurrentProcessingStatus(thisReport.processing_status);
+            
+            if (thisReport.status === 'completed') {
+              clearInterval(pollInterval);
+              setProcessingModalOpen(false);
+              setShowReadyNotification(true);
+              
+              // Auto-hide notification after 10 seconds
+              setTimeout(() => setShowReadyNotification(false), 10000);
+            } else if (thisReport.status === 'failed') {
+              clearInterval(pollInterval);
+              setProcessingModalOpen(false);
+              toast.error(language === 'he' ? 'הסיווג נכשל' : 'Classification failed');
+            }
+          }
+        } catch (pollError) {
+          console.error('Polling error:', pollError);
+        }
+      }, 3000);
+      
+      // Trigger backend processing with spreadsheetId
+      await base44.functions.invoke('startClassification', { 
+        reportId: report.id,
+        spreadsheetId: '1s2scDU57GjhN6x-49-HsoocaFaXpTVv_39AoChB6cJo'
+      });
       
     } catch (error) {
       console.error('Error:', error);
       toast.error(language === 'he' ? 'שגיאה ביצירת הדוח' : 'Error creating report');
+      setProcessingModalOpen(false);
     } finally {
       setGenerating(false);
     }
   };
   
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <ProcessingModal 
+        open={processingModalOpen} 
+        onClose={() => setProcessingModalOpen(false)}
+        currentStatus={currentProcessingStatus}
+      />
+      
+      <ReportReadyNotification 
+        show={showReadyNotification}
+        reportId={currentReportId}
+        onClose={() => setShowReadyNotification(false)}
+      />
+      
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">
@@ -164,5 +212,6 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
