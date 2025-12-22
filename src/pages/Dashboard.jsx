@@ -8,6 +8,8 @@ import StatsCard from '../components/dashboard/StatsCard';
 import RecentReportsTable from '../components/dashboard/RecentReportsTable';
 import UsageChart from '../components/dashboard/UsageChart';
 import PlanCard from '../components/dashboard/PlanCard';
+import ClassifyButton from '../components/classification/ClassifyButton';
+import NewClassificationDialog from '../components/classification/NewClassificationDialog';
 import { Button } from '@/components/ui/button';
 import { FileText, TrendingUp, Clock, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -15,6 +17,7 @@ import { motion } from 'framer-motion';
 export default function Dashboard() {
   const { t, language } = useLanguage();
   const [user, setUser] = useState(null);
+  const [classifyDialogOpen, setClassifyDialogOpen] = useState(false);
   
   useEffect(() => {
     const loadUser = async () => {
@@ -56,8 +59,13 @@ export default function Dashboard() {
             {language === 'he' ? 'סקירה כללית של הפעילות שלך' : 'Overview of your activity'}
           </p>
         </div>
-
+        <ClassifyButton onClick={() => setClassifyDialogOpen(true)} />
       </motion.div>
+      
+      <NewClassificationDialog 
+        open={classifyDialogOpen} 
+        onOpenChange={setClassifyDialogOpen} 
+      />
       
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
