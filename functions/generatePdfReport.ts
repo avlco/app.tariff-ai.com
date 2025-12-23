@@ -202,11 +202,12 @@ Deno.serve(async (req) => {
 </html>
     `;
     
-    console.log('DEBUG: Generated HTML Content:', html);
+    console.log('DEBUG: HTML Length:', html.length);
+    console.log('DEBUG: First 500 chars:', html.substring(0, 500));
+    console.log('DEBUG: Last 500 chars:', html.substring(html.length - 500));
     
     // Call PDFShift API
     const pdfShiftApiKey = Deno.env.get('PDFSHIFT_API_KEY');
-    console.log('PDFShift API Key:', pdfShiftApiKey ? `${pdfShiftApiKey.substring(0, 10)}...` : 'EMPTY OR UNDEFINED');
 
     const pdfResponse = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
       method: 'POST',
@@ -222,6 +223,8 @@ Deno.serve(async (req) => {
       })
     });
     
+    console.log('PDFShift Response Status:', pdfResponse.status);
+    
     if (!pdfResponse.ok) {
       const errorData = await pdfResponse.text();
       console.error('PDFShift Error:', errorData);
@@ -229,6 +232,7 @@ Deno.serve(async (req) => {
     }
     
     const pdfBuffer = await pdfResponse.arrayBuffer();
+    console.log('PDF Buffer Length:', pdfBuffer.byteLength);
     
     return new Response(pdfBuffer, {
       status: 200,
