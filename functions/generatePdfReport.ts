@@ -41,9 +41,8 @@ Deno.serve(async (req) => {
 <head>
   <meta charset="UTF-8">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap');
     body {
-      font-family: 'Heebo', sans-serif;
+      font-family: Arial, sans-serif;
       padding: 40px;
       color: #0F172A;
       line-height: 1.6;
