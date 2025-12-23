@@ -25,6 +25,8 @@ Deno.serve(async (req) => {
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
     
+    console.log('DEBUG: Fetched Report Object:', report);
+    
     if (!report) {
       return Response.json({ error: 'Report not found' }, { status: 404 });
     }
@@ -199,6 +201,8 @@ Deno.serve(async (req) => {
 </body>
 </html>
     `;
+    
+    console.log('DEBUG: Generated HTML Content:', html);
     
     // Call PDFShift API
     const pdfShiftApiKey = Deno.env.get('PDFSHIFT_API_KEY');
