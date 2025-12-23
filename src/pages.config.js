@@ -7,6 +7,7 @@ import Reports from './pages/Reports';
 import ShipmentView from './pages/ShipmentView';
 import Shipments from './pages/Shipments';
 import Support from './pages/Support';
+import PublicReportView from './pages/PublicReportView';
 import __Layout from './Layout.jsx';
 
 
@@ -20,6 +21,7 @@ export const PAGES = {
     "ShipmentView": ShipmentView,
     "Shipments": Shipments,
     "Support": Support,
+    "PublicReportView": PublicReportView,
 }
 
 export const pagesConfig = {

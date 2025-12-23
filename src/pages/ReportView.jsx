@@ -18,8 +18,19 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
+import { Copy, ChevronLeft } from 'lucide-react';
 
 const planLimits = {
   free: 3,
@@ -32,9 +43,14 @@ const planLimits = {
 
 export default function ReportView() {
   const { t, language, isRTL } = useLanguage();
+  const navigate = useNavigate();
   const [report, setReport] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [shareLink, setShareLink] = useState('');
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const [sharingLoading, setSharingLoading] = useState(false);
   
   const urlParams = new URLSearchParams(window.location.search);
   const reportId = urlParams.get('id');
@@ -57,7 +73,50 @@ export default function ReportView() {
     if (reportId) loadData();
   }, [reportId]);
   
-  const isPremium = user?.subscription_plan && user.subscription_plan !== 'free';
+  const isPremium = user?.subscription_plan && ['pay_per_use', 'basic', 'pro', 'agency', 'enterprise'].includes(user.subscription_plan);
+  
+  const handleDownloadPdf = async () => {
+    if (!reportId || downloadLoading) return;
+    setDownloadLoading(true);
+    try {
+      const response = await base44.functions.invoke('generatePdfReport', { reportId });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${report.report_id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(language === 'he' ? 'הדוח הורד בהצלחה' : 'Report downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast.error(language === 'he' ? 'שגיאה בהורדת הדוח' : 'Error downloading report');
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
+  const handleShareReport = async () => {
+    if (!reportId || sharingLoading) return;
+    setSharingLoading(true);
+    try {
+      const response = await base44.functions.invoke('generateShareableReportLink', { reportId });
+      setShareLink(response.data.shareUrl);
+      setShowShareDialog(true);
+    } catch (error) {
+      console.error('Error generating shareable link:', error);
+      toast.error(language === 'he' ? 'שגיאה ביצירת קישור שיתוף' : 'Error generating shareable link');
+    } finally {
+      setSharingLoading(false);
+    }
+  };
+
+  const copyShareLink = () => {
+    navigator.clipboard.writeText(shareLink);
+    toast.success(language === 'he' ? 'הקישור הועתק' : 'Link copied to clipboard');
+  };
   
   const statusConfig = {
     pending: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('pending') },
@@ -99,35 +158,62 @@ export default function ReportView() {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+        className="space-y-4"
       >
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <Badge className={`${statusConfig[report.status]?.color} border-0`}>
-              <StatusIcon className="w-3 h-3 me-1" />
-              {statusConfig[report.status]?.label}
-            </Badge>
-            <span className="text-sm text-slate-500">
-              ID: {report.report_id}
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {report.product_name}
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {format(new Date(report.created_date), 'dd/MM/yyyy HH:mm')}
-          </p>
-        </div>
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <ChevronLeft className="w-4 h-4 me-2" />
+          {language === 'he' ? 'חזור לדוחות' : 'Back to Reports'}
+        </Button>
         
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <Share2 className="w-4 h-4 me-2" />
-            {language === 'he' ? 'שתף' : 'Share'}
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 me-2" />
-            {t('download')}
-          </Button>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <Badge className={`${statusConfig[report.status]?.color} border-0`}>
+                <StatusIcon className="w-3 h-3 me-1" />
+                {statusConfig[report.status]?.label}
+              </Badge>
+              <span className="text-sm text-slate-500">
+                ID: {report.report_id}
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              {report.product_name}
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {format(new Date(report.created_date), 'dd/MM/yyyy HH:mm')}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleShareReport}
+              disabled={!isPremium || sharingLoading}
+            >
+              {sharingLoading ? (
+                <div className="w-4 h-4 me-2 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+              ) : (
+                <Share2 className="w-4 h-4 me-2" />
+              )}
+              {language === 'he' ? 'שתף' : 'Share'}
+              {!isPremium && <Lock className="w-3 h-3 ms-1" />}
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleDownloadPdf}
+              disabled={!isPremium || downloadLoading}
+            >
+              {downloadLoading ? (
+                <div className="w-4 h-4 me-2 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 me-2" />
+              )}
+              {t('download')}
+              {!isPremium && <Lock className="w-3 h-3 ms-1" />}
+            </Button>
+          </div>
         </div>
       </motion.div>
       
@@ -399,6 +485,31 @@ export default function ReportView() {
           {t('disclaimer')}
         </p>
       </motion.div>
+      
+      {/* Share Dialog */}
+      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{language === 'he' ? 'שיתוף דוח' : 'Share Report'}</DialogTitle>
+            <DialogDescription>
+              {language === 'he' 
+                ? 'העתק את הקישור הבא כדי לשתף את הדוח. הקישור יהיה פעיל למשך 7 ימים.' 
+                : 'Copy the link below to share the report. The link will be active for 7 days.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2">
+            <Input value={shareLink} readOnly className="flex-1" dir="ltr" />
+            <Button onClick={copyShareLink} size="icon">
+              <Copy className="w-4 h-4" />
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowShareDialog(false)}>
+              {language === 'he' ? 'סגור' : 'Close'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
