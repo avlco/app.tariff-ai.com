@@ -46,8 +46,10 @@ export default Deno.serve(async (req) => {
     };
 
     // Call the public site API
-    // Using the project ID domain for direct access to the function
-    const PUBLIC_SITE_API_URL = "https://6943f4e2bf8334936af2edbc.deno.dev/createPublicReport";
+    const baseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
+    // Remove trailing slash if present
+    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+    const PUBLIC_SITE_API_URL = `${cleanBaseUrl}/functions/createPublicReport`;
     
     const response = await fetch(PUBLIC_SITE_API_URL, {
       method: 'POST',
