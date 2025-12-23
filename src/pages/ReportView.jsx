@@ -80,7 +80,17 @@ export default function ReportView() {
     setDownloadLoading(true);
     try {
       const response = await base44.functions.invoke('generatePdfReport', { reportId });
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      
+      // The response.data is already the PDF buffer
+      let pdfData = response.data;
+      
+      // If it's wrapped in an object, try to extract it
+      if (pdfData && typeof pdfData === 'object' && !(pdfData instanceof Blob) && !(pdfData instanceof ArrayBuffer)) {
+        // If response has a data property, use that
+        if (pdfData.data) pdfData = pdfData.data;
+      }
+      
+      const blob = new Blob([pdfData], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
