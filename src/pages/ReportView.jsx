@@ -13,7 +13,6 @@ import {
   ExternalLink,
   Lock,
   Crown,
-  Download,
   Share2
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -49,7 +48,6 @@ export default function ReportView() {
   const [loading, setLoading] = useState(true);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareLink, setShareLink] = useState('');
-  const [downloadLoading, setDownloadLoading] = useState(false);
   const [sharingLoading, setSharingLoading] = useState(false);
   
   const urlParams = new URLSearchParams(window.location.search);
@@ -75,39 +73,6 @@ export default function ReportView() {
   
   const isPremium = user?.subscription_plan && ['pay_per_use', 'basic', 'pro', 'agency', 'enterprise'].includes(user.subscription_plan);
   
-  const handleDownloadPdf = async () => {
-    if (!reportId || downloadLoading) return;
-    setDownloadLoading(true);
-    try {
-      const response = await base44.functions.invoke('generatePdfReport', { reportId });
-      
-      // The response.data is already the PDF buffer
-      let pdfData = response.data;
-      
-      // If it's wrapped in an object, try to extract it
-      if (pdfData && typeof pdfData === 'object' && !(pdfData instanceof Blob) && !(pdfData instanceof ArrayBuffer)) {
-        // If response has a data property, use that
-        if (pdfData.data) pdfData = pdfData.data;
-      }
-      
-      const blob = new Blob([pdfData], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${report.report_id}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success(language === 'he' ? 'הדוח הורד בהצלחה' : 'Report downloaded successfully');
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
-      toast.error(language === 'he' ? 'שגיאה בהורדת הדוח' : 'Error downloading report');
-    } finally {
-      setDownloadLoading(false);
-    }
-  };
-
   const handleShareReport = async () => {
     if (!reportId || sharingLoading) return;
     setSharingLoading(true);
@@ -207,20 +172,6 @@ export default function ReportView() {
                 <Share2 className="w-4 h-4 me-2" />
               )}
               {language === 'he' ? 'שתף' : 'Share'}
-              {!isPremium && <Lock className="w-3 h-3 ms-1" />}
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleDownloadPdf}
-              disabled={!isPremium || downloadLoading}
-            >
-              {downloadLoading ? (
-                <div className="w-4 h-4 me-2 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-              ) : (
-                <Download className="w-4 h-4 me-2" />
-              )}
-              {t('download')}
               {!isPremium && <Lock className="w-3 h-3 ms-1" />}
             </Button>
           </div>
