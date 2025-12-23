@@ -207,18 +207,21 @@ Deno.serve(async (req) => {
     const pdfResponse = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${btoa(`api:${pdfShiftApiKey}`)}`,
+        'X-API-Key': pdfShiftApiKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         source: html,
         landscape: false,
-        use_print: false
+        use_print: false,
+        format: 'A4'
       })
     });
     
     if (!pdfResponse.ok) {
-      throw new Error('Failed to generate PDF');
+      const errorData = await pdfResponse.text();
+      console.error('PDFShift Error:', errorData);
+      throw new Error(`Failed to generate PDF: ${errorData}`);
     }
     
     const pdfBuffer = await pdfResponse.arrayBuffer();
