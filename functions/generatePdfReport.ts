@@ -204,38 +204,11 @@ Deno.serve(async (req) => {
     
     console.log('DEBUG: Generated HTML Content:', html);
     
-    // Call PDFShift API
-    const pdfShiftApiKey = Deno.env.get('PDFSHIFT_API_KEY');
-    console.log('PDFShift API Key:', pdfShiftApiKey ? `${pdfShiftApiKey.substring(0, 10)}...` : 'EMPTY OR UNDEFINED');
-
-    const pdfResponse = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
-      method: 'POST',
-      headers: {
-        'X-API-Key': pdfShiftApiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        source: html,
-        landscape: false,
-        use_print: false,
-        format: 'A4'
-      })
-    });
-    
-    if (!pdfResponse.ok) {
-      const errorData = await pdfResponse.text();
-      console.error('PDFShift Error:', errorData);
-      throw new Error(`Failed to generate PDF: ${errorData}`);
-    }
-    
-    const pdfBuffer = await pdfResponse.arrayBuffer();
-    
-    return new Response(pdfBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${report.report_id}.pdf"`
-      }
+    // TEMPORARY: Return HTML for debugging instead of PDF
+    return Response.json({ 
+      success: true,
+      html: html,
+      htmlLength: html.length
     });
     
   } catch (error) {
