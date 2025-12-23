@@ -1,5 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { jsPDF } from 'npm:jspdf@2.5.1';
 
 Deno.serve(async (req) => {
   try {
@@ -35,158 +34,196 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Access denied' }, { status: 403 });
     }
     
-    // Create PDF using jsPDF
-    const doc = new jsPDF();
-    let y = 20;
+    // Build HTML for PDF
+    const html = `
+<!DOCTYPE html>
+<html dir="${report.destination_country === 'Israel' ? 'rtl' : 'ltr'}">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap');
+    body {
+      font-family: 'Heebo', sans-serif;
+      padding: 40px;
+      color: #0F172A;
+      line-height: 1.6;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      border-bottom: 3px solid #114B5F;
+      padding-bottom: 20px;
+    }
+    .header h1 {
+      color: #114B5F;
+      margin: 0 0 10px 0;
+      font-size: 32px;
+    }
+    .header p {
+      color: #64748B;
+      margin: 5px 0;
+    }
+    .hs-code-box {
+      background: linear-gradient(135deg, #114B5F 0%, #0D3A4A 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+      margin: 30px 0;
+    }
+    .hs-code-box h2 {
+      margin: 0 0 10px 0;
+      font-size: 48px;
+      font-weight: bold;
+    }
+    .hs-code-box p {
+      margin: 0;
+      opacity: 0.9;
+    }
+    .section {
+      margin: 30px 0;
+      padding: 20px;
+      background: #F8FAFC;
+      border-radius: 8px;
+      border-right: 4px solid #42C0B9;
+    }
+    .section h3 {
+      color: #114B5F;
+      margin-top: 0;
+      font-size: 20px;
+    }
+    .section p, .section li {
+      color: #475569;
+    }
+    .characteristics {
+      list-style: none;
+      padding: 0;
+    }
+    .characteristics li:before {
+      content: "• ";
+      color: #42C0B9;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .trade-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin: 20px 0;
+    }
+    .trade-item {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #E2E8F0;
+    }
+    .trade-item strong {
+      color: #114B5F;
+      display: block;
+      margin-bottom: 5px;
+    }
+    .footer {
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid #E2E8F0;
+      text-align: center;
+      color: #94A3B8;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${report.product_name}</h1>
+    <p>ID דוח: ${report.report_id}</p>
+    <p>תאריך: ${new Date(report.created_date).toLocaleDateString('he-IL')}</p>
+  </div>
+  
+  <div class="hs-code-box">
+    <p style="font-size: 14px; margin-bottom: 5px;">קוד HS</p>
+    <h2>${report.hs_code || '---'}</h2>
+    <p>רמת ביטחון: ${report.confidence_score || 0}%</p>
+  </div>
+  
+  <div class="trade-details">
+    <div class="trade-item">
+      <strong>מדינת ייצור</strong>
+      <span>${report.country_of_manufacture || '---'}</span>
+    </div>
+    <div class="trade-item">
+      <strong>מדינת מוצא</strong>
+      <span>${report.country_of_origin || '---'}</span>
+    </div>
+    <div class="trade-item">
+      <strong>מדינת יעד</strong>
+      <span>${report.destination_country || '---'}</span>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h3>נימוק הסיווג</h3>
+    <p>${report.classification_reasoning || 'לא זמין'}</p>
+  </div>
+  
+  ${report.product_characteristics && report.product_characteristics.length > 0 ? `
+  <div class="section">
+    <h3>מאפייני המוצר</h3>
+    <ul class="characteristics">
+      ${report.product_characteristics.map(char => `<li>${char}</li>`).join('')}
+    </ul>
+  </div>
+  ` : ''}
+  
+  ${report.tariff_description ? `
+  <div class="section">
+    <h3>מידע על מכסים</h3>
+    <p>${report.tariff_description}</p>
+  </div>
+  ` : ''}
+  
+  ${report.import_requirements && report.import_requirements.length > 0 ? `
+  <div class="section">
+    <h3>דרישות יבוא</h3>
+    ${report.import_requirements.map(req => `
+      <div style="margin-bottom: 15px;">
+        <strong style="color: #114B5F;">${req.title}</strong>
+        <p style="margin: 5px 0 0 0;">${req.description}</p>
+      </div>
+    `).join('')}
+  </div>
+  ` : ''}
+  
+  <div class="footer">
+    <p>דוח זה נוצר באמצעות AI ואינו מהווה ייעוץ משפטי או מכסי רשמי.</p>
+    <p>יש לאמת את המידע מול רשויות המכס הרשמיות.</p>
+  </div>
+</body>
+</html>
+    `;
     
-    // Header
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text(report.product_name || 'דוח סיווג', 105, y, { align: 'center' });
-    y += 10;
+    // Call PDFShift API
+    const pdfShiftApiKey = Deno.env.get('PDFSHIFT_API_KEY');
     
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`ID: ${report.report_id}`, 105, y, { align: 'center' });
-    y += 6;
-    doc.text(`תאריך: ${new Date(report.created_date).toLocaleDateString('he-IL')}`, 105, y, { align: 'center' });
-    y += 15;
+    const pdfResponse = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${btoa(`api:${pdfShiftApiKey}`)}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        source: html,
+        landscape: false,
+        use_print: false
+      })
+    });
     
-    // HS Code Box
-    doc.setFillColor(17, 75, 95);
-    doc.rect(20, y, 170, 35, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
-    doc.text('קוד HS', 105, y + 8, { align: 'center' });
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text(report.hs_code || '---', 105, y + 20, { align: 'center' });
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`רמת ביטחון: ${report.confidence_score || 0}%`, 105, y + 28, { align: 'center' });
-    y += 45;
-    
-    // Reset text color
-    doc.setTextColor(0, 0, 0);
-    
-    // Trade Details
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('פרטי סחר', 20, y);
-    y += 8;
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`מדינת ייצור: ${report.country_of_manufacture || '---'}`, 20, y);
-    y += 6;
-    doc.text(`מדינת מוצא: ${report.country_of_origin || '---'}`, 20, y);
-    y += 6;
-    doc.text(`מדינת יעד: ${report.destination_country || '---'}`, 20, y);
-    y += 12;
-    
-    // Classification Reasoning
-    if (report.classification_reasoning) {
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('נימוק הסיווג', 20, y);
-      y += 8;
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      const reasoningLines = doc.splitTextToSize(report.classification_reasoning, 170);
-      doc.text(reasoningLines, 20, y);
-      y += (reasoningLines.length * 6) + 8;
+    if (!pdfResponse.ok) {
+      throw new Error('Failed to generate PDF');
     }
     
-    // Product Characteristics
-    if (report.product_characteristics && report.product_characteristics.length > 0) {
-      if (y > 250) {
-        doc.addPage();
-        y = 20;
-      }
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('מאפייני המוצר', 20, y);
-      y += 8;
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      report.product_characteristics.forEach(char => {
-        if (y > 270) {
-          doc.addPage();
-          y = 20;
-        }
-        const charLines = doc.splitTextToSize(`• ${char}`, 165);
-        doc.text(charLines, 25, y);
-        y += (charLines.length * 6) + 2;
-      });
-      y += 6;
-    }
+    const pdfBuffer = await pdfResponse.arrayBuffer();
     
-    // Tariff Description
-    if (report.tariff_description) {
-      if (y > 250) {
-        doc.addPage();
-        y = 20;
-      }
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('מידע על מכסים', 20, y);
-      y += 8;
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      const tariffLines = doc.splitTextToSize(report.tariff_description, 170);
-      doc.text(tariffLines, 20, y);
-      y += (tariffLines.length * 6) + 8;
-    }
-    
-    // Import Requirements
-    if (report.import_requirements && report.import_requirements.length > 0) {
-      if (y > 240) {
-        doc.addPage();
-        y = 20;
-      }
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('דרישות יבוא', 20, y);
-      y += 8;
-      
-      doc.setFontSize(10);
-      report.import_requirements.forEach(req => {
-        if (y > 260) {
-          doc.addPage();
-          y = 20;
-        }
-        
-        doc.setFont('helvetica', 'bold');
-        const titleLines = doc.splitTextToSize(req.title, 170);
-        doc.text(titleLines, 20, y);
-        y += (titleLines.length * 6) + 2;
-        
-        doc.setFont('helvetica', 'normal');
-        const descLines = doc.splitTextToSize(req.description, 170);
-        doc.text(descLines, 20, y);
-        y += (descLines.length * 6) + 6;
-      });
-    }
-    
-    // Footer disclaimer
-    const pageCount = doc.internal.pages.length - 1;
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text('דוח זה נוצר באמצעות AI ואינו מהווה ייעוץ משפטי או מכסי רשמי.', 105, 285, { align: 'center' });
-      doc.text('יש לאמת את המידע מול רשויות המכס הרשמיות.', 105, 290, { align: 'center' });
-    }
-    
-    const pdfBytes = doc.output('arraybuffer');
-    
-    return new Response(pdfBytes, {
+    return new Response(pdfBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
