@@ -37,7 +37,7 @@ function LayoutContent({ children, currentPageName }) {
   return (
     <div className={`min-h-screen bg-[#FAFBFC] dark:bg-[#0B1120] ${isRTL ? 'font-heebo' : 'font-sans'}`}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
         :root {
           --primary-navy: #114B5F;
@@ -60,10 +60,6 @@ function LayoutContent({ children, currentPageName }) {
 
         .font-sans {
           font-family: 'Inter', sans-serif;
-        }
-
-        .font-space {
-          font-family: 'Space Grotesk', sans-serif;
         }
 
         .dark {
