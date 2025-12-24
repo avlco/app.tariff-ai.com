@@ -182,8 +182,8 @@ export default function PrivacyContent({ minimal = false }) {
     <div className={minimal ? "p-4" : "max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16"}>
       {!minimal && (
         <div className="mb-8">
-           <h1 className="text-4xl sm:text-5xl font-bold text-[#114B5F] dark:text-white mb-2">{t.title}</h1>
-           <p className="text-[#114B5F]/70 dark:text-gray-400">{t.lastUpdated}</p>
+           <h1 className="text-4xl sm:text-5xl font-bold font-space text-[#114B5F] dark:text-white mb-3">{t.title}</h1>
+           <p className="text-[#114B5F]/70 dark:text-gray-400 font-sans text-lg">{t.lastUpdated}</p>
         </div>
       )}
       <div className="space-y-8">
@@ -202,18 +202,22 @@ export default function PrivacyContent({ minimal = false }) {
                   <Icon className="w-6 h-6 text-[#42C0B9]" />
                 </div>
                 <div className="flex-1">
-                  <h2 className={`text-xl font-semibold text-[#114B5F] dark:text-white mb-3 ${isRTL ? 'text-right' : ''}`}>
+                  <h2 className={`text-xl font-semibold font-space text-[#114B5F] dark:text-white mb-4 ${isRTL ? 'text-right' : ''}`}>
                     {section.title}
                   </h2>
                   <ReactMarkdown 
-                    className={`text-[#114B5F]/70 dark:text-gray-400 leading-relaxed prose prose-sm max-w-none dark:prose-invert ${isRTL ? 'text-right' : ''}`}
+                    className={`text-[#114B5F]/80 dark:text-gray-300 leading-relaxed prose prose-sm max-w-none dark:prose-invert ${isRTL ? 'text-right' : ''}`}
                     components={{
-                      p: ({ children }) => <p className="mb-3">{children}</p>,
-                      ul: ({ children }) => <ul className="space-y-2 mb-4">{children}</ul>,
+                      h1: ({ children }) => <h1 className="text-3xl font-bold font-space mb-6 text-[#114B5F] dark:text-white">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-xl font-semibold font-space mt-8 mb-4 text-[#114B5F] dark:text-white">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-lg font-medium font-space mt-6 mb-3 text-[#114B5F] dark:text-white">{children}</h3>,
+                      p: ({ children }) => <p className="mb-4 text-base font-sans leading-7">{children}</p>,
+                      ul: ({ children }) => <ul className="space-y-3 mb-6 list-none">{children}</ul>,
+                      ol: ({ children }) => <ol className="space-y-3 mb-6 list-decimal list-inside">{children}</ol>,
                       li: ({ children }) => (
-                        <li className="flex items-start gap-2">
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#42C0B9] mt-2 flex-shrink-0" />
-                          <span>{children}</span>
+                        <li className="flex items-start gap-3 text-base">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#42C0B9] mt-2.5 flex-shrink-0" />
+                          <span className="flex-1">{children}</span>
                         </li>
                       ),
                       strong: ({ children }) => <strong className="font-semibold text-[#114B5F] dark:text-white">{children}</strong>,
