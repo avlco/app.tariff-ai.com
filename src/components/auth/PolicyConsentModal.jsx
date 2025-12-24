@@ -35,7 +35,9 @@ export default function PolicyConsentModal({ user, onAccept }) {
          });
       }
       
+      // Critical: Call the parent onAccept callback to close the modal
       onAccept();
+      
       toast.success(language === 'he' ? 'התנאים אושרו בהצלחה' : 'Terms accepted successfully');
     } catch (error) {
       console.error(error);
@@ -141,9 +143,9 @@ export default function PolicyConsentModal({ user, onAccept }) {
         </div>
 
         {/* Footer */}
-        <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 space-y-4">
+        <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0">
             
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 mb-6">
                 {activeTab === 'terms' && (
                     <motion.div 
                         initial={{ opacity: 0, y: 10 }}
@@ -179,18 +181,17 @@ export default function PolicyConsentModal({ user, onAccept }) {
                 )}
             </div>
 
-            <div className="flex justify-between items-center pt-2">
-                {activeTab === 'terms' ? (
-                     <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={handleReject}>
-                        <LogOut className="w-4 h-4 me-2" />
-                        {t.decline}
-                    </Button>
-                ) : (
-                    <Button variant="outline" onClick={() => setActiveTab('terms')}>
-                        {isRTL ? <ChevronRight className="w-4 h-4 me-2" /> : <ChevronLeft className="w-4 h-4 me-2" />}
-                        {t.prev}
-                    </Button>
-                )}
+            {/* Main Action Buttons */}
+            <div className="flex justify-between items-center">
+                <Button 
+                    variant="outline" 
+                    onClick={() => setActiveTab('terms')}
+                    disabled={activeTab === 'terms'}
+                    className={activeTab === 'terms' ? 'invisible' : ''}
+                >
+                    {isRTL ? <ChevronRight className="w-4 h-4 me-2" /> : <ChevronLeft className="w-4 h-4 me-2" />}
+                    {t.prev}
+                </Button>
 
                 <div className="flex gap-3">
                     {activeTab === 'terms' ? (
@@ -212,6 +213,14 @@ export default function PolicyConsentModal({ user, onAccept }) {
                         </Button>
                     )}
                 </div>
+            </div>
+
+            {/* Decline Button - Centered at bottom */}
+            <div className="flex justify-center mt-6">
+                <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm" onClick={handleReject}>
+                    <LogOut className="w-3 h-3 me-2" />
+                    {t.decline}
+                </Button>
             </div>
         </div>
       </motion.div>
