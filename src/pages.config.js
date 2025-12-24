@@ -8,6 +8,9 @@ import Reports from './pages/Reports';
 import ShipmentView from './pages/ShipmentView';
 import Shipments from './pages/Shipments';
 import Support from './pages/Support';
+import Cookies from './pages/Cookies';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 import __Layout from './Layout.jsx';
 
 
@@ -22,6 +25,9 @@ export const PAGES = {
     "ShipmentView": ShipmentView,
     "Shipments": Shipments,
     "Support": Support,
+    "Cookies": Cookies,
+    "Privacy": Privacy,
+    "Terms": Terms,
 }
 
 export const pagesConfig = {
