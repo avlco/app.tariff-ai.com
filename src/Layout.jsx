@@ -2,20 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { LanguageProvider, useLanguage } from './components/providers/LanguageContext';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
+import PolicyConsentModal from './components/auth/PolicyConsentModal';
 import { base44 } from '@/api/base44Client';
+import { AnimatePresence } from 'framer-motion';
 
 function LayoutContent({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
   const { isRTL } = useLanguage();
   
+  const loadUser = async () => {
+    try {
+      const userData = await base44.auth.me();
+      setUser(userData);
+
+      if (userData) {
+        // Check if user accepted policies
+        const masterData = await base44.entities.UserMasterData.filter({ user_email: userData.email });
+        
+        if (masterData.length === 0 || !masterData[0].policy_accepted) {
+            setShowConsentModal(true);
+        }
+      }
+    } catch (e) {
+      // Not logged in or error
+    }
+  };
+
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const userData = await base44.auth.me();
-        setUser(userData);
-      } catch (e) {}
-    };
     loadUser();
   }, []);
   
@@ -91,6 +106,15 @@ function LayoutContent({ children, currentPageName }) {
           {children}
         </main>
       </div>
+
+      <AnimatePresence>
+        {showConsentModal && user && (
+            <PolicyConsentModal 
+                user={user} 
+                onAccept={() => setShowConsentModal(false)} 
+            />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
