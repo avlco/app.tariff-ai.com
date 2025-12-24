@@ -19,13 +19,16 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { User, CreditCard, Settings, Save, Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { User, CreditCard, Settings, Save, Loader2, Shield, FileText } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import PolicyViewerModal from '../components/legal/PolicyViewerModal';
 
 export default function Profile() {
   const { t, language, setLanguage, theme, setTheme, isRTL } = useLanguage();
   const [user, setUser] = useState(null);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [activePolicyTab, setActivePolicyTab] = useState('terms');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -309,11 +312,44 @@ export default function Profile() {
                     </Select>
                   </div>
                 </div>
+
+                <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+                    <h3 className="text-sm font-medium text-slate-900 dark:text-white mb-4">
+                        {language === 'he' ? 'משפטי ופרטיות' : 'Legal & Privacy'}
+                    </h3>
+                    <div className="flex gap-4">
+                        <Button 
+                            variant="outline" 
+                            onClick={() => { setActivePolicyTab('terms'); setShowPolicyModal(true); }}
+                            className="flex items-center gap-2"
+                        >
+                            <FileText className="w-4 h-4" />
+                            {language === 'he' ? 'תנאי שימוש' : 'Terms of Service'}
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            onClick={() => { setActivePolicyTab('privacy'); setShowPolicyModal(true); }}
+                            className="flex items-center gap-2"
+                        >
+                            <Shield className="w-4 h-4" />
+                            {language === 'he' ? 'מדיניות פרטיות' : 'Privacy Policy'}
+                        </Button>
+                    </div>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
         </TabsContent>
       </Tabs>
+
+      <AnimatePresence>
+        {showPolicyModal && (
+            <PolicyViewerModal 
+                initialTab={activePolicyTab} 
+                onClose={() => setShowPolicyModal(false)} 
+            />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
