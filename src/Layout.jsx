@@ -21,12 +21,18 @@ function LayoutContent({ children, currentPageName }) {
         // Check if user accepted policies
         const masterData = await base44.entities.UserMasterData.filter({ user_email: userData.email });
         
+        // Modal should ONLY show if:
+        // 1. User has no master data record (new user)
+        // OR
+        // 2. User has master data but policy_accepted is false
         if (masterData.length === 0 || !masterData[0].policy_accepted) {
             setShowConsentModal(true);
         }
       }
     } catch (e) {
       // Not logged in or error
+      // If error or not logged in, we ensure modal is hidden
+      setShowConsentModal(false);
     }
   };
 

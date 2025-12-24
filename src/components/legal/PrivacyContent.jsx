@@ -11,7 +11,7 @@ export default function PrivacyContent({ minimal = false }) {
     en: {
       title: 'Privacy Policy',
       subtitle: 'Your privacy is our priority. This policy explains how we collect, use, protect, and handle your personal data in compliance with GDPR and LGPD.',
-      lastUpdated: 'Last updated: December 22, 2025 | Version 1.0',
+      lastUpdated: 'Last updated: December 24, 2025',
       back: 'Back to Home',
       sections: [
         {
@@ -72,7 +72,7 @@ export default function PrivacyContent({ minimal = false }) {
         {
           icon: Mail,
           title: '12. Marketing Communications',
-          content: `With your consent, we may send you:\\n* Product updates and new features\\n* Industry insights and educational content\\n* Special offers and promotions\\n\\nYou can opt out at any time by:\\n* Clicking \"unsubscribe\" in any email\\n* Updating your account preferences\\n* Contacting info@tariff-ai.com`
+          content: `With your consent, we may send you:\\n* Product updates and new features\\n* Industry insights and educational content\\n* Special offers and promotions\\n\\nYou can opt out of at any time by:\\n* Clicking \"unsubscribe\" in any email\\n* Updating your account preferences\\n* Contacting info@tariff-ai.com`
         },
         {
           icon: Shield,
