@@ -44,6 +44,15 @@ export default Deno.serve(async (req) => {
 
         await logProgress(reportId, 'initialization', 'Starting classification workflow');
 
+        // Ping Check
+        try {
+            await logProgress(reportId, 'initialization', 'Pinging system...');
+            const pingRes = await base44.functions.invoke('ping');
+            await logProgress(reportId, 'initialization', `System Ping: ${JSON.stringify(pingRes.data)}`);
+        } catch (e) {
+            await logProgress(reportId, 'initialization', `Ping failed: ${e.message}`, 'warning');
+        }
+
         // Step 1: The Analyst (Agent A)
         await logProgress(reportId, 'analyst', 'Starting structural analysis (Agent A)');
         const analystRes = await base44.functions.invoke('agentAnalyze', { reportId });

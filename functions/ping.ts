@@ -1,0 +1,1 @@
+export default Deno.serve(async () => Response.json({ status: 'pong' }));
