@@ -20,7 +20,8 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
     product_name: '',
     country_of_manufacture: '',
     country_of_origin: '',
-    destination_country: ''
+    destination_country: '',
+    intended_use: ''
   });
   const [chatMessages, setChatMessages] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -104,11 +105,31 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
         }
       }, 3000);
       
-      // Trigger backend processing with spreadsheetId
-      await base44.functions.invoke('startClassification', { 
+      // Trigger backend processing
+      const response = await base44.functions.invoke('startClassification', { 
         reportId: report.id,
+        intendedUse: formData.intended_use,
         spreadsheetId: '1s2scDU57GjhN6x-49-HsoocaFaXpTVv_39AoChB6cJo'
       });
+
+      // Handle Fail Fast (Input Required)
+      if (response.data?.action === 'input_required') {
+        setProcessingModalOpen(false);
+        setGenerating(false);
+
+        // Clear polling interval
+        if (pollInterval) clearInterval(pollInterval);
+
+        // Add system message with the question
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: response.data.question || (language === 'he' ? 'חסר מידע. אנא פרט.' : 'Missing information. Please elaborate.'),
+          timestamp: new Date().toISOString()
+        }]);
+
+        toast.warning(language === 'he' ? 'נדרש מידע נוסף' : 'Additional information required');
+        return; 
+      }
       
     } catch (error) {
       console.error('Error:', error);
@@ -198,7 +219,7 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
             </Button>
             <Button
               onClick={handleGenerate}
-              disabled={generating || !formData.product_name || !formData.destination_country}
+              disabled={generating || !formData.product_name || !formData.destination_country || !formData.intended_use}
               className="bg-gradient-to-r from-[#114B5F] to-[#42C0B9] hover:from-[#0D3A4A] hover:to-[#35A89E]"
             >
               {generating && <Loader2 className="w-4 h-4 me-2 animate-spin" />}

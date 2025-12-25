@@ -5,6 +5,22 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { 
   FileText, 
   CheckCircle2, 
@@ -13,32 +29,16 @@ import {
   ExternalLink,
   Lock,
   Crown,
-  Share2
+  Share2,
+  ChevronLeft,
+  AlertTriangle,
+  Scale
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from '@/components/ui/input';
-import { Copy, ChevronLeft } from 'lucide-react';
-
-const planLimits = {
-  free: 3,
-  pay_per_use: 999,
-  basic: 15,
-  pro: 50,
-  agency: 200,
-  enterprise: 999,
-};
 
 export default function ReportView() {
   const { t, language, isRTL } = useLanguage();
@@ -46,9 +46,6 @@ export default function ReportView() {
   const [report, setReport] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showShareDialog, setShowShareDialog] = useState(false);
-  const [shareLink, setShareLink] = useState('');
-  const [sharingLoading, setSharingLoading] = useState(false);
   
   const urlParams = new URLSearchParams(window.location.search);
   const reportId = urlParams.get('id');
@@ -73,35 +70,9 @@ export default function ReportView() {
   
   const isPremium = user?.subscription_plan && ['pay_per_use', 'basic', 'pro', 'agency', 'enterprise'].includes(user.subscription_plan);
   
-  const handleShareReport = async () => {
-    if (!reportId || sharingLoading) return;
-    setSharingLoading(true);
-    try {
-      const response = await base44.functions.invoke('generateShareableReportLink', { reportId });
-      setShareLink(response.data.shareUrl);
-      setShowShareDialog(true);
-    } catch (error) {
-      console.error('Error generating shareable link:', error);
-      toast.error(language === 'he' ? 'שגיאה ביצירת קישור שיתוף' : 'Error generating shareable link');
-    } finally {
-      setSharingLoading(false);
-    }
-  };
-
-  const copyShareLink = () => {
-    navigator.clipboard.writeText(shareLink);
-    toast.success(language === 'he' ? 'הקישור הועתק' : 'Link copied to clipboard');
-  };
-  
-  const statusConfig = {
-    pending: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('pending') },
-    completed: { icon: CheckCircle2, color: 'bg-[#42C0B9]/10 text-[#42C0B9]', label: t('completed') },
-    failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600', label: t('failed') },
-  };
-  
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6 p-6">
         <Skeleton className="h-8 w-64" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
@@ -124,11 +95,36 @@ export default function ReportView() {
       </div>
     );
   }
+
+  // Safe accessors
+  const primaryResult = report.classification_results?.primary || {};
+  const alternatives = report.classification_results?.alternatives || [];
+  const regulatoryPrimary = report.regulatory_data?.primary || {};
+  const regulatoryAlts = report.regulatory_data?.alternatives || [];
+  const qa = report.qa_audit || {};
+  const spec = report.structural_analysis || {};
+  const research = report.research_findings || {};
+
+  const getRegulatoryForCode = (code) => {
+    // Check primary
+    if (primaryResult.hs_code === code) return regulatoryPrimary;
+    // Check alts
+    const altReg = regulatoryAlts.find(r => r.hs_code === code);
+    return altReg || {};
+  };
+
+  const statusConfig = {
+    pending: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('pending') },
+    processing: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('processing') },
+    completed: { icon: CheckCircle2, color: 'bg-[#42C0B9]/10 text-[#42C0B9]', label: t('completed') },
+    failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600', label: t('failed') },
+    waiting_for_user: { icon: AlertTriangle, color: 'bg-yellow-100 text-yellow-600', label: language === 'he' ? 'ממתין למשתמש' : 'Waiting for User' }
+  };
   
   const StatusIcon = statusConfig[report.status]?.icon || Clock;
-  
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -151,7 +147,7 @@ export default function ReportView() {
                 ID: {report.report_id}
               </span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
               {report.product_name}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
@@ -160,317 +156,267 @@ export default function ReportView() {
           </div>
           
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleShareReport}
-              disabled={!isPremium || sharingLoading}
-            >
-              {sharingLoading ? (
-                <div className="w-4 h-4 me-2 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-              ) : (
-                <Share2 className="w-4 h-4 me-2" />
-              )}
-              {language === 'he' ? 'שתף' : 'Share'}
-              {!isPremium && <Lock className="w-3 h-3 ms-1" />}
-            </Button>
+             <Button variant="outline" onClick={() => window.print()}>
+               <FileText className="w-4 h-4 me-2"/>
+               {language === 'he' ? 'הדפס' : 'Print'}
+             </Button>
           </div>
         </div>
       </motion.div>
-      
+
+      {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* HS Code Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card className="bg-gradient-to-br from-[#114B5F] to-[#0D3A4A] text-white border-0 overflow-hidden">
-              <CardContent className="p-6 relative">
-                <div className="absolute top-0 end-0 w-40 h-40 bg-[#42C0B9]/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-                <div className="relative">
-                  <p className="text-sm text-white/70 mb-2">{t('hsCode')}</p>
-                  <p className="text-4xl font-bold mb-4">{report.hs_code || '---'}</p>
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <p className="text-sm text-white/70">{t('confidenceScore')}</p>
-                      <p className="text-2xl font-semibold text-[#42C0B9]">
-                        {report.confidence_score || 0}%
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          
-          {/* Classification Reasoning */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">{t('classificationReasoning')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {report.classification_reasoning || '---'}
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
-          
-          {/* Product Characteristics */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">{t('productCharacteristics')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {(report.product_characteristics || []).map((char, index) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#42C0B9] mt-2 flex-shrink-0" />
-                      <span className="text-slate-600 dark:text-slate-300">{char}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          </motion.div>
-          
-          {/* Premium Content */}
-          {!isPremium ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              <Card className="bg-slate-50 dark:bg-slate-800/50 border-2 border-dashed border-slate-200 dark:border-slate-700">
-                <CardContent className="p-8 text-center">
-                  <div className="w-16 h-16 rounded-full bg-[#D89C42]/10 flex items-center justify-center mx-auto mb-4">
-                    <Lock className="w-8 h-8 text-[#D89C42]" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                    {language === 'he' ? 'תוכן פרימיום' : 'Premium Content'}
-                  </h3>
-                  <p className="text-slate-500 dark:text-slate-400 mb-4">
-                    {language === 'he' 
-                      ? 'שדרג לתוכנית בתשלום כדי לצפות במכסים, דרישות יבוא ומקורות רשמיים'
-                      : 'Upgrade to a paid plan to view tariff rates, import requirements, and official sources'}
-                  </p>
-                  <Link to={createPageUrl('Profile')}>
-                    <Button className="bg-[#D89C42] hover:bg-[#D89C42]/90">
-                      <Crown className="w-4 h-4 me-2" />
-                      {t('upgradeNow')}
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ) : (
-            <>
-              {/* Tariff Information */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-              >
-                <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{t('tariffRate')}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                      {report.tariff_description || '---'}
-                    </p>
-                  </CardContent>
-                </Card>
-              </motion.div>
-              
-              {/* Import Requirements */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-              >
-                <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{t('importRequirements')}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {(report.import_requirements || []).map((req, index) => (
-                        <div key={index} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                          <h4 className="font-medium text-slate-900 dark:text-white mb-1">
-                            {req.title}
-                          </h4>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">
-                            {req.description}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-              
-              {/* Official Sources */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{t('officialSources')}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {(report.official_sources || []).map((source, index) => (
-                        <a
-                          key={index}
-                          href={source.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4 text-[#42C0B9]" />
-                          <span className="text-slate-700 dark:text-slate-300">{source.label}</span>
-                        </a>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            </>
-          )}
-        </div>
         
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Trade Details */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">{t('tradeDetails')}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {t('countryOfManufacture')}
-                  </p>
-                  <p className="font-medium text-slate-900 dark:text-white">
-                    {report.country_of_manufacture || '---'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {t('countryOfOrigin')}
-                  </p>
-                  <p className="font-medium text-slate-900 dark:text-white">
-                    {report.country_of_origin || '---'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {t('destinationCountry')}
-                  </p>
-                  <p className="font-medium text-slate-900 dark:text-white">
-                    {report.destination_country || '---'}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          
-          {/* Alternative Classifications */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">{t('alternativeClassifications')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isPremium ? (
-                  <div className="space-y-3">
-                    {(report.alternative_classifications || []).map((alt, index) => (
-                      <div key={index} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                        <p className="font-mono font-medium text-[#114B5F] dark:text-[#42C0B9]">
-                          {alt.hs_code}
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                          {alt.explanation}
-                        </p>
-                      </div>
-                    ))}
-                    {(!report.alternative_classifications || report.alternative_classifications.length === 0) && (
-                      <p className="text-slate-500 text-sm">{t('noResults')}</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-4">
-                    <Lock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500">{t('upgradeNow')}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+        {/* Left Column (2/3) */}
+        <div className="lg:col-span-2 space-y-6">
+            
+            {/* QA Score & Warnings */}
+            {qa.score !== undefined && (
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                    <Card className="border-0 shadow-sm overflow-hidden">
+                        <div className={`h-2 ${qa.score >= 80 ? 'bg-[#42C0B9]' : qa.score >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} />
+                        <CardContent className="p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold">{language === 'he' ? 'ציון איכות (QA)' : 'Holistic Quality Score'}</h3>
+                                <Badge variant="outline" className="text-lg px-3 py-1">
+                                    {qa.score}/100
+                                </Badge>
+                            </div>
+                            
+                            {qa.score < 80 && qa.user_explanation && (
+                                <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertTitle>{language === 'he' ? 'שים לב' : 'Attention Needed'}</AlertTitle>
+                                    <AlertDescription>
+                                        {qa.user_explanation}
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                            
+                            {qa.score >= 80 && (
+                                <p className="text-slate-600 dark:text-slate-300">
+                                    {language === 'he' 
+                                        ? 'הדוח עבר את בדיקות האיכות בהצלחה. סיווג זה נחשב אמין.' 
+                                        : 'This report has passed quality assurance checks. This classification is considered reliable.'}
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+                </motion.div>
+            )}
+
+            {/* Primary Classification */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <Card className="bg-gradient-to-br from-[#114B5F] to-[#0D3A4A] text-white border-0">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Scale className="w-5 h-5 text-[#42C0B9]" />
+                            {language === 'he' ? 'סיווג ראשי' : 'Primary Classification'}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+                            <div>
+                                <p className="text-white/70 text-sm uppercase tracking-wider mb-1">HS Code</p>
+                                <p className="text-5xl font-mono font-bold tracking-tight">{primaryResult.hs_code || '---'}</p>
+                            </div>
+                            <div className="flex gap-8">
+                                <div>
+                                    <p className="text-white/70 text-sm uppercase tracking-wider mb-1">Duty Rate</p>
+                                    <p className="text-2xl font-semibold text-[#42C0B9]">{regulatoryPrimary.duty_rate || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-white/70 text-sm uppercase tracking-wider mb-1">VAT</p>
+                                    <p className="text-2xl font-semibold text-[#42C0B9]">{regulatoryPrimary.vat_rate || 'N/A'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+                            <p className="text-white/90 leading-relaxed italic">
+                                "{primaryResult.reasoning}"
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </motion.div>
+
+            {/* Comparison Table */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                <Card className="border-0 shadow-sm">
+                    <CardHeader>
+                        <CardTitle>{language === 'he' ? 'השוואת חלופות' : 'Alternatives Comparison'}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>HS Code</TableHead>
+                                    <TableHead>Confidence</TableHead>
+                                    <TableHead>Duty</TableHead>
+                                    <TableHead>Reasoning / Rejection</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {/* Primary Row */}
+                                <TableRow className="bg-slate-50/50">
+                                    <TableCell className="font-mono font-medium text-[#114B5F]">{primaryResult.hs_code}</TableCell>
+                                    <TableCell>
+                                        <Badge className="bg-[#114B5F] hover:bg-[#114B5F]">{primaryResult.confidence_score}%</Badge>
+                                    </TableCell>
+                                    <TableCell>{regulatoryPrimary.duty_rate}</TableCell>
+                                    <TableCell className="text-sm text-slate-600 max-w-md truncate" title={primaryResult.reasoning}>
+                                        <Badge variant="outline" className="text-[#114B5F] border-[#114B5F] mb-1">Primary</Badge>
+                                        <br/>
+                                        {primaryResult.reasoning}
+                                    </TableCell>
+                                </TableRow>
+
+                                {/* Alternatives */}
+                                {alternatives.map((alt, idx) => {
+                                    const reg = getRegulatoryForCode(alt.hs_code);
+                                    return (
+                                        <TableRow key={idx}>
+                                            <TableCell className="font-mono text-slate-600">{alt.hs_code}</TableCell>
+                                            <TableCell>{alt.confidence_score}%</TableCell>
+                                            <TableCell>{reg.duty_rate || '---'}</TableCell>
+                                            <TableCell className="text-sm text-slate-600 max-w-md">
+                                                 <span className="font-semibold text-slate-900 block mb-1">Why rejected:</span>
+                                                 {alt.rejection_reason || alt.reasoning}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </motion.div>
+
+            {/* Audit Trail / Details */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                <Card className="border-0 shadow-sm">
+                    <CardHeader>
+                        <CardTitle>{language === 'he' ? 'פרטים טכניים ומשפטיים' : 'Technical & Legal Details'}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Tabs defaultValue="technical">
+                            <TabsList className="w-full justify-start mb-4">
+                                <TabsTrigger value="technical">{language === 'he' ? 'מפרט טכני' : 'Technical Spec'}</TabsTrigger>
+                                <TabsTrigger value="legal">{language === 'he' ? 'נימוק משפטי מלא' : 'Full Legal Reasoning'}</TabsTrigger>
+                                <TabsTrigger value="sources">{language === 'he' ? 'מקורות' : 'Verified Sources'}</TabsTrigger>
+                            </TabsList>
+                            
+                            <TabsContent value="technical" className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">Standardized Name</h4>
+                                        <p className="text-slate-900">{spec.standardized_name || '---'}</p>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">Material Composition</h4>
+                                        <p className="text-slate-900">{spec.material_composition || '---'}</p>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">Function</h4>
+                                        <p className="text-slate-900">{spec.function || '---'}</p>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">Essential Character</h4>
+                                        <p className="text-slate-900">{spec.essential_character || '---'}</p>
+                                    </div>
+                                </div>
+                            </TabsContent>
+                            
+                            <TabsContent value="legal">
+                                <div className="prose prose-sm max-w-none p-4 bg-slate-50 rounded-lg">
+                                    <p className="whitespace-pre-wrap">{primaryResult.reasoning}</p>
+                                </div>
+                            </TabsContent>
+                            
+                            <TabsContent value="sources">
+                                <div className="space-y-2">
+                                    {(research.verified_sources || []).map((source, idx) => (
+                                        <a 
+                                            key={idx} 
+                                            href={source.url} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                            className="block p-3 bg-white border hover:bg-slate-50 rounded-lg transition-colors group"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="font-medium text-[#114B5F] group-hover:underline">{source.title}</h4>
+                                                <ExternalLink className="w-4 h-4 text-slate-400" />
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">{source.snippet}</p>
+                                            <div className="flex gap-2 mt-2">
+                                                <Badge variant="secondary" className="text-[10px] h-5">{new Date(source.date).toLocaleDateString()}</Badge>
+                                            </div>
+                                        </a>
+                                    ))}
+                                    {(!research.verified_sources || research.verified_sources.length === 0) && (
+                                        <p className="text-slate-500 italic">No public sources linked.</p>
+                                    )}
+                                </div>
+                            </TabsContent>
+                        </Tabs>
+                    </CardContent>
+                </Card>
+            </motion.div>
         </div>
+
+        {/* Right Column (1/3) - Sidebar Info */}
+        <div className="space-y-6">
+            <Card className="border-0 shadow-sm">
+                <CardHeader>
+                    <CardTitle>{language === 'he' ? 'פרטי סחר' : 'Trade Details'}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div>
+                        <h4 className="text-sm font-medium text-slate-500">Destination</h4>
+                        <p className="text-lg font-medium">{report.destination_country}</p>
+                     </div>
+                     <div>
+                        <h4 className="text-sm font-medium text-slate-500">Origin</h4>
+                        <p className="text-lg font-medium">{report.country_of_origin}</p>
+                     </div>
+                     <div>
+                        <h4 className="text-sm font-medium text-slate-500">Manufacture</h4>
+                        <p className="text-lg font-medium">{report.country_of_manufacture}</p>
+                     </div>
+                     <div className="pt-4 border-t">
+                        <h4 className="text-sm font-medium text-slate-500">Import Requirements</h4>
+                        <ul className="mt-2 space-y-2">
+                            {(regulatoryPrimary.import_requirements || []).map((req, idx) => (
+                                <li key={idx} className="text-sm flex items-start gap-2">
+                                    <CheckCircle2 className="w-4 h-4 text-[#42C0B9] mt-0.5 shrink-0" />
+                                    <span>{req}</span>
+                                </li>
+                            ))}
+                            {(!regulatoryPrimary.import_requirements || regulatoryPrimary.import_requirements.length === 0) && (
+                                <li className="text-sm text-slate-500 italic">None specified</li>
+                            )}
+                        </ul>
+                     </div>
+                </CardContent>
+            </Card>
+
+            <Card className="bg-[#FAFBFC] border-dashed">
+                <CardContent className="p-6 text-center">
+                    <p className="text-xs text-slate-400 mb-2">
+                        {language === 'he' ? 'מזהה דוח' : 'Report ID'}
+                    </p>
+                    <code className="bg-slate-200 px-2 py-1 rounded text-xs block mb-4">{report.report_id}</code>
+                    <p className="text-xs text-slate-500">
+                        {language === 'he' 
+                            ? 'נוצר ע"י מערכת ACE' 
+                            : 'Generated by ACE System'}
+                    </p>
+                </CardContent>
+            </Card>
+        </div>
+
       </div>
-      
-      {/* Disclaimer */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.7 }}
-        className="text-center py-6 border-t border-slate-200 dark:border-slate-700"
-      >
-        <p className="text-sm text-slate-400 max-w-2xl mx-auto">
-          {t('disclaimer')}
-        </p>
-      </motion.div>
-      
-      {/* Share Dialog */}
-      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{language === 'he' ? 'שיתוף דוח' : 'Share Report'}</DialogTitle>
-            <DialogDescription>
-              {language === 'he' 
-                ? 'העתק את הקישור הבא כדי לשתף את הדוח. הקישור יהיה פעיל למשך 7 ימים.' 
-                : 'Copy the link below to share the report. The link will be active for 7 days.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center gap-2">
-            <Input value={shareLink} readOnly className="flex-1" dir="ltr" />
-            <Button onClick={copyShareLink} size="icon">
-              <Copy className="w-4 h-4" />
-            </Button>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowShareDialog(false)}>
-              {language === 'he' ? 'סגור' : 'Close'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
