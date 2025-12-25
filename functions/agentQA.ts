@@ -51,7 +51,7 @@ Scoring & Decision Logic:
 - Calculate holistic_score (0-100).
 - If CRITICAL logic error found (e.g. code doesn't match product at all): Return status: 'failed', identify faulty_agent (judge/regulator), and provide fix_instructions.
 - If Score < 80 but usable: Return status: 'passed' but generate user_explanation why confidence is low.
-- If Perfect: Return status: 'passed'.
+- If Perfect: Return status: 'passed.
 
 Output JSON Schema:
 {
