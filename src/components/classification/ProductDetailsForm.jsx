@@ -31,6 +31,25 @@ export default function ProductDetailsForm({ formData, onChange }) {
           className="mt-1"
         />
       </div>
+
+      <div>
+        <Label htmlFor="intended_use">{language === 'he' ? 'שימוש מיועד' : 'Intended Use'}</Label>
+        <Select
+          value={formData.intended_use || ''}
+          onValueChange={(value) => handleChange('intended_use', value)}
+        >
+          <SelectTrigger id="intended_use" className="mt-1">
+            <SelectValue placeholder={language === 'he' ? 'בחר שימוש' : 'Select intended use'} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="commercial_sale">{language === 'he' ? 'מכירה מסחרית / הפצה' : 'Commercial Sale / Resale'}</SelectItem>
+            <SelectItem value="sample">{language === 'he' ? 'דוגמה מסחרית' : 'Commercial Sample'}</SelectItem>
+            <SelectItem value="manufacturing_part">{language === 'he' ? 'רכיב לייצור' : 'Manufacturing Component'}</SelectItem>
+            <SelectItem value="repair_return">{language === 'he' ? 'תיקון והחזרה' : 'Repair & Return'}</SelectItem>
+            <SelectItem value="personal_use">{language === 'he' ? 'שימוש אישי' : 'Personal Use'}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       
       <div>
         <Label htmlFor="country_of_manufacture">{t('countryOfManufacture')}</Label>
