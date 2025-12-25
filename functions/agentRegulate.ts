@@ -11,7 +11,7 @@ export default Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const { reportId, intendedUse } = await req.json();
+    const { reportId, intendedUse, feedback } = await req.json();
     if (!reportId) {
       return Response.json({ error: 'Report ID is required' }, { status: 400 });
     }
