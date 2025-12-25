@@ -1,35 +1,70 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { invokeSpecializedLLM } from './utils/llmGateway.js';
+import Anthropic from 'npm:@anthropic-ai/sdk@^0.18.0';
+
+// --- INLINED GATEWAY LOGIC (QA SPECIFIC) ---
+
+function cleanJson(text) {
+  if (typeof text === 'object') return text;
+  try { return JSON.parse(text); } catch (e) {
+    const match = text.match(/```(?:json)?\n([\s\S]*?)\n```/);
+    if (match) { try { return JSON.parse(match[1]); } catch (e2) {} }
+    const firstOpen = text.indexOf('{');
+    const lastClose = text.lastIndexOf('}');
+    if (firstOpen !== -1 && lastClose !== -1) {
+      try { return JSON.parse(text.substring(firstOpen, lastClose + 1)); } catch (e3) {}
+    }
+    throw new Error("Failed to parse JSON response");
+  }
+}
+
+async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
+  console.log(`[LLM Gateway - QA] Using Claude Opus 4.5`);
+  const jsonInstruction = response_schema 
+    ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
+    : '';
+  const fullPrompt = prompt + jsonInstruction;
+
+  try {
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+    const anthropic = new Anthropic({ apiKey });
+    const msg = await anthropic.messages.create({
+        model: "claude-opus-4.5",
+        max_tokens: 4096,
+        messages: [{ role: "user", content: fullPrompt }]
+    });
+    
+    const content = msg.content[0].text;
+    return response_schema ? cleanJson(content) : content;
+  } catch (e) {
+     console.error(`[LLM Gateway] Primary strategy failed:`, e.message);
+     return await base44_client.integrations.Core.InvokeLLM({
+        prompt: fullPrompt,
+        response_json_schema: response_schema
+    });
+  }
+}
+
+// --- END INLINED GATEWAY ---
 
 export default Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    
-    // Verify authentication
     const user = await base44.auth.me();
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
     const { reportId } = await req.json();
-    if (!reportId) {
-      return Response.json({ error: 'Report ID is required' }, { status: 400 });
-    }
+    if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
-    // Fetch FULL Report
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
-    
-    if (!report) {
-      return Response.json({ error: 'Report not found' }, { status: 404 });
-    }
+    if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
-    // Update status to QA
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'qa_pending'
     });
     
-    // Prepare Full Context
     const context = `
 REPORT ID: ${reportId}
 Technical Spec: ${JSON.stringify(report.structural_analysis)}
@@ -38,7 +73,6 @@ Judge Results: ${JSON.stringify(report.classification_results)}
 Regulatory Data: ${JSON.stringify(report.regulatory_data)}
 `;
 
-    // System Prompt for Agent E
     const systemPrompt = `
 You are a Quality Assurance Auditor. Review the entire report.
 
@@ -67,7 +101,6 @@ Output JSON Schema:
 
     const fullPrompt = `${systemPrompt}\n\nFULL REPORT DATA:\n${context}`;
 
-    // Invoke QA (Reasoning - o1/Claude)
     const result = await invokeSpecializedLLM({
         prompt: fullPrompt,
         task_type: 'reasoning',
@@ -98,21 +131,15 @@ Output JSON Schema:
         processingStatus = 'failed';
     }
 
-    // Update DB
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         qa_audit: audit,
         status: finalStatus,
         processing_status: processingStatus,
-        // Legacy flat field update
         confidence_score: audit.score,
         qa_notes: [audit.user_explanation]
     });
     
-    return Response.json({
-        success: true,
-        status: finalStatus,
-        audit: audit
-    });
+    return Response.json({ success: true, status: finalStatus, audit: audit });
 
   } catch (error) {
     console.error('Agent E (QA) Error:', error);

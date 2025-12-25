@@ -1,39 +1,77 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { invokeSpecializedLLM } from './utils/llmGateway.js';
+import OpenAI from 'npm:openai@^4.28.0';
+
+// --- INLINED GATEWAY LOGIC (RESEARCHER SPECIFIC) ---
+
+function cleanJson(text) {
+  if (typeof text === 'object') return text;
+  try { return JSON.parse(text); } catch (e) {
+    const match = text.match(/```(?:json)?\n([\s\S]*?)\n```/);
+    if (match) { try { return JSON.parse(match[1]); } catch (e2) {} }
+    const firstOpen = text.indexOf('{');
+    const lastClose = text.lastIndexOf('}');
+    if (firstOpen !== -1 && lastClose !== -1) {
+      try { return JSON.parse(text.substring(firstOpen, lastClose + 1)); } catch (e3) {}
+    }
+    throw new Error("Failed to parse JSON response");
+  }
+}
+
+async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
+  console.log(`[LLM Gateway - Researcher] Using Sonar Deep Research`);
+  const jsonInstruction = response_schema 
+    ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
+    : '';
+  const fullPrompt = prompt + jsonInstruction;
+
+  try {
+    const apiKey = Deno.env.get('PERPLEXITY_API_KEY');
+    if (!apiKey) throw new Error("PERPLEXITY_API_KEY missing");
+
+    const perplexity = new OpenAI({ 
+        apiKey, 
+        baseURL: 'https://api.perplexity.ai' 
+    });
+    
+    const completion = await perplexity.chat.completions.create({
+        model: "sonar-deep-research",
+        messages: [{ role: "user", content: fullPrompt }]
+    });
+    const content = completion.choices[0].message.content;
+    return response_schema ? cleanJson(content) : content;
+  } catch (e) {
+     console.error(`[LLM Gateway] Primary strategy failed:`, e.message);
+     return await base44_client.integrations.Core.InvokeLLM({
+        prompt: fullPrompt,
+        response_json_schema: response_schema,
+        add_context_from_internet: true
+    });
+  }
+}
+
+// --- END INLINED GATEWAY ---
 
 export default Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    
-    // Verify authentication
     const user = await base44.auth.me();
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
     const { reportId } = await req.json();
-    if (!reportId) {
-      return Response.json({ error: 'Report ID is required' }, { status: 400 });
-    }
+    if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
-    // Fetch Report
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
-    
-    if (!report) {
-      return Response.json({ error: 'Report not found' }, { status: 404 });
-    }
+    if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
     if (!report.structural_analysis) {
         return Response.json({ error: 'Structural analysis missing. Run Agent A first.' }, { status: 400 });
     }
     
-    // Update status to researching
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'researching'
     });
     
-    // Prepare Data for Researcher
     const spec = report.structural_analysis;
     const destCountry = report.destination_country;
     
@@ -47,7 +85,6 @@ Technical Specification:
 - Essential Character: ${spec.essential_character}
 `;
 
-    // System Prompt for Agent B
     const systemPrompt = `
 You are a Customs Researcher. 
 Task: Intelligence gathering for HS Classification (No final decision).
@@ -72,7 +109,6 @@ Output JSON Schema:
 
     const fullPrompt = `${systemPrompt}\n\nDATA TO RESEARCH:\n${context}`;
 
-    // Invoke Researcher (Perplexity/Browsing)
     const result = await invokeSpecializedLLM({
         prompt: fullPrompt,
         task_type: 'research',
@@ -110,17 +146,12 @@ Output JSON Schema:
         base44_client: base44
     });
 
-    // Update DB with research findings
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         processing_status: 'research_completed',
         research_findings: result
     });
     
-    return Response.json({
-        success: true,
-        status: 'research_completed',
-        findings: result
-    });
+    return Response.json({ success: true, status: 'research_completed', findings: result });
 
   } catch (error) {
     console.error('Agent B (Researcher) Error:', error);

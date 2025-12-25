@@ -1,34 +1,70 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { invokeSpecializedLLM } from './utils/llmGateway.js';
+import OpenAI from 'npm:openai@^4.28.0';
+
+// --- INLINED GATEWAY LOGIC (JUDGE SPECIFIC) ---
+
+function cleanJson(text) {
+  if (typeof text === 'object') return text;
+  try { return JSON.parse(text); } catch (e) {
+    const match = text.match(/```(?:json)?\n([\s\S]*?)\n```/);
+    if (match) { try { return JSON.parse(match[1]); } catch (e2) {} }
+    const firstOpen = text.indexOf('{');
+    const lastClose = text.lastIndexOf('}');
+    if (firstOpen !== -1 && lastClose !== -1) {
+      try { return JSON.parse(text.substring(firstOpen, lastClose + 1)); } catch (e3) {}
+    }
+    throw new Error("Failed to parse JSON response");
+  }
+}
+
+async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
+  console.log(`[LLM Gateway - Judge] Using GPT-5.2`);
+  const jsonInstruction = response_schema 
+    ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
+    : '';
+  const fullPrompt = prompt + jsonInstruction;
+
+  try {
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!apiKey) throw new Error("OPENAI_API_KEY not set");
+
+    const openai = new OpenAI({ apiKey });
+    const completion = await openai.chat.completions.create({
+        model: "gpt-5.2",
+        messages: [{ role: "user", content: fullPrompt }],
+        response_format: response_schema ? { type: "json_object" } : undefined
+    });
+    
+    const content = completion.choices[0].message.content;
+    return response_schema ? cleanJson(content) : content;
+  } catch (e) {
+     console.error(`[LLM Gateway] Primary strategy failed:`, e.message);
+     return await base44_client.integrations.Core.InvokeLLM({
+        prompt: fullPrompt,
+        response_json_schema: response_schema
+    });
+  }
+}
+
+// --- END INLINED GATEWAY ---
 
 export default Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    
-    // Verify authentication
     const user = await base44.auth.me();
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
     const { reportId, intendedUse, feedback } = await req.json();
-    if (!reportId) {
-      return Response.json({ error: 'Report ID is required' }, { status: 400 });
-    }
+    if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
-    // Fetch Report
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
-    
-    if (!report) {
-      return Response.json({ error: 'Report not found' }, { status: 404 });
-    }
+    if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
     
     if (!report.structural_analysis || !report.research_findings) {
         return Response.json({ error: 'Prerequisites missing. Run Agent A & B first.' }, { status: 400 });
     }
     
-    // Update status to classifying
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'classifying_hs'
     });
@@ -40,7 +76,6 @@ Intended Use: ${intendedUse || 'General purpose'}
 Destination Country: ${report.destination_country}
 `;
 
-    // System Prompt for Agent C
     const systemPrompt = `
 You are a Senior Customs Judge.
 Task: Apply GRI 1-6 rules to determine the classification based on the provided technical spec and research.
@@ -73,13 +108,9 @@ Output JSON Schema:
     let fullPrompt = `${systemPrompt}\n\nCASE EVIDENCE:\n${context}`;
     
     if (feedback) {
-      fullPrompt += `\n\nIMPORTANT - PREVIOUS ATTEMPT FEEDBACK:
-The QA Auditor rejected the previous classification with these instructions:
-${feedback}
-Please correct the analysis based on this feedback.`;
+      fullPrompt += `\n\nIMPORTANT - PREVIOUS ATTEMPT FEEDBACK:\nThe QA Auditor rejected the previous classification with these instructions:\n${feedback}\nPlease correct the analysis based on this feedback.`;
     }
 
-    // Invoke Judge (Reasoning - o1/Claude)
     const result = await invokeSpecializedLLM({
         prompt: fullPrompt,
         task_type: 'reasoning',
@@ -116,20 +147,14 @@ Please correct the analysis based on this feedback.`;
         base44_client: base44
     });
 
-    // Update DB
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         classification_results: result.classification_results,
-        // Also update legacy flat fields for UI backward compatibility if needed, but primary source is now the object
         hs_code: result.classification_results.primary.hs_code,
         confidence_score: result.classification_results.primary.confidence_score,
         classification_reasoning: result.classification_results.primary.reasoning
     });
     
-    return Response.json({
-        success: true,
-        status: 'classification_completed',
-        results: result.classification_results
-    });
+    return Response.json({ success: true, status: 'classification_completed', results: result.classification_results });
 
   } catch (error) {
     console.error('Agent C (Judge) Error:', error);
