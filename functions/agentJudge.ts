@@ -11,7 +11,7 @@ export default Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const { reportId, intendedUse } = await req.json();
+    const { reportId, intendedUse, feedback } = await req.json();
     if (!reportId) {
       return Response.json({ error: 'Report ID is required' }, { status: 400 });
     }
@@ -70,7 +70,14 @@ Output JSON Schema:
 }
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nCASE EVIDENCE:\n${context}`;
+    let fullPrompt = `${systemPrompt}\n\nCASE EVIDENCE:\n${context}`;
+    
+    if (feedback) {
+      fullPrompt += `\n\nIMPORTANT - PREVIOUS ATTEMPT FEEDBACK:
+The QA Auditor rejected the previous classification with these instructions:
+${feedback}
+Please correct the analysis based on this feedback.`;
+    }
 
     // Invoke Judge (Reasoning - o1/Claude)
     const result = await invokeSpecializedLLM({

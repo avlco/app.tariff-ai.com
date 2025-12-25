@@ -72,7 +72,14 @@ Output JSON Schema:
 }
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nDATA:\n${context}`;
+    let fullPrompt = `${systemPrompt}\n\nDATA:\n${context}`;
+
+    if (feedback) {
+      fullPrompt += `\n\nIMPORTANT - PREVIOUS ATTEMPT FEEDBACK:
+The QA Auditor rejected the previous calculation with these instructions:
+${feedback}
+Please correct the calculation based on this feedback.`;
+    }
 
     // Invoke Regulator (General - GPT-4o)
     const result = await invokeSpecializedLLM({
