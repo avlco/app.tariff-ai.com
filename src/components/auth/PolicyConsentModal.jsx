@@ -16,10 +16,11 @@ export default function PolicyConsentModal({ user, onAccept }) {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleAccept = async () => {
+    if (!accepted.privacy) return;
+    
     setIsProcessing(true);
     try {
       // 1. Update user record (UserMasterData)
-      // We try to find existing record first
       const userData = await base44.entities.UserMasterData.filter({ user_email: user.email });
       
       if (userData.length > 0) {
@@ -28,7 +29,6 @@ export default function PolicyConsentModal({ user, onAccept }) {
           policy_accepted_date: new Date().toISOString()
         });
       } else {
-         // Create if doesn't exist (edge case for new users without master data)
          await base44.entities.UserMasterData.create({
             user_email: user.email,
             full_name: user.full_name,
@@ -39,7 +39,7 @@ export default function PolicyConsentModal({ user, onAccept }) {
       
       toast.success(language === 'he' ? 'התנאים אושרו בהצלחה' : 'Terms accepted successfully');
       
-      // Call parent callback to close modal immediately
+      // Navigate/Close modal
       if (onAccept) {
           onAccept();
       }
@@ -47,7 +47,6 @@ export default function PolicyConsentModal({ user, onAccept }) {
     } catch (error) {
       console.error("PolicyConsentModal error:", error);
       toast.error(language === 'he' ? 'שגיאה באישור התנאים' : 'Error accepting terms');
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -76,8 +75,8 @@ export default function PolicyConsentModal({ user, onAccept }) {
       terms: 'Terms of Service',
       privacy: 'Privacy Policy',
       acceptTerms: 'I have read and accept the Terms of Service',
-      acceptPrivacy: 'I have read and accept the Privacy Policy',
-      continue: 'Accept & Continue',
+      acceptPrivacy: 'I have read and agree to the privacy policy',
+      continue: 'Confirm and continue',
       decline: 'Decline',
       next: 'Next',
       prev: 'Previous',
@@ -177,7 +176,7 @@ export default function PolicyConsentModal({ user, onAccept }) {
                         <Checkbox 
                             id="privacy-check" 
                             checked={accepted.privacy}
-                            onCheckedChange={(checked) => setAccepted(prev => ({ ...prev, privacy: checked }))}
+                            onCheckedChange={(checked) => setAccepted(prev => ({ ...prev, privacy: !!checked }))}
                         />
                         <label htmlFor="privacy-check" className="text-sm font-medium cursor-pointer select-none flex-1">
                             {t.acceptPrivacy}
