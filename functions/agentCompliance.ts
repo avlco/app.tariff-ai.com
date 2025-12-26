@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import OpenAI from 'npm:openai@^4.28.0';
 
-// --- INLINED GATEWAY LOGIC (RESEARCHER SPECIFIC) ---
+// --- INLINED GATEWAY LOGIC (COMPLIANCE SPECIALIST - SONAR) ---
 
 function cleanJson(text) {
   if (typeof text === 'object') return text;
@@ -17,8 +17,8 @@ function cleanJson(text) {
   }
 }
 
-async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
-  console.log(`[LLM Gateway - Researcher] Using Sonar Deep Research`);
+async function invokeSpecializedLLM({ prompt, response_schema, base44_client }) {
+  console.log(`[LLM Gateway - Compliance Specialist] Using Sonar Deep Research`);
   const jsonInstruction = response_schema 
     ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
     : '';
@@ -64,103 +64,73 @@ export default Deno.serve(async (req) => {
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
-    if (!report.structural_analysis) {
-        return Response.json({ error: 'Structural analysis missing. Run Agent A first.' }, { status: 400 });
-    }
-    
-    await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
-      processing_status: 'researching'
-    });
-    
-    const spec = report.structural_analysis;
-    const destCountry = report.destination_country;
-    
-    const context = `
-Destination Country: ${destCountry}
-Technical Specification:
-- Name: ${spec.standardized_name}
-- Material: ${spec.material_composition}
-- Function: ${spec.function}
-- State: ${spec.state}
-- Essential Character: ${spec.essential_character}
-`;
-
     const kbContext = knowledgeBase ? `
 Knowledge Base for ${knowledgeBase.country}:
 Regulation Links: ${knowledgeBase.regulation_links}
-Trade Agreements: ${knowledgeBase.trade_agreements_links}
+Government Trade Links: ${knowledgeBase.government_trade_links}
 ` : '';
 
-    const systemPrompt = `
-You are a Customs Researcher. 
-Task: Intelligence gathering for HS Classification (No final decision).
+    const context = `
+Destination Country: ${report.destination_country}
+Product: ${report.product_name}
+Intended Use: ${report.user_input_text}
+HS Code: ${report.classification_results?.primary?.hs_code}
+${kbContext}
+`;
 
-Objectives:
-1. Find the 2025 Customs Tariff for [${destCountry}].
-2. Search for legal notes/exclusions relevant to: ${spec.standardized_name} (${spec.material_composition}).
-3. Search for previous rulings or precedents for similar items in ${destCountry} or WCO.
-4. Find 3-5 potential HS Headings (4-digit) that might fit.
+    const systemPrompt = `
+You are a Compliance Specialist (Legal).
+Task: Search for official import requirements, mandatory standards, and labeling laws. Look for official documentation in ANY format (Official Government Portals, PDF, DOC, HTML gazettes). Do NOT limit to PDFs. Prioritize sources from the Standardization Institute and Ministries of the destination country.
 
 Output JSON Schema:
 {
-  "verified_sources": [
-    { "title": "string", "url": "string", "date": "string", "snippet": "string" }
-  ],
-  "candidate_headings": [
-    { "code_4_digit": "string", "description": "string" }
-  ],
-  "legal_notes_found": ["string"]
+  "compliance_data": {
+    "import_requirements": ["string"],
+    "mandatory_standards": ["string"],
+    "labeling_laws": ["string"],
+    "prohibitions": ["string"]
+  }
 }
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nDATA TO RESEARCH:\n${context}\n${kbContext}`;
+    const fullPrompt = `${systemPrompt}\n\nDATA:\n${context}`;
 
     const result = await invokeSpecializedLLM({
         prompt: fullPrompt,
-        task_type: 'research',
         response_schema: {
             type: "object",
             properties: {
-                verified_sources: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            title: { type: "string" },
-                            url: { type: "string" },
-                            date: { type: "string" },
-                            snippet: { type: "string" }
-                        }
+                compliance_data: {
+                    type: "object",
+                    properties: {
+                        import_requirements: { type: "array", items: { type: "string" } },
+                        mandatory_standards: { type: "array", items: { type: "string" } },
+                        labeling_laws: { type: "array", items: { type: "string" } },
+                        prohibitions: { type: "array", items: { type: "string" } }
                     }
-                },
-                candidate_headings: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            code_4_digit: { type: "string" },
-                            description: { type: "string" }
-                        }
-                    }
-                },
-                legal_notes_found: {
-                    type: "array",
-                    items: { type: "string" }
                 }
             }
         },
         base44_client: base44
     });
 
+    // Merge into regulatory_data
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
-        processing_status: 'research_completed',
-        research_findings: result
+        regulatory_data: {
+            ...(report.regulatory_data || {}),
+            primary: {
+                ...(report.regulatory_data?.primary || {}),
+                import_requirements: result.compliance_data.import_requirements
+            },
+            // Store extra details in custom fields if needed or mapped
+            compliance_details: result.compliance_data
+        }
     });
     
-    return Response.json({ success: true, status: 'research_completed', findings: result });
+    return Response.json({ success: true, status: 'compliance_checked', data: result.compliance_data });
 
   } catch (error) {
-    console.error('Agent B (Researcher) Error:', error);
+    console.error('Agent Compliance Error:', error);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });

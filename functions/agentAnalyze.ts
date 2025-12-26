@@ -54,7 +54,7 @@ export default Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId } = await req.json();
+    const { reportId, knowledgeBase } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
@@ -82,6 +82,12 @@ Chat History:
 ${JSON.stringify(report.chat_history || [])}
 `;
 
+    const kbContext = knowledgeBase ? `
+Knowledge Base for ${knowledgeBase.country}:
+HS Structure: ${knowledgeBase.hs_code_structure}
+Customs Links: ${knowledgeBase.customs_links}
+` : '';
+
     const systemPrompt = `
 You are an expert Forensic Product Analyst.
 Task: Analyze the raw user input and create a standardized Technical Specification in English.
@@ -104,7 +110,7 @@ Output JSON Schema:
 }
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nINPUT DATA:\n${context}`;
+    const fullPrompt = `${systemPrompt}\n\nINPUT DATA:\n${context}\n${kbContext}`;
 
     const result = await invokeSpecializedLLM({
         prompt: fullPrompt,

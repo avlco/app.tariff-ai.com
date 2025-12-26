@@ -84,6 +84,7 @@ Requirements:
 1. Determine the Primary Classification (Best legal fit).
 2. Determine 2 Viable Alternatives (Legally defensible but less likely).
 3. Provide a detailed legal_reasoning citing the provided Research Sources.
+4. You MUST determine the full HS Code (8-10 digits) specific to the [Destination Country], not just the international 6-digit code.
 
 Output JSON Schema:
 {

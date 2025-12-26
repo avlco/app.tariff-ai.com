@@ -53,9 +53,23 @@ export default Deno.serve(async (req) => {
             await logProgress(reportId, 'initialization', `Ping failed: ${e.message}`, 'warning');
         }
 
+        // Fetch Knowledge Base
+        let knowledgeBase = null;
+        try {
+            // Need to fetch report to get destination country
+            const reportData = await base44.entities.ClassificationReport.filter({ id: reportId });
+            if (reportData[0]?.destination_country) {
+                 const kb = await base44.asServiceRole.entities.CountryKnowledgeBase.filter({ country: reportData[0].destination_country });
+                 knowledgeBase = kb[0] || null;
+                 if(knowledgeBase) await logProgress(reportId, 'initialization', `Knowledge Base found for ${reportData[0].destination_country}`);
+            }
+        } catch (e) {
+             console.warn('KB fetch failed:', e);
+        }
+
         // Step 1: The Analyst (Agent A)
         await logProgress(reportId, 'analyst', 'Starting structural analysis (Agent A)');
-        const analystRes = await base44.functions.invoke('agentAnalyze', { reportId });
+        const analystRes = await base44.functions.invoke('agentAnalyze', { reportId, knowledgeBase });
         
         if (analystRes.data.status === 'waiting_for_user' || analystRes.data.status === 'insufficient_data') {
             await logProgress(reportId, 'analyst', 'Insufficient data, waiting for user', 'pending');
@@ -70,7 +84,7 @@ export default Deno.serve(async (req) => {
 
         // Step 2: The Researcher (Agent B)
         await logProgress(reportId, 'researcher', 'Starting research (Agent B)');
-        await base44.functions.invoke('agentResearch', { reportId });
+        await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
         await logProgress(reportId, 'researcher', 'Research completed');
 
         // Step 3: The Judge (Agent C)
@@ -78,10 +92,14 @@ export default Deno.serve(async (req) => {
         await base44.functions.invoke('agentJudge', { reportId, intendedUse });
         await logProgress(reportId, 'judge', 'Classification completed');
 
-        // Step 4: The Regulator (Agent D)
-        await logProgress(reportId, 'regulator', 'Calculating duties and regulations (Agent D)');
-        await base44.functions.invoke('agentRegulate', { reportId });
-        await logProgress(reportId, 'regulator', 'Regulations calculated');
+        // Step 4: Tax & Compliance (Agent Tax & Agent Compliance)
+        await logProgress(reportId, 'tax', 'Calculating duties (Agent Tax)');
+        await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+        await logProgress(reportId, 'tax', 'Duties calculated');
+
+        await logProgress(reportId, 'compliance', 'Checking compliance (Agent Compliance)');
+        await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
+        await logProgress(reportId, 'compliance', 'Compliance checks completed');
 
         // Step 5: QA & Self-Healing Loop (Agent E)
         await logProgress(reportId, 'qa', 'Starting QA Audit (Agent E)');
@@ -118,21 +136,19 @@ export default Deno.serve(async (req) => {
                 
                 // MUST re-run Regulator after Judge changes codes
                 await base44.functions.invoke('agentRegulate', { reportId });
-            } else if (faultyAgent.includes('regulator') || faultyAgent.includes('duties')) {
-                // Re-run Regulator with feedback
-                await base44.functions.invoke('agentRegulate', { 
-                    reportId, 
-                    feedback: instructions 
-                });
+            } else if (faultyAgent.includes('tax') || faultyAgent.includes('duties')) {
+                await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+            } else if (faultyAgent.includes('compliance') || faultyAgent.includes('regulatory')) {
+                 await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
             } else {
-                // Unknown agent or generic failure, just retry Judge? 
-                // Defaulting to re-run Judge as it's the most critical
+                // Default retry loop
                 await base44.functions.invoke('agentJudge', { 
                     reportId, 
                     intendedUse, 
                     feedback: instructions 
                 });
-                await base44.functions.invoke('agentRegulate', { reportId });
+                await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+                await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
             }
         }
 
