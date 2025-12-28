@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { base44 } from "@/api/base44Client";
 import SmartClassificationChat from "@/components/SmartClassificationChat";
 import { Loader2 } from "lucide-react";
@@ -20,7 +20,7 @@ export default function NewClassificationPage() {
       }
 
       try {
-        // Create clean draft with NULL fields so the Extractor knows they are empty
+        // FIXED: Initialize with null so the Extractor detects missing info
         const newReport = await base44.entities.ClassificationReport.create({
           product_name: null, 
           origin_country: null,
@@ -52,5 +52,3 @@ export default function NewClassificationPage() {
     </div>
   );
 }
-
-// Build fix
