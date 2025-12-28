@@ -26,7 +26,6 @@ export default Deno.serve(async (req) => {
 
         await logProgress(reportId, 'initialization', 'Starting classification workflow');
 
-        // Fetch Knowledge Base
         let knowledgeBase = null;
         try {
             const reportData = await base44.entities.ClassificationReport.filter({ id: reportId });
@@ -37,29 +36,24 @@ export default Deno.serve(async (req) => {
             }
         } catch (e) { console.warn('KB fetch failed:', e); }
 
-        // Step 1: Agent A
         await logProgress(reportId, 'analyst', 'Starting structural analysis (Agent A)');
         const analystRes = await base44.functions.invoke('agentAnalyze', { reportId, knowledgeBase });
         if (analystRes.data.status === 'waiting_for_user') {
             return Response.json({ success: true, status: 'waiting_for_user', question: analystRes.data.question });
         }
 
-        // Step 2: Agent B
         await logProgress(reportId, 'researcher', 'Starting research (Agent B)');
         await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
 
-        // Step 3: Agent C
         await logProgress(reportId, 'judge', 'Starting classification (Agent C)');
         await base44.functions.invoke('agentJudge', { reportId, intendedUse });
 
-        // Step 4: Tax & Compliance
         await logProgress(reportId, 'tax', 'Calculating duties & compliance');
         await Promise.all([
             base44.functions.invoke('agentTax', { reportId, knowledgeBase }),
             base44.functions.invoke('agentCompliance', { reportId, knowledgeBase })
         ]);
 
-        // Step 5: QA
         await logProgress(reportId, 'qa', 'Starting QA Audit');
         let attempts = 0;
         let qaPassed = false;
@@ -79,7 +73,6 @@ export default Deno.serve(async (req) => {
             const instructions = qaAudit.fix_instructions;
             await logProgress(reportId, 'self-healing', `QA Failed. Retrying ${faultyAgent}. Attempt ${attempts}/2`, 'warning');
 
-            // FIXED LOGIC: No more agentRegulate
             if (faultyAgent.includes('judge') || faultyAgent.includes('classification') || faultyAgent === 'general') {
                 await base44.functions.invoke('agentJudge', { reportId, intendedUse, feedback: instructions });
                 await Promise.all([
@@ -93,7 +86,6 @@ export default Deno.serve(async (req) => {
             }
         }
 
-        // Finalize
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             status: 'completed',
             processing_status: 'completed',
