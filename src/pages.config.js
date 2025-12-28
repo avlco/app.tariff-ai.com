@@ -11,6 +11,7 @@ import ShipmentView from './pages/ShipmentView';
 import Shipments from './pages/Shipments';
 import Support from './pages/Support';
 import Terms from './pages/Terms';
+import NewClassification from './pages/NewClassification';
 import __Layout from './Layout.jsx';
 
 
@@ -28,6 +29,7 @@ export const PAGES = {
     "Shipments": Shipments,
     "Support": Support,
     "Terms": Terms,
+    "NewClassification": NewClassification,
 }
 
 export const pagesConfig = {
