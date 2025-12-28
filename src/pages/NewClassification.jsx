@@ -24,7 +24,9 @@ export default function NewClassificationPage() {
       try {
         // Create a new draft report
         const newReport = await base44.entities.ClassificationReport.create({
-          product_name: 'New Product', // Placeholder
+          product_name: null, // Allow extractor to fill this
+          country_of_origin: null,
+          destination_country: null,
           status: 'processing',
           processing_status: 'collecting_info',
           chat_history: []

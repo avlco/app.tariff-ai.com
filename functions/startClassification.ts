@@ -134,21 +134,27 @@ export default Deno.serve(async (req) => {
                     feedback: instructions 
                 });
                 
-                // MUST re-run Regulator after Judge changes codes
-                await base44.functions.invoke('agentRegulate', { reportId });
+                // CRITICAL FIX: Re-run Tax & Compliance (NOT agentRegulate) because HS Code changed
+                await Promise.all([
+                    base44.functions.invoke('agentTax', { reportId, knowledgeBase }),
+                    base44.functions.invoke('agentCompliance', { reportId, knowledgeBase })
+                ]);
+
             } else if (faultyAgent.includes('tax') || faultyAgent.includes('duties')) {
-                await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+                // Fix Tax only
+                await base44.functions.invoke('agentTax', { reportId, knowledgeBase, feedback: instructions });
+
             } else if (faultyAgent.includes('compliance') || faultyAgent.includes('regulatory')) {
-                 await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
+                 // Fix Compliance only
+                 await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase, feedback: instructions });
+
             } else {
-                // Default retry loop
-                await base44.functions.invoke('agentJudge', { 
-                    reportId, 
-                    intendedUse, 
-                    feedback: instructions 
-                });
-                await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
-                await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
+                // Generic Retry: Run everything
+                await base44.functions.invoke('agentJudge', { reportId, intendedUse, feedback: instructions });
+                await Promise.all([
+                    base44.functions.invoke('agentTax', { reportId, knowledgeBase }),
+                    base44.functions.invoke('agentCompliance', { reportId, knowledgeBase })
+                ]);
             }
         }
 
