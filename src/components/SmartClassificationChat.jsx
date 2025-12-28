@@ -21,7 +21,7 @@ import {
   Play
 } from 'lucide-react';
 import { base44 } from "@/api/base44Client";
-import { useLanguage } from './providers/LanguageContext';
+import { useLanguage } from '@/components/providers/LanguageContext';
 import { toast } from "sonner";
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
