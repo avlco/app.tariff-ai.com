@@ -1,5 +1,6 @@
 import Cookies from './pages/Cookies';
 import Customers from './pages/Customers';
+import Dashboard from './pages/Dashboard';
 import NewClassification from './pages/NewClassification';
 import NewShipment from './pages/NewShipment';
 import Privacy from './pages/Privacy';
@@ -11,13 +12,13 @@ import ShipmentView from './pages/ShipmentView';
 import Shipments from './pages/Shipments';
 import Support from './pages/Support';
 import Terms from './pages/Terms';
-import Dashboard from './pages/Dashboard';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
     "Cookies": Cookies,
     "Customers": Customers,
+    "Dashboard": Dashboard,
     "NewClassification": NewClassification,
     "NewShipment": NewShipment,
     "Privacy": Privacy,
@@ -29,7 +30,6 @@ export const PAGES = {
     "Shipments": Shipments,
     "Support": Support,
     "Terms": Terms,
-    "Dashboard": Dashboard,
 }
 
 export const pagesConfig = {

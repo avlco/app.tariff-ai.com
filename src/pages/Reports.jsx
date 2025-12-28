@@ -50,7 +50,6 @@ import { toast } from 'sonner';
 import ClassifyButton from '../components/classification/ClassifyButton';
 import NewClassificationDialog from '../components/classification/NewClassificationDialog';
 
-
 export default function Reports() {
   const { t, language, isRTL } = useLanguage();
   const navigate = useNavigate();
@@ -78,8 +77,6 @@ export default function Reports() {
     loadUser();
   }, []);
   
-
-
   const filteredReports = (reports || []).filter(report => {
     if (!report) return false;
     const matchesSearch = (report.product_name?.toLowerCase() ?? '').includes(search.toLowerCase()) ||
@@ -112,9 +109,11 @@ export default function Reports() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
           {t('reports')}
         </h1>
-        <ClassifyButton onClick={() => setClassifyDialogOpen(true)} />
+        {/* FIXED: Navigate directly to the new page instead of opening the dialog */}
+        <ClassifyButton onClick={() => navigate('/NewClassification')} />
       </div>
       
+      {/* Keep the dialog component mounted just in case, but it won't be triggered by the main button anymore */}
       <NewClassificationDialog 
         open={classifyDialogOpen} 
         onOpenChange={setClassifyDialogOpen} 
