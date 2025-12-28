@@ -20,7 +20,7 @@ export default function NewClassificationPage() {
       }
 
       try {
-        // Create clean draft with NULL fields for Extractor
+        // Create clean draft with NULL fields so the Extractor knows they are empty
         const newReport = await base44.entities.ClassificationReport.create({
           product_name: null, 
           origin_country: null,
