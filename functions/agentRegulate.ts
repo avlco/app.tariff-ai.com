@@ -81,19 +81,31 @@ Product: ${report.product_name}
 `;
 
     const systemPrompt = `
-You are a Trade Compliance Officer.
-Task: Determine Duty Rate, VAT, and Excise Tax for import into [${report.destination_country}] for the provided HS Codes.
+You are a Senior Trade Compliance Officer.
+Task: Strict Compliance Check & Tax Calculation for import into [${report.destination_country}].
 
 Requirements:
-1. For EACH of the 3 HS Codes (Primary + Alternatives), determine Duty Rate and VAT.
-2. Identify any Import Licensing requirements based on Intended Use.
+1. **Tax Breakdown:**
+   - **Duty Rate:** Exact % for 2025.
+   - **VAT:** Specify General VAT vs Import VAT if different.
+   - **Excise/Other:** Check for Purchase Tax (Excise), Dumping Duties, or special levies.
+
+2. **Standards & Legality:**
+   - **Standards:** Detail ISO, CE, or local standard requirements (e.g. SII in Israel, FCC in US).
+   - **Legality:** Is an Import License required? Any Quotas? Restricted item check?
+
+3. **Citations:**
+   - Every tax rate or regulation MUST be supported by a citation from the extracted links.
 
 Output JSON Schema:
 {
   "regulatory_data": {
     "primary": {
-      "duty_rate": "string (e.g. '0%' or '5.5%')",
+      "duty_rate": "string",
       "vat_rate": "string",
+      "excise_taxes": "string (e.g. 'Purchase Tax: 15%')",
+      "standards_requirements": "string (e.g. 'Requires SII Standard 123')",
+      "import_legality": "string (e.g. 'Free Import' or 'Requires License')",
       "import_requirements": ["string"]
     },
     "alternatives": [
