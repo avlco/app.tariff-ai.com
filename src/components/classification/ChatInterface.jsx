@@ -6,7 +6,7 @@ import { useLanguage } from '../providers/LanguageContext';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 
-export default function ChatInterface({ messages, onSendMessage, onFileUpload, onLinkAdd }) {
+export default function ChatInterface({ messages, onSendMessage, onFileUpload, onLinkAdd, griIndicators = {} }) {
   const { language, isRTL } = useLanguage();
   const [input, setInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -52,17 +52,22 @@ export default function ChatInterface({ messages, onSendMessage, onFileUpload, o
   
   return (
     <div className="flex flex-col h-[400px] border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900">
-      {/* Data Collection Status */}
+      {/* Data Collection Status - GRI Indicators */}
       <div className="bg-slate-50 dark:bg-slate-800 p-2 border-b text-xs flex gap-3 overflow-x-auto">
-        <div className="flex items-center gap-1 text-green-600">
-          <span className="font-bold">✓</span> {language === 'he' ? 'שם מוצר' : 'Product Name'}
-        </div>
-        <div className="flex items-center gap-1 text-green-600">
-          <span className="font-bold">✓</span> {language === 'he' ? 'מדינת יעד' : 'Destination'}
-        </div>
-        <div className="flex items-center gap-1 text-slate-500">
-          <span className="animate-pulse">●</span> {language === 'he' ? 'מחקר מפרט טכני...' : 'Reseaching Spec...'}
-        </div>
+         <div className={`flex items-center gap-1 ${griIndicators.material_composition ? 'text-green-600' : 'text-slate-400'}`}>
+            <span>{griIndicators.material_composition ? '✓' : '○'}</span> {language === 'he' ? 'הרכב חומרים' : 'Material'}
+         </div>
+         <div className={`flex items-center gap-1 ${griIndicators.function ? 'text-green-600' : 'text-slate-400'}`}>
+            <span>{griIndicators.function ? '✓' : '○'}</span> {language === 'he' ? 'תפקוד' : 'Function'}
+         </div>
+         <div className={`flex items-center gap-1 ${griIndicators.essential_character ? 'text-green-600' : 'text-slate-400'}`}>
+            <span>{griIndicators.essential_character ? '✓' : '○'}</span> {language === 'he' ? 'מאפיין עיקרי' : 'Essential Char'}
+         </div>
+         {griIndicators.readiness_score && (
+             <div className={`ml-auto font-bold ${griIndicators.readiness_score >= 80 ? 'text-green-600' : 'text-orange-500'}`}>
+                 Score: {griIndicators.readiness_score}%
+             </div>
+         )}
       </div>
 
       {/* Messages */}
@@ -89,19 +94,6 @@ export default function ChatInterface({ messages, onSendMessage, onFileUpload, o
                 {msg.content}
               </div>
               
-              {/* "Start Classification" Button inside Chat (Simulated based on AI readiness) */}
-              {msg.role === 'assistant' && idx === messages.length - 1 && messages.length > 2 && (
-                 <div className="mt-2 ml-2">
-                    <Button 
-                        size="sm" 
-                        variant="outline"
-                        className="text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                        onClick={() => onSendMessage(language === 'he' ? 'פשוט תתחיל' : 'Just start')}
-                    >
-                        {language === 'he' ? '✨ יש מספיק מידע - התחל סיווג' : '✨ Enough info - Start Classification'}
-                    </Button>
-                 </div>
-              )}
             </div>
           ))
         )}

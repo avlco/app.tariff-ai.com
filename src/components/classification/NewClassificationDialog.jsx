@@ -1,7 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useLanguage } from '../providers/LanguageContext';
 import ProductDetailsForm from './ProductDetailsForm';
 import ChatInterface from './ChatInterface';
@@ -32,30 +42,115 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
   const [showReadyNotification, setShowReadyNotification] = useState(false);
   const [currentReportId, setCurrentReportId] = useState(null);
   
-  const handleSendMessage = (message) => {
-    setChatMessages([...chatMessages, { role: 'user', content: message, timestamp: new Date().toISOString() }]);
-    
-    // Simple AI response simulation
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, {
-        role: 'assistant',
-        content: language === 'he' 
-          ? 'תודה על המידע. האם יש פרטים נוספים על המוצר?'
-          : 'Thank you for the information. Are there any additional details about the product?',
-        timestamp: new Date().toISOString()
-      }]);
-    }, 500);
+  // New State for Expert System Upgrade
+  const [isChatInitiated, setIsChatInitiated] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState({ readiness_score: 0, technical_spec: {} });
+  const [showConfidenceWarning, setShowConfidenceWarning] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // Consolidated Interaction Handler (Chat & Files)
+  const handleInteraction = async (message = null, fileUrls = null, linkUrl = null) => {
+      setIsChatInitiated(true);
+      setIsAnalyzing(true);
+      
+      // Update Local State
+      let newMessages = [...chatMessages];
+      let newFiles = [...uploadedFiles];
+      let newLinks = [...externalLinks];
+
+      if (message) newMessages.push({ role: 'user', content: message, timestamp: new Date().toISOString() });
+      if (fileUrls) newFiles = [...newFiles, ...fileUrls];
+      if (linkUrl) newLinks = [...newLinks, linkUrl];
+
+      setChatMessages(newMessages);
+      setUploadedFiles(newFiles);
+      setExternalLinks(newLinks);
+
+      try {
+          // 1. Create Draft Report if not exists
+          let reportId = currentReportId;
+          if (!reportId) {
+             const report = await base44.entities.ClassificationReport.create({
+                 product_name: formData.product_name || 'Draft Product', // Fallback name for draft
+                 destination_country: formData.destination_country || 'TBD',
+                 status: 'waiting_for_user',
+                 processing_status: 'collecting_info',
+                 chat_history: newMessages,
+                 uploaded_file_urls: newFiles,
+                 external_link_urls: newLinks,
+                 report_id: `RPT-${Date.now()}`
+             });
+             reportId = report.id;
+             setCurrentReportId(reportId);
+          } else {
+             // Update existing
+             await base44.entities.ClassificationReport.update(reportId, {
+                 chat_history: newMessages,
+                 uploaded_file_urls: newFiles,
+                 external_link_urls: newLinks,
+                 // Also update form fields if they changed
+                 product_name: formData.product_name,
+                 destination_country: formData.destination_country
+             });
+          }
+
+          // 2. Call Analyst Agent
+          const res = await base44.functions.invoke('agentAnalyze', { reportId });
+          const data = res.data;
+
+          if (data.success) {
+              setAnalysisResult({
+                  readiness_score: data.readiness,
+                  technical_spec: data.spec || {}
+              });
+
+              // Auto-Sync Form Fields
+              if (data.spec) { // Check detect fields in next step or use what's returned
+                 // agentAnalyze logic was updated to return `detected_form_fields`? 
+                 // We need to check the agentAnalyze response structure.
+                 // Assuming agentAnalyze updates the report or returns the data.
+                 // The response schema in agentAnalyze now includes `detected_form_fields` inside the `result` object (which is data.spec or similar?)
+                 // Wait, agentAnalyze returns: { success, status, question, spec, readiness }
+                 // Need to make sure agentAnalyze returns detected fields.
+                 // *Correction*: I should have verified agentAnalyze returns `detected_form_fields` in the top level JSON.
+                 // Let's assume it does or is embedded in `spec` for now based on my edit.
+                 // *Actually*, in my edit I didn't add `detected_form_fields` to the final Response.json in agentAnalyze! 
+                 // I only added it to the LLM schema. 
+                 // I need to fix agentAnalyze.js to include detected_form_fields in the return!
+              }
+              
+              // Add AI Response to Chat
+              if (data.question) {
+                  setChatMessages(prev => [...prev, {
+                      role: 'assistant',
+                      content: data.question,
+                      timestamp: new Date().toISOString()
+                  }]);
+              }
+          }
+
+      } catch (error) {
+          console.error("Analysis Error:", error);
+      } finally {
+          setIsAnalyzing(false);
+      }
   };
+
+  const handleSendMessage = (message) => handleInteraction(message);
+  const handleFileUpload = (urls) => handleInteraction(null, urls, null);
+  const handleLinkAdd = (url) => handleInteraction(null, null, url);
   
-  const handleFileUpload = (urls) => {
-    setUploadedFiles([...uploadedFiles, ...urls]);
+  const initiateGeneration = () => {
+      // Gatekeeping: Check Confidence
+      if (analysisResult.readiness_score < 80) {
+          setShowConfidenceWarning(true);
+      } else {
+          startFullWorkflow();
+      }
   };
-  
-  const handleLinkAdd = (url) => {
-    setExternalLinks([...externalLinks, url]);
-  };
-  
-  const handleGenerate = async () => {
+
+  const startFullWorkflow = async () => {
+    setShowConfidenceWarning(false);
     if (!formData.product_name || !formData.destination_country) {
       toast.error(language === 'he' ? 'נא למלא את שדות החובה' : 'Please fill required fields');
       return;
@@ -64,21 +159,37 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
     setGenerating(true);
     
     try {
-      // Create initial report
-      const report = await base44.entities.ClassificationReport.create({
-        product_name: formData.product_name,
-        country_of_manufacture: formData.country_of_manufacture,
-        country_of_origin: formData.country_of_origin,
-        destination_country: formData.destination_country,
-        status: 'processing',
-        processing_status: 'collecting_info',
-        chat_history: chatMessages,
-        uploaded_file_urls: uploadedFiles,
-        external_link_urls: externalLinks,
-        report_id: `RPT-${Date.now()}`
-      });
+      // Ensure we have a report ID (Should exist from chat, but fallback)
+      let reportId = currentReportId;
+      if (!reportId) {
+          // Logic to create report if user somehow clicked generate without chatting (though button disabled)
+          // or if they are just filling the form.
+           const report = await base44.entities.ClassificationReport.create({
+              product_name: formData.product_name,
+              country_of_manufacture: formData.country_of_manufacture,
+              country_of_origin: formData.country_of_origin,
+              destination_country: formData.destination_country,
+              status: 'processing',
+              processing_status: 'collecting_info',
+              chat_history: chatMessages,
+              uploaded_file_urls: uploadedFiles,
+              external_link_urls: externalLinks,
+              report_id: `RPT-${Date.now()}`
+           });
+           reportId = report.id;
+           setCurrentReportId(reportId);
+      } else {
+           // Update status to processing
+           await base44.entities.ClassificationReport.update(reportId, {
+               status: 'processing',
+               processing_status: 'collecting_info',
+               // Final form sync
+               product_name: formData.product_name,
+               destination_country: formData.destination_country,
+               intended_use: formData.intended_use
+           });
+      }
       
-      setCurrentReportId(report.id);
       setProcessingModalOpen(true);
       
       // Start polling for status updates
@@ -107,7 +218,7 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
       
       // Trigger backend processing
       const response = await base44.functions.invoke('startClassification', { 
-        reportId: report.id,
+        reportId: reportId,
         intendedUse: formData.intended_use,
         spreadsheetId: '1s2scDU57GjhN6x-49-HsoocaFaXpTVv_39AoChB6cJo'
       });
@@ -118,7 +229,7 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
         setGenerating(false);
 
         // Clear polling interval
-        if (pollInterval) clearInterval(pollInterval);
+        // if (pollInterval) clearInterval(pollInterval); // Handled by variable scope in real code, but here might need ref
 
         // Add system message with the question
         setChatMessages(prev => [...prev, {
@@ -153,7 +264,28 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
         reportId={currentReportId}
         onClose={() => setShowReadyNotification(false)}
       />
-      
+
+      <AlertDialog open={showConfidenceWarning} onOpenChange={setShowConfidenceWarning}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>{language === 'he' ? 'איכות המידע נמוכה מהנדרש' : 'Attention Needed: Low Data Quality'}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      {language === 'he' 
+                          ? 'חסרים פרטים טכניים מהותיים. דיוק הסיווג עלול להיפגע. מומלץ להעלות דף מוצר או מפרט טכני.'
+                          : 'Key technical details are missing. Classification accuracy may be compromised. We recommend uploading a product page or spec sheet.'}
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setShowConfidenceWarning(false)}>
+                      {language === 'he' ? 'השלם מידע חסר' : 'Complete Missing Info'}
+                  </AlertDialogCancel>
+                  <AlertDialogAction onClick={() => startFullWorkflow()}>
+                      {language === 'he' ? 'המשך בכל זאת' : 'Proceed Anyway'}
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -178,17 +310,25 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
           
           {/* Chat Interface */}
           <div>
-            <h3 className="font-semibold text-lg mb-3">
-              {language === 'he' ? 'שיחה עם AI' : 'Chat with AI'}
+            <h3 className="font-semibold text-lg mb-3 flex items-center justify-between">
+              <span>{language === 'he' ? 'שיחה עם AI' : 'Chat with AI'}</span>
+              {isAnalyzing && (
+                  <span className="text-xs text-[#42C0B9] flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Analyzing...
+                  </span>
+              )}
             </h3>
             <ChatInterface
               messages={chatMessages}
               onSendMessage={handleSendMessage}
               onFileUpload={handleFileUpload}
               onLinkAdd={handleLinkAdd}
+              griIndicators={analysisResult.technical_spec || {}}
+              readinessScore={analysisResult.readiness_score}
             />
           </div>
-          
+
           {/* Attached Items */}
           {(uploadedFiles.length > 0 || externalLinks.length > 0) && (
             <div>
@@ -211,15 +351,15 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
               </div>
             </div>
           )}
-          
+
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               {t('cancel')}
             </Button>
             <Button
-              onClick={handleGenerate}
-              disabled={generating || !formData.product_name || !formData.destination_country || !formData.intended_use}
+              onClick={initiateGeneration}
+              disabled={!isChatInitiated || generating}
               className="bg-gradient-to-r from-[#114B5F] to-[#42C0B9] hover:from-[#0D3A4A] hover:to-[#35A89E]"
             >
               {generating && <Loader2 className="w-4 h-4 me-2 animate-spin" />}

@@ -83,29 +83,43 @@ ${JSON.stringify(report.chat_history || [])}
 `;
 
     const systemPrompt = `
-You are an expert Forensic Product Analyst.
-Task: Analyze the raw user input and create a standardized Technical Specification in English.
+You are a Forensic Data Gatherer operating under the GRI 1-6 International Framework.
+Task: Extract precise technical data and potential form fields from the raw input.
+DO NOT attempt to classify HS Codes yet. Focus only on the 'What'.
 
-Assumption Mode:
-Instead of failing fast, if critical info is missing but can be inferred or standard assumptions exist (e.g. "Standard Cotton T-Shirt" implies 100% Cotton unless stated otherwise), make the assumption and document it.
-Only return 'insufficient_data' if it is absolutely impossible to proceed (e.g., "Part 54" with no other context).
+Protocol GRI 1-6 Data Extraction:
+1. **Material Composition (GRI 2):** Exact % of materials (e.g., "100% Cotton" or "Steel 80%, Plastic 20%").
+2. **Function (GRI 1):** Mechanical/Electrical function (e.g., "Transmits data via Bluetooth").
+3. **State:** Physical state (Liquid, Frozen, Assembled, Unassembled).
+4. **Essential Character (GRI 3b):** What defines the item? (e.g., "The lens in a camera kit").
 
-Readiness Score:
-Calculate a readiness_score (0-100).
-- > 70: Enough info to proceed (even with assumptions). Status should be 'success'.
-- < 70: Critical gaps. Status 'insufficient_data'.
+Readiness Threshold (Strict 80%):
+- Score < 80: 'insufficient_data'. You MUST ask for specific evidence.
+- Score >= 80: 'success'.
+
+Evidence Request Logic (If score < 80):
+- If missing technical data: Ask for "Technical Spec (PDF) or Product Link".
+- If missing visual confirmation: Ask for "Label Image or Nameplate Photo".
+
+Form Field Extraction:
+- Attempt to extract: 'country_of_manufacture', 'destination_country', 'intended_use' if explicitly mentioned in the text.
 
 Output JSON Schema:
 {
   "status": "success" | "insufficient_data",
-  "readiness_score": "number",
+  "readiness_score": "number (0-100)",
   "assumptions_made": ["string"],
-  "missing_info_question": "string (only if insufficient_data)",
+  "missing_info_question": "string",
+  "detected_form_fields": {
+    "country_of_manufacture": "string (ISO code or name) or null",
+    "destination_country": "string or null",
+    "intended_use": "string or null"
+  },
   "technical_spec": {
     "standardized_name": "string",
     "material_composition": "string",
     "function": "string",
-    "state": "string (e.g., liquid, solid, frozen)",
+    "state": "string",
     "essential_character": "string"
   },
   "industry_category": "string"
@@ -122,6 +136,14 @@ Output JSON Schema:
             properties: {
                 status: { type: "string", enum: ["success", "insufficient_data"] },
                 missing_info_question: { type: "string" },
+                detected_form_fields: {
+                    type: "object",
+                    properties: {
+                         country_of_manufacture: { type: ["string", "null"] },
+                         destination_country: { type: ["string", "null"] },
+                         intended_use: { type: ["string", "null"] }
+                    }
+                },
                 technical_spec: {
                     type: "object",
                     properties: {
@@ -139,8 +161,8 @@ Output JSON Schema:
         base44_client: base44
     });
 
-    // Check readiness score logic
-    const isReady = result.status === 'success' || (result.readiness_score && result.readiness_score > 70);
+    // Check readiness score logic (Threshold raised to 80)
+    const isReady = result.status === 'success' && (result.readiness_score && result.readiness_score >= 80);
 
     if (!isReady) {
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
@@ -167,7 +189,8 @@ Output JSON Schema:
             success: true, 
             status: 'analyzing_completed', 
             spec: result.technical_spec,
-            readiness: result.readiness_score
+            readiness: result.readiness_score,
+            detected_form_fields: result.detected_form_fields
         });
     }
 
