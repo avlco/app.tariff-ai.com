@@ -54,7 +54,7 @@ export default Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId } = await req.json();
+    const { reportId, force_proceed } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
@@ -225,7 +225,8 @@ Output JSON Schema:
     });
 
     // Check readiness score logic (Threshold raised to 80)
-    const isReady = result.status === 'success' && (result.readiness_score && result.readiness_score >= 80);
+    // If force_proceed is true, we BYPASS the check even if score is low.
+    const isReady = (result.status === 'success' && (result.readiness_score && result.readiness_score >= 80)) || force_proceed;
 
     if (!isReady) {
         // --- ASYNC BRAIN UPDATE ---
@@ -245,6 +246,9 @@ Output JSON Schema:
         // 2. Send Email Notification
         if (user.email) {
             try {
+                const appUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://app.base44.com'; // fallback
+                const actionLink = `${appUrl}/reports/clarify?id=${reportId}`;
+                
                 await base44.integrations.Core.SendEmail({
                     to: user.email,
                     subject: `Action Required: Report #${reportId} pending clarification`,
@@ -252,7 +256,8 @@ Output JSON Schema:
                         <h2>Expert Clarification Needed</h2>
                         <p>We've analyzed your product data but need a few more details to ensure accurate classification.</p>
                         <p><strong>Missing Information:</strong> ${result.missing_info_question}</p>
-                        <p>Please log in to the dashboard to resolve this issue.</p>
+                        <p><a href="${actionLink}" style="background-color: #D89C42; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Resolve Issue Now</a></p>
+                        <p>Or click here: <a href="${actionLink}">${actionLink}</a></p>
                         <br/>
                         <p>Best regards,<br/>Tariff AI Team</p>
                     `

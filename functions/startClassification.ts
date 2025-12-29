@@ -37,12 +37,13 @@ export default Deno.serve(async (req) => {
         const payload = await req.json();
         reportId = payload.reportId;
         const intendedUse = payload.intendedUse || payload.description; // fallback if needed
+        const force_proceed = payload.force_proceed || false;
 
         if (!reportId) {
             return Response.json({ error: 'Report ID is required' }, { status: 400 });
         }
 
-        await logProgress(reportId, 'initialization', 'Starting classification workflow');
+        await logProgress(reportId, 'initialization', `Starting classification workflow ${force_proceed ? '(FORCE MODE)' : ''}`);
 
         // Ping Check
         try {
@@ -55,7 +56,7 @@ export default Deno.serve(async (req) => {
 
         // Step 1: The Analyst (Agent A)
         await logProgress(reportId, 'analyst', 'Starting structural analysis (Agent A)');
-        const analystRes = await base44.functions.invoke('agentAnalyze', { reportId });
+        const analystRes = await base44.functions.invoke('agentAnalyze', { reportId, force_proceed });
         
         // --- SPLIT WORKFLOW CHECK ---
         if (analystRes.data.status === 'waiting_for_user' || analystRes.data.status === 'insufficient_data') {

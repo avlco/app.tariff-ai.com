@@ -56,7 +56,17 @@ export default function RecentReportsTable({ reports, loading }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {reports.slice(0, 5).filter(r => r).map((report) => (
+            {reports
+               .slice(0, 5)
+               .filter(r => r)
+               .sort((a, b) => {
+                  // Put 'waiting_for_user' first
+                  if (a.status === 'waiting_for_user' && b.status !== 'waiting_for_user') return -1;
+                  if (b.status === 'waiting_for_user' && a.status !== 'waiting_for_user') return 1;
+                  // Then sort by date desc
+                  return new Date(b.created_date) - new Date(a.created_date);
+               })
+               .map((report) => (
               <div
                 key={report?.id}
                 className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"

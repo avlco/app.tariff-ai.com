@@ -166,7 +166,29 @@ export default function ClarifyReport() {
                 {files.length > 0 && <span className="text-sm text-green-600">{files.length} files attached</span>}
             </div>
 
-            <div className="pt-4 border-t flex justify-end">
+            <div className="pt-4 border-t flex justify-end gap-3">
+                <Button 
+                    variant="ghost" 
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                    onClick={() => {
+                        if (!confirm(language === 'he' ? 'האם אתה בטוח? הדיוק עלול להיפגע.' : 'Are you sure? Accuracy might be compromised.')) return;
+                        setSubmitting(true);
+                        // Trigger Analysis with FORCE flag
+                        base44.functions.invoke('startClassification', { reportId, force_proceed: true })
+                            .then(() => {
+                                toast.success(language === 'he' ? 'המשך כפוי בוצע' : 'Forced Proceed Executed');
+                                navigate(createPageUrl('Dashboard'));
+                            })
+                            .catch((e) => {
+                                console.error(e);
+                                setSubmitting(false);
+                            });
+                    }}
+                    disabled={submitting}
+                >
+                    {language === 'he' ? 'התעלם והמשך (לא מומלץ)' : 'Ignore & Proceed (Not Recommended)'}
+                </Button>
+
                 <Button 
                     onClick={handleUpdate} 
                     disabled={submitting}
