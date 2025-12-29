@@ -47,12 +47,18 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
   const [analysisResult, setAnalysisResult] = useState({ readiness_score: 0, technical_spec: {} });
   const [showConfidenceWarning, setShowConfidenceWarning] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [processingStage, setProcessingStage] = useState('');
 
   // Consolidated Interaction Handler (Chat & Files)
   const handleInteraction = async (message = null, fileUrls = null, linkUrl = null) => {
       setIsChatInitiated(true);
       setIsAnalyzing(true);
       
+      // Granular Status
+      if (fileUrls) setProcessingStage(language === 'he' ? 'מעבד קבצים...' : 'Processing files...');
+      else if (linkUrl) setProcessingStage(language === 'he' ? 'סורק קישורים...' : 'Scanning links...');
+      else setProcessingStage(language === 'he' ? 'מנתח לפי GRI...' : 'Analyzing GRI...');
+
       // Update Local State
       let newMessages = [...chatMessages];
       let newFiles = [...uploadedFiles];
@@ -94,8 +100,13 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
              });
           }
 
-          // 2. Call Analyst Agent
-          const res = await base44.functions.invoke('agentAnalyze', { reportId });
+          // 2. Call Analyst Agent with Timeout Race
+          const analyzePromise = base44.functions.invoke('agentAnalyze', { reportId });
+          const timeoutPromise = new Promise((_, reject) => 
+               setTimeout(() => reject(new Error('Timeout')), 50000)
+          );
+
+          const res = await Promise.race([analyzePromise, timeoutPromise]);
           const data = res.data;
 
           if (data.success) {
@@ -104,7 +115,7 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
                   technical_spec: data.spec || {}
               });
 
-              // Auto-Sync Form Fields
+              // Auto-Sync Form Fields (Callback style safe update)
               if (data.detected_form_fields) {
                   setFormData(prev => ({
                       ...prev,
@@ -128,8 +139,18 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
 
       } catch (error) {
           console.error("Analysis Error:", error);
+          if (error.message === 'Timeout') {
+               setChatMessages(prev => [...prev, {
+                  role: 'assistant',
+                  content: language === 'he' 
+                      ? 'העיבוד לוקח זמן רב, נסה להמשיך או לחץ על יצירת דוח.' 
+                      : 'Processing is taking too long. Try proceeding or click Generate Report.',
+                  timestamp: new Date().toISOString()
+               }]);
+          }
       } finally {
           setIsAnalyzing(false);
+          setProcessingStage('');
       }
   };
 
@@ -323,6 +344,7 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
               onLinkAdd={handleLinkAdd}
               griIndicators={analysisResult.technical_spec || {}}
               readinessScore={analysisResult.readiness_score}
+              processingStage={processingStage}
             />
           </div>
 

@@ -6,7 +6,7 @@ import { useLanguage } from '../providers/LanguageContext';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 
-export default function ChatInterface({ messages, onSendMessage, onFileUpload, onLinkAdd, griIndicators = {} }) {
+export default function ChatInterface({ messages, onSendMessage, onFileUpload, onLinkAdd, griIndicators = {}, processingStage, readinessScore }) {
   const { language, isRTL } = useLanguage();
   const [input, setInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -54,10 +54,10 @@ export default function ChatInterface({ messages, onSendMessage, onFileUpload, o
     <div className="flex flex-col h-[400px] border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900">
       
       {/* Thinking Indicator */}
-      {(uploading || (messages.length > 0 && messages[messages.length-1].role === 'user')) && (
+      {processingStage && (
           <div className="absolute top-2 right-2 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs flex items-center gap-2 animate-pulse z-10">
              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
-             {language === 'he' ? 'המומחה מנתח את הקבצים...' : 'Expert analyzing data...'}
+             {processingStage}
           </div>
       )}
 
@@ -72,9 +72,12 @@ export default function ChatInterface({ messages, onSendMessage, onFileUpload, o
          <div className={`flex items-center gap-1 ${griIndicators.essential_character ? 'text-green-600' : 'text-slate-400'}`}>
             <span>{griIndicators.essential_character ? '✓' : '○'}</span> {language === 'he' ? 'מאפיין עיקרי' : 'Essential Char'}
          </div>
-         {griIndicators.readiness_score && (
-             <div className={`ml-auto font-bold ${griIndicators.readiness_score >= 80 ? 'text-green-600' : 'text-orange-500'}`}>
-                 Score: {griIndicators.readiness_score}%
+         {readinessScore !== undefined && readinessScore > 0 && (
+             <div className={`ml-auto font-bold px-2 py-0.5 rounded-full text-xs ${
+                 readinessScore >= 80 ? 'bg-green-100 text-green-700' : 
+                 readinessScore >= 50 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+             }`}>
+                 Score: {readinessScore}%
              </div>
          )}
       </div>

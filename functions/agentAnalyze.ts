@@ -18,7 +18,7 @@ function cleanJson(text) {
 }
 
 async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
-  console.log(`[LLM Gateway - Analyst] Using Claude Sonnet 4.5`);
+  console.log(`[LLM Gateway - Analyst] Using Claude 3.5 Sonnet`);
   const jsonInstruction = response_schema 
     ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
     : '';
@@ -30,8 +30,8 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 
     const anthropic = new Anthropic({ apiKey });
     const msg = await anthropic.messages.create({
-        model: "claude-sonnet-4.5",
-        max_tokens: 8192, // High context window support
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 8192,
         messages: [{ role: "user", content: fullPrompt }]
     });
     
@@ -76,65 +76,65 @@ User Input (Chat History):
 ${report.chat_history?.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n') || 'No chat history.'}
 `;
 
-    // 1. Process Uploaded Files
+    // 1. Prepare Promises for Parallel Execution
     const fileUrls = report.uploaded_file_urls || [];
-    if (fileUrls.length > 0) {
-        aggregatedContext += "\n--- EXTRACTED FILE DATA ---\n";
-        
-        // Extract in parallel
-        const filePromises = fileUrls.map(async (url, idx) => {
-            try {
-                // Using ExtractDataFromUploadedFile for all supported types (PDF, CSV, IMG).
-                // For DOC/DOCX, if not supported, we might get an error or raw text.
-                // We provide a broad schema to capture everything.
-                const extraction = await base44.integrations.Core.ExtractDataFromUploadedFile({
-                    file_url: url,
-                    json_schema: {
-                        type: "object",
-                        properties: {
-                            product_name: { type: "string" },
-                            materials: { type: "string" },
-                            function_description: { type: "string" },
-                            model_number: { type: "string" },
-                            full_text_content: { type: "string", description: "The full raw text of the document" }
-                        }
-                    }
-                });
-                
-                if (extraction.status === 'success' && extraction.output) {
-                    return `File ${idx + 1} (${url}):\n${JSON.stringify(extraction.output, null, 2)}`;
-                } else {
-                    return `File ${idx + 1} (${url}): Extraction failed or format unsupported.`;
-                }
-            } catch (e) {
-                return `File ${idx + 1} (${url}): Error extracting data - ${e.message}`;
-            }
-        });
-        
-        const fileResults = await Promise.all(filePromises);
-        aggregatedContext += fileResults.join('\n\n');
-    }
-
-    // 2. Process External Links (Web Crawling)
     const linkUrls = report.external_link_urls || [];
-    if (linkUrls.length > 0) {
-        aggregatedContext += "\n--- SCRAPED WEB CONTENT ---\n";
-        
-        const linkPromises = linkUrls.map(async (url, idx) => {
-            try {
-                // Using InvokeLLM with internet access to scrape
-                const scrapeResult = await base44.integrations.Core.InvokeLLM({
-                    prompt: `Visit this URL: ${url}\nExtract technical specifications: Material, Function, State, Essential Character.`,
-                    add_context_from_internet: true
-                });
-                return `Link ${idx + 1} (${url}):\n${scrapeResult}`;
-            } catch (e) {
-                return `Link ${idx + 1} (${url}): Error scraping - ${e.message}`;
+    
+    const filePromises = fileUrls.map(async (url, idx) => {
+        try {
+            // Check for unsupported formats (DOC/DOCX)
+            if (url.match(/\.docx?$/i)) {
+                return `File ${idx + 1} (${url}): File format requires manual text extraction if unreadable. Treat as attached document.`;
             }
-        });
 
-        const linkResults = await Promise.all(linkPromises);
-        aggregatedContext += linkResults.join('\n\n');
+            const extraction = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                file_url: url,
+                json_schema: {
+                    type: "object",
+                    properties: {
+                        product_name: { type: "string" },
+                        materials: { type: "string" },
+                        function_description: { type: "string" },
+                        model_number: { type: "string" },
+                        full_text_content: { type: "string", description: "The full raw text of the document" }
+                    }
+                }
+            });
+            
+            if (extraction.status === 'success' && extraction.output) {
+                return `File ${idx + 1} (${url}):\n${JSON.stringify(extraction.output, null, 2)}`;
+            } else {
+                return `File ${idx + 1} (${url}): Extraction failed or format unsupported.`;
+            }
+        } catch (e) {
+            return `File ${idx + 1} (${url}): Error extracting data - ${e.message}`;
+        }
+    });
+
+    const linkPromises = linkUrls.map(async (url, idx) => {
+        try {
+            const scrapeResult = await base44.integrations.Core.InvokeLLM({
+                prompt: `Visit this URL: ${url}\nExtract technical specifications: Material, Function, State, Essential Character.`,
+                add_context_from_internet: true
+            });
+            return `Link ${idx + 1} (${url}):\n${scrapeResult}`;
+        } catch (e) {
+            return `Link ${idx + 1} (${url}): Error scraping - ${e.message}`;
+        }
+    });
+
+    // 2. Execute All Concurrent Operations
+    const [fileResults, linkResults] = await Promise.all([
+        Promise.all(filePromises),
+        Promise.all(linkPromises)
+    ]);
+
+    // 3. Construct Context
+    if (fileResults.length > 0) {
+        aggregatedContext += "\n--- EXTRACTED FILE DATA ---\n" + fileResults.join('\n\n');
+    }
+    if (linkResults.length > 0) {
+        aggregatedContext += "\n--- SCRAPED WEB CONTENT ---\n" + linkResults.join('\n\n');
     }
 
     const context = aggregatedContext;
@@ -146,8 +146,9 @@ Task: Synthesize all provided data (Chat + Files + Links) to extract precise tec
 CRITICAL:
 - You have access to the CONTENT of attached files and links in the "EXTRACTED FILE DATA" and "SCRAPED WEB CONTENT" sections.
 - **NEVER** ask for a file or link if the user has already provided one (e.g., if you see "File 1" data, do not ask "Please attach a file").
-- Instead, say: "Analyzing the attached document..." or "Based on the link provided...".
-- If the file content is empty or unreadable, explicitly state: "I see a file attached, but could not read its content. Please paste the text or try a different format."
+- **TRUST VERIFIED DATA:** If you see technical info in "EXTRACTED FILE DATA" or "SCRAPED WEB CONTENT", treat it as Verified ('true') for the GRI Indicators, even if the user didn't type it in chat.
+- Instead of asking, say: "Analyzing the attached document..." or "Based on the link provided...".
+- If the file content is empty or unreadable (especially .doc/docx), explicitly state: "I see a file attached, but could not read its content. Please paste the text or try a different format."
 
 Protocol GRI 1-6 Data Extraction:
 1. **Material Composition (GRI 2):** Exact % of materials.
