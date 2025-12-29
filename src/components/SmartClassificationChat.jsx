@@ -20,7 +20,6 @@ export default function SmartClassificationChat({ reportId }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
   
-  // The 3 Critical Fields
   const [extractionState, setExtractionState] = useState({
     product_name: null,
     destination_country: null,
@@ -28,8 +27,6 @@ export default function SmartClassificationChat({ reportId }) {
   });
   
   const scrollRef = useRef(null);
-  
-  // Generate button visible only after user interaction
   const hasInteracted = messages.some(m => m.role === 'user');
 
   useEffect(() => {
@@ -89,7 +86,6 @@ export default function SmartClassificationChat({ reportId }) {
                 country_of_manufacture: extracted.origin_country || extractionState.origin_country
             });
 
-            // If bot has a specific question about missing fields, use it.
             let botText = bot_question;
             if (!botText) {
                 botText = language === 'he' 
@@ -101,21 +97,28 @@ export default function SmartClassificationChat({ reportId }) {
             const finalHistory = [...newHistory, botMsg];
             setMessages(finalHistory);
             await base44.entities.ClassificationReport.update(reportId, { chat_history: finalHistory });
+        } else {
+            const errorMsg = extractRes.data?.error || "Unknown server error";
+            toast.error(`System Error: ${errorMsg}`);
+            setMessages(prev => [...prev, { 
+                role: 'assistant', 
+                content: `⚠️ **System Error:** ${errorMsg}. Please try again.`, 
+                timestamp: new Date().toISOString() 
+            }]);
         }
     } catch (error) {
-        console.error("Chat Error:", error);
-        toast.error("AI Analysis failed. Please try again.");
+        console.error("Chat Critical Error:", error);
+        toast.error("Critical Client Error");
     } finally {
         setIsAnalyzing(false);
     }
   };
 
   const handleGenerateClick = () => {
-      // Logic: If fields are missing, show warning. Else, generate.
       const missing = [];
-      if (!extractionState.product_name) missing.push('Product Name');
-      if (!extractionState.destination_country) missing.push('Destination');
-      if (!extractionState.origin_country) missing.push('Origin');
+      if (!extractionState.product_name) missing.push(language === 'he' ? 'שם המוצר' : 'Product Name');
+      if (!extractionState.destination_country) missing.push(language === 'he' ? 'מדינת יעד' : 'Destination');
+      if (!extractionState.origin_country) missing.push(language === 'he' ? 'מדינת מקור' : 'Origin');
 
       if (missing.length > 0) {
           setShowWarning(true);

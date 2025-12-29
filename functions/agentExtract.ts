@@ -12,19 +12,19 @@ export default Deno.serve(async (req) => {
     
     const systemPrompt = `
     You are a Trade Compliance Assistant.
-    Your Goal: Continuously analyze the conversation to extract 3 mandatory fields:
+    Goal: Continuously analyze conversation to extract 3 mandatory fields:
     1. Product Description (product_name)
     2. Destination Country (destination_country)
     3. Manufacture/Origin Country (origin_country)
 
     Instructions:
-    - Review the ENTIRE history.
+    - Review ENTIRE history.
     - Extract values only if clearly stated.
     - 'missing_fields': List which of the 3 are still null.
-    - 'bot_question': If fields are missing, generate a natural, short follow-up question to ask the user for them.
-    - 'ready_to_generate': true only if ALL 3 fields are present.
+    - 'bot_question': If missing, ask for them specifically.
+    - 'ready_to_generate': true only if ALL 3 present.
 
-    Output JSON Schema:
+    Output Schema:
     {
       "extracted": {
         "product_name": "string|null",
@@ -39,7 +39,6 @@ export default Deno.serve(async (req) => {
 
     const context = `CHAT HISTORY:\n${JSON.stringify(messages)}`;
 
-    // Use the Gateway (Routes to Gemini 3 Flash Preview)
     const result = await invokeSpecializedLLM({
         prompt: systemPrompt + "\n\n" + context,
         task_type: 'extraction',
