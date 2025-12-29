@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LanguageProvider, useLanguage } from './components/providers/LanguageContext';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import PolicyConsentModal from './components/auth/PolicyConsentModal';
+import ReportReadyNotification from './components/classification/ReportReadyNotification';
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence } from 'framer-motion';
 
@@ -11,6 +12,37 @@ function LayoutContent({ children, currentPageName }) {
   const [user, setUser] = useState(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const { isRTL } = useLanguage();
+
+  // Global Notification State
+  const [notification, setNotification] = useState({ show: false, reportId: null });
+  const lastCheckRef = useRef(new Date().toISOString());
+
+  // Polling for Notifications
+  useEffect(() => {
+    if (!user) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        // Find reports updated recently that are completed or waiting_for_user
+        const reports = await base44.entities.ClassificationReport.list('-updated_date', 5);
+        const lastCheck = new Date(lastCheckRef.current);
+        
+        const newUpdate = reports.find(r => {
+           const updated = new Date(r.updated_date);
+           return updated > lastCheck && (r.status === 'completed' || r.status === 'waiting_for_user');
+        });
+
+        if (newUpdate) {
+           setNotification({ show: true, reportId: newUpdate.id });
+           lastCheckRef.current = new Date().toISOString();
+        }
+      } catch (e) {
+        console.error("Polling error", e);
+      }
+    }, 15000); // 15 seconds poll
+
+    return () => clearInterval(interval);
+  }, [user]);
   
   const loadUser = async () => {
     try {
@@ -121,6 +153,12 @@ function LayoutContent({ children, currentPageName }) {
             />
         )}
       </AnimatePresence>
+
+      <ReportReadyNotification 
+         show={notification.show} 
+         reportId={notification.reportId} 
+         onClose={() => setNotification({ ...notification, show: false })} 
+      />
     </div>
   );
 }
