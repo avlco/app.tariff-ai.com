@@ -44,6 +44,7 @@ export default function ReportView() {
   const { t, language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [report, setReport] = useState(null);
+  const [tradeResource, setTradeResource] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   
@@ -53,14 +54,21 @@ export default function ReportView() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [reportData, userData] = await Promise.all([
-          base44.entities.ClassificationReport.filter({ id: reportId }),
-          base44.auth.me()
-        ]);
-        setReport(reportData[0]);
+        const reportRes = await base44.entities.ClassificationReport.filter({ id: reportId });
+        const reportData = reportRes[0];
+        setReport(reportData);
+        
+        let resourceData = null;
+        if (reportData?.destination_country) {
+             const resources = await base44.entities.CountryTradeResource.filter({ country_name: reportData.destination_country });
+             resourceData = resources[0];
+             setTradeResource(resourceData);
+        }
+
+        const userData = await base44.auth.me();
         setUser(userData);
       } catch (error) {
-        console.error('Error loading report:', error);
+        console.error('Error loading data:', error);
       } finally {
         setLoading(false);
       }
