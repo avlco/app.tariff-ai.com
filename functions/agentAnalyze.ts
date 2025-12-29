@@ -65,36 +65,98 @@ export default Deno.serve(async (req) => {
       processing_status: 'analyzing_data'
     });
     
-    const context = `
+    // --- Multimodal Extraction & Knowledge Synthesis ---
+    
+    let aggregatedContext = `
 Product Name: ${report.product_name}
 Country of Manufacture: ${report.country_of_manufacture}
-Country of Origin: ${report.country_of_origin}
 Destination Country: ${report.destination_country}
 
-User Input:
-${report.user_input_text || 'No text description provided.'}
-
-Files/Links:
-${JSON.stringify(report.uploaded_file_urls || [])}
-${JSON.stringify(report.external_link_urls || [])}
-
-Chat History:
-${JSON.stringify(report.chat_history || [])}
+User Input (Chat History):
+${report.chat_history?.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n') || 'No chat history.'}
 `;
+
+    // 1. Process Uploaded Files
+    const fileUrls = report.uploaded_file_urls || [];
+    if (fileUrls.length > 0) {
+        aggregatedContext += "\n--- EXTRACTED FILE DATA ---\n";
+        
+        // Extract in parallel
+        const filePromises = fileUrls.map(async (url, idx) => {
+            try {
+                // Using ExtractDataFromUploadedFile for all supported types (PDF, CSV, IMG).
+                // For DOC/DOCX, if not supported, we might get an error or raw text.
+                // We provide a broad schema to capture everything.
+                const extraction = await base44.integrations.Core.ExtractDataFromUploadedFile({
+                    file_url: url,
+                    json_schema: {
+                        type: "object",
+                        properties: {
+                            product_name: { type: "string" },
+                            materials: { type: "string" },
+                            function_description: { type: "string" },
+                            model_number: { type: "string" },
+                            full_text_content: { type: "string", description: "The full raw text of the document" }
+                        }
+                    }
+                });
+                
+                if (extraction.status === 'success' && extraction.output) {
+                    return `File ${idx + 1} (${url}):\n${JSON.stringify(extraction.output, null, 2)}`;
+                } else {
+                    return `File ${idx + 1} (${url}): Extraction failed or format unsupported.`;
+                }
+            } catch (e) {
+                return `File ${idx + 1} (${url}): Error extracting data - ${e.message}`;
+            }
+        });
+        
+        const fileResults = await Promise.all(filePromises);
+        aggregatedContext += fileResults.join('\n\n');
+    }
+
+    // 2. Process External Links (Web Crawling)
+    const linkUrls = report.external_link_urls || [];
+    if (linkUrls.length > 0) {
+        aggregatedContext += "\n--- SCRAPED WEB CONTENT ---\n";
+        
+        const linkPromises = linkUrls.map(async (url, idx) => {
+            try {
+                // Using InvokeLLM with internet access to scrape
+                const scrapeResult = await base44.integrations.Core.InvokeLLM({
+                    prompt: `Visit this URL: ${url}\nExtract technical specifications: Material, Function, State, Essential Character.`,
+                    add_context_from_internet: true
+                });
+                return `Link ${idx + 1} (${url}):\n${scrapeResult}`;
+            } catch (e) {
+                return `Link ${idx + 1} (${url}): Error scraping - ${e.message}`;
+            }
+        });
+
+        const linkResults = await Promise.all(linkPromises);
+        aggregatedContext += linkResults.join('\n\n');
+    }
+
+    const context = aggregatedContext;
 
     const systemPrompt = `
 You are a Forensic Data Gatherer operating under the GRI 1-6 International Framework.
-Task: Extract precise technical data and potential form fields from the raw input.
-DO NOT attempt to classify HS Codes yet. Focus only on the 'What'.
+Task: Synthesize all provided data (Chat + Files + Links) to extract precise technical data.
+
+CRITICAL:
+- You have access to the CONTENT of attached files and links in the "EXTRACTED FILE DATA" and "SCRAPED WEB CONTENT" sections.
+- **NEVER** ask for a file or link if the user has already provided one (e.g., if you see "File 1" data, do not ask "Please attach a file").
+- Instead, say: "Analyzing the attached document..." or "Based on the link provided...".
+- If the file content is empty or unreadable, explicitly state: "I see a file attached, but could not read its content. Please paste the text or try a different format."
 
 Protocol GRI 1-6 Data Extraction:
-1. **Material Composition (GRI 2):** Exact % of materials (e.g., "100% Cotton" or "Steel 80%, Plastic 20%").
-2. **Function (GRI 1):** Mechanical/Electrical function (e.g., "Transmits data via Bluetooth").
-3. **State:** Physical state (Liquid, Frozen, Assembled, Unassembled).
-4. **Essential Character (GRI 3b):** What defines the item? (e.g., "The lens in a camera kit").
+1. **Material Composition (GRI 2):** Exact % of materials.
+2. **Function (GRI 1):** Mechanical/Electrical function.
+3. **State:** Physical state.
+4. **Essential Character (GRI 3b):** What defines the item?
 
 Readiness Threshold (Strict 80%):
-- Score < 80: 'insufficient_data'. You MUST ask for specific evidence.
+- Score < 80: 'insufficient_data'. Ask for specific evidence ONLY if not already present.
 - Score >= 80: 'success'.
 
 Evidence Request Logic (If score < 80):
@@ -102,7 +164,7 @@ Evidence Request Logic (If score < 80):
 - If missing visual confirmation: Ask for "Label Image or Nameplate Photo".
 
 Form Field Extraction:
-- Attempt to extract: 'country_of_manufacture', 'destination_country', 'intended_use' if explicitly mentioned in the text.
+- Attempt to extract: 'country_of_manufacture', 'destination_country', 'intended_use'.
 
 Output JSON Schema:
 {

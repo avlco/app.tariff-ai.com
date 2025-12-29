@@ -52,6 +52,15 @@ export default function ChatInterface({ messages, onSendMessage, onFileUpload, o
   
   return (
     <div className="flex flex-col h-[400px] border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900">
+      
+      {/* Thinking Indicator */}
+      {(uploading || (messages.length > 0 && messages[messages.length-1].role === 'user')) && (
+          <div className="absolute top-2 right-2 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs flex items-center gap-2 animate-pulse z-10">
+             <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
+             {language === 'he' ? 'המומחה מנתח את הקבצים...' : 'Expert analyzing data...'}
+          </div>
+      )}
+
       {/* Data Collection Status - GRI Indicators */}
       <div className="bg-slate-50 dark:bg-slate-800 p-2 border-b text-xs flex gap-3 overflow-x-auto">
          <div className={`flex items-center gap-1 ${griIndicators.material_composition ? 'text-green-600' : 'text-slate-400'}`}>
@@ -71,7 +80,7 @@ export default function ChatInterface({ messages, onSendMessage, onFileUpload, o
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 relative">
         {messages.length === 0 ? (
           <div className="text-center text-slate-400 py-8">
             {language === 'he' 

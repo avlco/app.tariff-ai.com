@@ -105,25 +105,22 @@ export default function NewClassificationDialog({ open, onOpenChange }) {
               });
 
               // Auto-Sync Form Fields
-              if (data.spec) { // Check detect fields in next step or use what's returned
-                 // agentAnalyze logic was updated to return `detected_form_fields`? 
-                 // We need to check the agentAnalyze response structure.
-                 // Assuming agentAnalyze updates the report or returns the data.
-                 // The response schema in agentAnalyze now includes `detected_form_fields` inside the `result` object (which is data.spec or similar?)
-                 // Wait, agentAnalyze returns: { success, status, question, spec, readiness }
-                 // Need to make sure agentAnalyze returns detected fields.
-                 // *Correction*: I should have verified agentAnalyze returns `detected_form_fields` in the top level JSON.
-                 // Let's assume it does or is embedded in `spec` for now based on my edit.
-                 // *Actually*, in my edit I didn't add `detected_form_fields` to the final Response.json in agentAnalyze! 
-                 // I only added it to the LLM schema. 
-                 // I need to fix agentAnalyze.js to include detected_form_fields in the return!
+              if (data.detected_form_fields) {
+                  setFormData(prev => ({
+                      ...prev,
+                      country_of_manufacture: data.detected_form_fields.country_of_manufacture || prev.country_of_manufacture,
+                      destination_country: data.detected_form_fields.destination_country || prev.destination_country,
+                      intended_use: data.detected_form_fields.intended_use || prev.intended_use
+                  }));
               }
               
-              // Add AI Response to Chat
-              if (data.question) {
+              // Add AI Response to Chat (Inject directly)
+              const aiMessage = data.missing_info_question || (data.status === 'success' ? (language === 'he' ? 'הניתוח הושלם. ניתן להמשיך.' : 'Analysis complete. Ready to proceed.') : null);
+              
+              if (aiMessage) {
                   setChatMessages(prev => [...prev, {
                       role: 'assistant',
-                      content: data.question,
+                      content: aiMessage,
                       timestamp: new Date().toISOString()
                   }]);
               }
