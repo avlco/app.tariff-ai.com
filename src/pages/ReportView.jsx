@@ -379,14 +379,35 @@ export default function ReportView() {
                                         {language === 'he' ? 'תקינה ואישורים' : 'Standards & Certification'}
                                     </h3>
                                     <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                                        <p className="text-slate-900 whitespace-pre-wrap mb-4">{regulatoryPrimary.standards_requirements || 'No specific standards found.'}</p>
+                                        {Array.isArray(regulatoryPrimary.standards_requirements) && regulatoryPrimary.standards_requirements.length > 0 ? (
+                                            <ul className="space-y-3">
+                                                {regulatoryPrimary.standards_requirements.map((item, idx) => (
+                                                    <li key={idx} className="flex flex-col gap-1">
+                                                        <span className="text-slate-900 font-medium">• {item.requirement || item}</span>
+                                                        {item.verification_url && (
+                                                            <a href={item.verification_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline w-fit">
+                                                                <ExternalLink className="w-3 h-3" />
+                                                                Verify Source
+                                                            </a>
+                                                        )}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-slate-900 whitespace-pre-wrap mb-4">
+                                                {typeof regulatoryPrimary.standards_requirements === 'string' 
+                                                    ? regulatoryPrimary.standards_requirements 
+                                                    : 'No specific standards found.'}
+                                            </p>
+                                        )}
                                         
                                         {tradeResource?.regulation_links?.length > 0 && (
-                                            <div className="flex flex-wrap gap-2 mt-2">
+                                            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/60">
+                                                <span className="text-xs text-slate-400 w-full mb-1">Official Resource Links:</span>
                                                 {tradeResource.regulation_links.map((link, idx) => (
-                                                    <a key={idx} href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-md text-xs text-blue-600 hover:underline">
+                                                    <a key={idx} href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-md text-xs text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors">
                                                         <ExternalLink className="w-3 h-3" />
-                                                        Regulation Source {idx + 1}
+                                                        Source {idx + 1}
                                                     </a>
                                                 ))}
                                             </div>
@@ -503,13 +524,24 @@ export default function ReportView() {
 
                      <div className="pt-4 border-t">
                         <h4 className="text-sm font-medium text-slate-500">Import Requirements</h4>
-                        <ul className="mt-2 space-y-2">
-                            {(regulatoryPrimary.import_requirements || []).map((req, idx) => (
-                                <li key={idx} className="text-sm flex items-start gap-2">
-                                    <CheckCircle2 className="w-4 h-4 text-[#42C0B9] mt-0.5 shrink-0" />
-                                    <span>{req}</span>
-                                </li>
-                            ))}
+                        <ul className="mt-2 space-y-3">
+                            {(regulatoryPrimary.import_requirements || []).map((req, idx) => {
+                                const text = typeof req === 'object' ? req.requirement : req;
+                                const url = typeof req === 'object' ? req.verification_url : null;
+                                return (
+                                    <li key={idx} className="text-sm flex flex-col gap-1">
+                                        <div className="flex items-start gap-2">
+                                            <CheckCircle2 className="w-4 h-4 text-[#42C0B9] mt-0.5 shrink-0" />
+                                            <span>{text}</span>
+                                        </div>
+                                        {url && (
+                                            <a href={url} target="_blank" rel="noreferrer" className="ml-6 text-xs text-blue-500 hover:underline flex items-center gap-1">
+                                                <ExternalLink className="w-3 h-3" /> Verify
+                                            </a>
+                                        )}
+                                    </li>
+                                );
+                            })}
                             {(!regulatoryPrimary.import_requirements || regulatoryPrimary.import_requirements.length === 0) && (
                                 <li className="text-sm text-slate-500 italic">None specified</li>
                             )}

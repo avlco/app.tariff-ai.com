@@ -46,6 +46,12 @@ const processingSteps = [
     icon: Sparkles,
     he: 'יצירת הדוח הסופי',
     en: 'Generating final report'
+  },
+  {
+    key: 'qa_pending',
+    icon: Shield,
+    he: 'מבצע בדיקות איכות ותיקון עצמי...',
+    en: 'Running QA & Self-Healing...'
   }
 ];
 

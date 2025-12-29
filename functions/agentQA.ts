@@ -158,9 +158,12 @@ Output JSON Schema:
     let finalStatus = 'completed';
     let processingStatus = 'completed';
 
+    // If QA fails, we DO NOT mark as failed immediately.
+    // We keep it as 'qa_pending' (or 'processing') so the Self-Healing loop in startClassification can run.
+    // startClassification will mark it as 'failed' only if it exhausts retries.
     if (audit.status === 'failed') {
-        finalStatus = 'failed';
-        processingStatus = 'failed';
+        finalStatus = 'processing'; 
+        processingStatus = 'qa_pending'; // Keep it in a pending state for UI
     }
 
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
