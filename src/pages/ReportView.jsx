@@ -316,29 +316,90 @@ export default function ReportView() {
                                 <TabsTrigger value="sources">{language === 'he' ? 'מקורות' : 'Verified Sources'}</TabsTrigger>
                             </TabsList>
                             
-                            <TabsContent value="compliance" className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
-                                            <Shield className="w-4 h-4" />
-                                            {language === 'he' ? 'מיסים נוספים (Excise)' : 'Excise & Other Taxes'}
-                                        </h4>
-                                        <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.excise_taxes || '---'}</p>
+                            <TabsContent value="compliance" className="space-y-6">
+                                {/* Taxes & Duties Section */}
+                                <div className="space-y-3">
+                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                        <Scale className="w-4 h-4 text-[#42C0B9]" />
+                                        {language === 'he' ? 'מיסים ועלויות' : 'Taxes & Duties'}
+                                        <Badge variant="outline" className="text-xs font-normal ms-auto">
+                                            Method: {tradeResource?.tax_method || 'CIF'}
+                                        </Badge>
+                                    </h3>
+                                    <div className="border rounded-lg overflow-hidden">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="bg-slate-50">
+                                                    <TableHead>Type</TableHead>
+                                                    <TableHead>Rate/Amount</TableHead>
+                                                    <TableHead>Source</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                <TableRow>
+                                                    <TableCell>Duty Rate</TableCell>
+                                                    <TableCell className="font-medium">{regulatoryPrimary.duty_rate || '0%'}</TableCell>
+                                                    <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
+                                                </TableRow>
+                                                <TableRow>
+                                                    <TableCell>VAT</TableCell>
+                                                    <TableCell>{regulatoryPrimary.vat_rate || '---'}</TableCell>
+                                                    <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
+                                                </TableRow>
+                                                {regulatoryPrimary.excise_tax && (
+                                                    <TableRow>
+                                                        <TableCell>Excise Tax</TableCell>
+                                                        <TableCell>{regulatoryPrimary.excise_tax}</TableCell>
+                                                        <TableCell><Badge variant="secondary" className="text-[10px] bg-purple-50 text-purple-700">Regulation</Badge></TableCell>
+                                                    </TableRow>
+                                                )}
+                                                {regulatoryPrimary.anti_dumping_duty && (
+                                                    <TableRow>
+                                                        <TableCell className="text-red-600">Anti-Dumping</TableCell>
+                                                        <TableCell className="text-red-600 font-medium">{regulatoryPrimary.anti_dumping_duty}</TableCell>
+                                                        <TableCell><Badge variant="secondary" className="text-[10px] bg-red-50 text-red-700">Trade Defense</Badge></TableCell>
+                                                    </TableRow>
+                                                )}
+                                                {regulatoryPrimary.other_fees && (
+                                                    <TableRow>
+                                                        <TableCell>Other Fees</TableCell>
+                                                        <TableCell>{regulatoryPrimary.other_fees}</TableCell>
+                                                        <TableCell><Badge variant="secondary" className="text-[10px]">Port/Levy</Badge></TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
                                     </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                            {language === 'he' ? 'דרישות תקינה' : 'Standards Requirements'}
-                                        </h4>
-                                        <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.standards_requirements || '---'}</p>
+                                </div>
+
+                                {/* Standards & Certification */}
+                                <div className="space-y-3">
+                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-[#42C0B9]" />
+                                        {language === 'he' ? 'תקינה ואישורים' : 'Standards & Certification'}
+                                    </h3>
+                                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                                        <p className="text-slate-900 whitespace-pre-wrap mb-4">{regulatoryPrimary.standards_requirements || 'No specific standards found.'}</p>
+                                        
+                                        {tradeResource?.regulation_links?.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                {tradeResource.regulation_links.map((link, idx) => (
+                                                    <a key={idx} href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-md text-xs text-blue-600 hover:underline">
+                                                        <ExternalLink className="w-3 h-3" />
+                                                        Regulation Source {idx + 1}
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg md:col-span-2">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
-                                            <Lock className="w-4 h-4" />
-                                            {language === 'he' ? 'חוקיות יבוא' : 'Import Legality'}
-                                        </h4>
-                                        <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.import_legality || '---'}</p>
-                                    </div>
+                                </div>
+                                
+                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                    <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
+                                        <Lock className="w-4 h-4" />
+                                        {language === 'he' ? 'חוקיות יבוא' : 'Import Legality'}
+                                    </h4>
+                                    <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.import_legality || '---'}</p>
                                 </div>
                             </TabsContent>
 
