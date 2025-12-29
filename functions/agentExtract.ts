@@ -1,49 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { GoogleGenerativeAI } from 'npm:@google/generative-ai@^0.1.0';
-
-// --- INLINED GATEWAY LOGIC (EXTRACTOR - GEMINI) ---
-
-function cleanJson(text) {
-  if (typeof text === 'object') return text;
-  try { return JSON.parse(text); } catch (e) {
-    const match = text.match(/```(?:json)?\n([\s\S]*?)\n```/);
-    if (match) { try { return JSON.parse(match[1]); } catch (e2) {} }
-    const firstOpen = text.indexOf('{');
-    const lastClose = text.lastIndexOf('}');
-    if (firstOpen !== -1 && lastClose !== -1) {
-      try { return JSON.parse(text.substring(firstOpen, lastClose + 1)); } catch (e3) {}
-    }
-    throw new Error("Failed to parse JSON response");
-  }
-}
-
-async function invokeSpecializedLLM({ prompt, base44_client }) {
-  console.log(`[LLM Gateway - Extractor] Using Gemini 3 Flash Preview`);
-  
-  try {
-    const geminiKey = Deno.env.get('GEMINI_API_KEY');
-    if (!geminiKey) throw new Error("GEMINI_API_KEY not set");
-
-    const genAI = new GoogleGenerativeAI(geminiKey);
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-3-flash-preview",
-        generationConfig: { responseMimeType: "application/json" }
-    });
-    
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    return cleanJson(text);
-  } catch (e) {
-     console.error(`[LLM Gateway] Primary strategy failed:`, e.message);
-     // Fallback to Base44 Core
-     return await base44_client.integrations.Core.InvokeLLM({
-        prompt: prompt,
-        response_json_schema: { type: "object", additionalProperties: true }
-    });
-  }
-}
-
-// --- END INLINED GATEWAY ---
+import { invokeSpecializedLLM } from './utils/llmGateway.ts';
 
 export default Deno.serve(async (req) => {
   try {
@@ -51,47 +7,48 @@ export default Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { chat_history, file_contents } = await req.json();
+    const { chat_history } = await req.json();
+    const messages = chat_history || [];
     
-    if (!chat_history || !Array.isArray(chat_history)) {
-        return Response.json({ error: 'chat_history array is required' }, { status: 400 });
-    }
-
-    const context = `
-Chat History:
-${JSON.stringify(chat_history)}
-
-File Contents (Optional):
-${JSON.stringify(file_contents || [])}
-`;
-
     const systemPrompt = `
-You are a Conversation Analyst.
-Task: Analyze the conversation. Extract the current state of: origin_country, destination_country, manufacture_country, product_name. Identify if critical info is missing.
+    You are a Trade Compliance Assistant.
+    Your Goal: Continuously analyze the conversation to extract 3 mandatory fields:
+    1. Product Description (product_name)
+    2. Destination Country (destination_country)
+    3. Manufacture/Origin Country (origin_country)
 
-Requirements:
-1. Extract values if clearly stated or inferred with high confidence.
-2. If a value is unknown, set to null.
-3. Identify missing critical info (e.g. "Missing destination country").
-4. 'ready_to_generate' is true ONLY if product_name and destination_country are present.
+    Instructions:
+    - Review the ENTIRE history.
+    - Extract values only if clearly stated.
+    - 'missing_fields': List which of the 3 are still null.
+    - 'bot_question': If fields are missing, generate a natural, short follow-up question to ask the user for them.
+    - 'ready_to_generate': true only if ALL 3 fields are present.
 
-Output JSON Schema:
-{
-  "extracted": {
-    "origin_country": "string|null",
-    "destination_country": "string|null",
-    "manufacture_country": "string|null",
-    "product_name": "string|null"
-  },
-  "missing_info": ["string"],
-  "ready_to_generate": boolean
-}
-`;
+    Output JSON Schema:
+    {
+      "extracted": {
+        "product_name": "string|null",
+        "destination_country": "string|null",
+        "origin_country": "string|null"
+      },
+      "missing_fields": ["string"],
+      "ready_to_generate": boolean,
+      "bot_question": "string|null"
+    }
+    `;
 
-    const fullPrompt = `${systemPrompt}\n\nCONVERSATION:\n${context}`;
+    const context = `CHAT HISTORY:\n${JSON.stringify(messages)}`;
 
+    // Use the Gateway (Routes to Gemini 3 Flash Preview)
     const result = await invokeSpecializedLLM({
-        prompt: fullPrompt,
+        prompt: systemPrompt + "\n\n" + context,
+        task_type: 'extraction',
+        response_schema: {
+            extracted: { product_name: "string", destination_country: "string", origin_country: "string" },
+            missing_fields: ["string"],
+            ready_to_generate: "boolean",
+            bot_question: "string"
+        },
         base44_client: base44
     });
     
