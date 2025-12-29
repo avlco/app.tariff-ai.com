@@ -126,8 +126,8 @@ export default Deno.serve(async (req) => {
 Destination Country: ${destCountry}
 Current Date: ${new Date().toISOString().split('T')[0]}
 
-COUNTRY TRADE PROFILE (Expert System Source):
-- HS Code Structure: ${resource?.hs_structure || 'Standard WCO 6-digit + local'}
+COUNTRY TRADE PROFILE (Baseline only - Web Research trumps this):
+- Baseline HS Structure: ${resource?.hs_structure || 'Unknown'}
 - Regional Agreements: ${resource?.regional_agreements || 'None specified'}
 - Tax Method: ${resource?.tax_method || 'CIF (Default)'}
 
@@ -158,13 +158,15 @@ FRESHNESS CONSTRAINT:
 - Explicitly check for recent tax changes (even 1% differences).
 
 Objectives:
-1. Find the **2025 Customs Tariff** for [${destCountry}].
-2. Search for **Explanatory Notes** and legal exclusions relevant to: ${spec.standardized_name} (${spec.material_composition}).
-3. Search for previous rulings or precedents for similar items in ${destCountry} or WCO.
-4. Find 3-5 potential HS Headings (4-digit) that might fit.
+1. **Dynamic HS Structure Discovery:** Explicitly research "What is the current HS code structure for import declarations in [${destCountry}] in 2025?". Verify the required digit count (e.g. 8, 10, or 12 digits). If it differs from the Baseline, your finding is the Truth.
+2. Find the **2025 Customs Tariff** for [${destCountry}].
+3. Search for **Explanatory Notes** and legal exclusions relevant to: ${spec.standardized_name} (${spec.material_composition}).
+4. Search for previous rulings or precedents for similar items in ${destCountry} or WCO.
+5. Find 3-5 potential HS Headings (4-digit) that might fit.
 
 Output JSON Schema:
 {
+  "confirmed_hs_structure": "string (e.g., '10 digits' or '8 digits + 3 statistical suffixes')",
   "verified_sources": [
     { "title": "string", "url": "string", "date": "string", "snippet": "string" }
   ],
@@ -208,7 +210,8 @@ Output JSON Schema:
                 legal_notes_found: {
                     type: "array",
                     items: { type: "string" }
-                }
+                },
+                confirmed_hs_structure: { type: "string" }
             }
         },
         base44_client: base44

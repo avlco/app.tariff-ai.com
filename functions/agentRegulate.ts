@@ -88,10 +88,14 @@ Product: ${report.product_name}
 You are a Senior Trade Compliance Officer.
 Task: Strict Compliance Check & Tax Calculation for import into [${report.destination_country}].
 
-CONTEXT - COUNTRY TRADE DATA (Single Source of Truth):
+CONTEXT - COUNTRY TRADE DATA & OFFICIAL LINKS:
 - Tax Calculation Method: ${resource?.tax_method || 'CIF (Default)'}
 - Regional Agreements: ${resource?.regional_agreements || 'None'}
 - HS Code Structure: ${resource?.hs_structure || 'Standard'}
+
+OFFICIAL LINKS (Prioritize these sources):
+${tradeResources[0]?.customs_links?.join('\n') || ''}
+${tradeResources[0]?.regulation_links?.join('\n') || ''}
 
 Requirements:
 1. **Tax Calculation (Method: ${resource?.tax_method || 'CIF'}):**
@@ -100,7 +104,7 @@ Requirements:
    - You must strictly apply this method in your reasoning.
 
 2. **HS Structure Validation:**
-   - Verify the HS Code structure against: "${resource?.hs_structure || 'Standard'}".
+   - Verify the HS Code structure. Input MUST be a clean string of digits (no dots/spaces).
    - If the code provided is shorter than required (e.g., 8 digits needed, 6 provided), you MUST complete it based on local customs books.
 
 3. **Detailed Tax Breakdown (Obligatory Fields):**
@@ -110,9 +114,10 @@ Requirements:
    - **Anti-Dumping:** Check for specific duties.
    - **Other Fees:** Check for port fees, levies.
 
-4. **Standards & Legality:**
-   - **Standards:** Detail ISO, CE, or local standard requirements (e.g. SII in Israel, FCC in US).
-   - **Legality:** Is an Import License required? Any Quotas? Restricted item check?
+4. **Standards & Legality (WITH PROOF):**
+   - **Standards:** Detail ISO, CE, or local standard requirements.
+   - **Legality:** Is an Import License required?
+   - **Verification URL:** Every requirement MUST have a 'verification_url' pointing to an official source.
 
 3. **Citations:**
    - Every tax rate or regulation MUST be supported by a citation from the extracted links.
@@ -124,9 +129,13 @@ Output JSON Schema:
       "duty_rate": "string",
       "vat_rate": "string",
       "excise_taxes": "string (e.g. 'Purchase Tax: 15%')",
-      "standards_requirements": "string (e.g. 'Requires SII Standard 123')",
+      "standards_requirements": [
+         { "requirement": "string", "verification_url": "string" }
+      ],
       "import_legality": "string (e.g. 'Free Import' or 'Requires License')",
-      "import_requirements": ["string"]
+      "import_requirements": [
+         { "requirement": "string", "verification_url": "string" }
+      ]
     },
     "alternatives": [
       {
@@ -162,9 +171,27 @@ Output JSON Schema:
                                 excise_tax: { type: "string" },
                                 anti_dumping_duty: { type: "string" },
                                 other_fees: { type: "string" },
-                                standards_requirements: { type: "string" },
+                                standards_requirements: { 
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            requirement: { type: "string" },
+                                            verification_url: { type: "string" }
+                                        }
+                                    }
+                                },
                                 import_legality: { type: "string" },
-                                import_requirements: { type: "array", items: { type: "string" } }
+                                import_requirements: { 
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            requirement: { type: "string" },
+                                            verification_url: { type: "string" }
+                                        }
+                                    }
+                                }
                             }
                         },
                         alternatives: {

@@ -86,9 +86,11 @@ export default Deno.serve(async (req) => {
       processing_status: 'classifying_hs'
     });
     
+    const research = report.research_findings || {};
     const context = `
 Product Spec: ${JSON.stringify(report.structural_analysis)}
-Research Findings: ${JSON.stringify(report.research_findings)}
+Research Findings: ${JSON.stringify(research)}
+Confirmed HS Structure: ${research.confirmed_hs_structure || 'Standard (Follow Country Rules)'}
 Intended Use: ${intendedUse || 'General purpose'}
 Destination Country: ${report.destination_country}
 `;
@@ -98,10 +100,15 @@ You are a Senior Customs Judge.
 Task: Apply GRI 1-6 rules to determine the classification based on the provided technical spec and research.
 
 Requirements:
-1. Determine the Primary Classification (Best legal fit).
-2. Determine 2 Viable Alternatives (Legally defensible but less likely).
-3. Provide a detailed legal_reasoning citing the provided Research Sources.
-4. **Use Deep Chain of Thought**: Internally compare chapters/headings before deciding.
+1. **Strict HS Code Format:** 
+   - MUST be a String.
+   - Digits ONLY (No dots '.', no spaces ' ').
+   - MUST preserve leading zeros.
+   - **Precision:** You MUST output the full digit count required by the "Confirmed HS Structure" (e.g. if 10 digits required, do NOT output 6).
+2. Determine the Primary Classification (Best legal fit).
+3. Determine 2 Viable Alternatives (Legally defensible but less likely).
+4. Provide a detailed legal_reasoning citing the provided Research Sources.
+5. **Use Deep Chain of Thought**: Internally compare chapters/headings before deciding.
 
 Reasoning Effort: HIGH.
 
@@ -109,7 +116,7 @@ Output JSON Schema:
 {
   "classification_results": {
     "primary": {
-      "hs_code": "string (10 digits if possible, or 6+)",
+      "hs_code": "string (digits only, full length)",
       "confidence_score": "number (0-100)",
       "reasoning": "string"
     },
