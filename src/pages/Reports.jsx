@@ -48,7 +48,6 @@ import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import ClassifyButton from '../components/classification/ClassifyButton';
-import NewClassificationDialog from '../components/classification/NewClassificationDialog';
 
 
 export default function Reports() {
@@ -57,7 +56,6 @@ export default function Reports() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [classifyDialogOpen, setClassifyDialogOpen] = useState(false);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [selectedError, setSelectedError] = useState('');
 
@@ -112,13 +110,10 @@ export default function Reports() {
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
           {t('reports')}
         </h1>
-        <ClassifyButton onClick={() => setClassifyDialogOpen(true)} />
+        <Link to={createPageUrl('NewReport')}>
+            <ClassifyButton />
+        </Link>
       </div>
-      
-      <NewClassificationDialog 
-        open={classifyDialogOpen} 
-        onOpenChange={setClassifyDialogOpen} 
-      />
       
       <AlertDialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
         <AlertDialogContent>
