@@ -34,6 +34,10 @@ export default function NewReport() {
   });
   
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [links, setLinks] = useState([]);
+  const [newLink, setNewLink] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   // Auto-Save Draft
   React.useEffect(() => {
@@ -55,11 +59,6 @@ export default function NewReport() {
   React.useEffect(() => {
     localStorage.setItem('newReportDraft', JSON.stringify({ formData, links }));
   }, [formData, links]);
-
-  const [files, setFiles] = useState([]);
-  const [links, setLinks] = useState([]);
-  const [newLink, setNewLink] = useState('');
-  const [uploading, setUploading] = useState(false);
 
   const handleFileChange = async (e) => {
     const selectedFiles = Array.from(e.target.files || []);
