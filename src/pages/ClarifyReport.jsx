@@ -5,15 +5,15 @@ import { base44 } from '@/api/base44Client';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, FileText, UploadCloud, Loader2, ArrowLeft } from 'lucide-react';
+import { AlertCircle, FileText, UploadCloud, Loader2, ArrowLeft, ExternalLink, AlertTriangle } from 'lucide-react';
 
 export default function ClarifyReport() {
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const reportId = searchParams.get('id');
@@ -24,6 +24,8 @@ export default function ClarifyReport() {
   
   const [responseText, setResponseText] = useState('');
   const [files, setFiles] = useState([]);
+  const [newLink, setNewLink] = useState('');
+  const [links, setLinks] = useState([]);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -32,11 +34,7 @@ export default function ClarifyReport() {
       try {
         const res = await base44.entities.ClassificationReport.filter({ id: reportId });
         if (res.length > 0) setReport(res[0]);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
+      } catch (e) { console.error(e); } finally { setLoading(false); }
     };
     loadReport();
   }, [reportId]);
@@ -44,162 +42,126 @@ export default function ClarifyReport() {
   const handleFileChange = async (e) => {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length === 0) return;
-
     setUploading(true);
     try {
-      const uploadPromises = selectedFiles.map(file => 
-        base44.integrations.Core.UploadFile({ file })
-      );
+      const uploadPromises = selectedFiles.map(file => base44.integrations.Core.UploadFile({ file }));
       const results = await Promise.all(uploadPromises);
-      const newFileUrls = results.map(r => r.file_url);
-      setFiles(prev => [...prev, ...newFileUrls]);
+      setFiles(prev => [...prev, ...results.map(r => r.file_url)]);
       toast.success('Files uploaded');
-    } catch (error) {
-      toast.error('Upload failed');
-    } finally {
-      setUploading(false);
-    }
+    } catch (error) { toast.error('Upload failed'); } finally { setUploading(false); }
+  };
+
+  const handleAddLink = () => {
+    if (newLink) { setLinks(prev => [...prev, newLink]); setNewLink(''); }
   };
 
   const handleUpdate = async () => {
-    if (!responseText && files.length === 0) {
-      toast.error(language === 'he' ? 'אנא ספק מידע' : 'Please provide information');
-      return;
+    if (!responseText && files.length === 0 && links.length === 0) {
+        toast.error('Please provide some information.');
+        return;
     }
-
     setSubmitting(true);
     try {
-      // 1. Update Report Entity
       const updatedUserInput = (report.user_input_text || '') + `\n\n[User Clarification]: ${responseText}`;
       const updatedFiles = [...(report.uploaded_file_urls || []), ...files];
+      const updatedLinks = [...(report.external_link_urls || []), ...links];
 
       await base44.entities.ClassificationReport.update(reportId, {
         user_input_text: updatedUserInput,
         uploaded_file_urls: updatedFiles,
+        external_link_urls: updatedLinks,
         status: 'processing',
         processing_status: 'collecting_info',
-        missing_info_question: null // Clear the question
+        missing_info_question: null
       });
 
-      // 2. Trigger Analysis again (Async)
       base44.functions.invoke('startClassification', { reportId }).catch(console.error);
-
-      // 3. Redirect
-      toast.success(language === 'he' ? 'המידע עודכן. ממשיכים בניתוח.' : 'Updated. Resuming analysis.');
+      toast.success('Updated. Analysis resumed.');
       navigate(createPageUrl('Dashboard'));
-
-    } catch (e) {
-      console.error(e);
-      toast.error('Update failed');
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (e) { toast.error('Error updating'); } finally { setSubmitting(false); }
   };
 
-  if (loading) return <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto"/></div>;
-  if (!report) return <div className="p-8 text-center">Report not found</div>;
+  const handleProceedAnyway = async () => {
+    if (!confirm('Proceeding without info may reduce accuracy. Continue?')) return;
+    setSubmitting(true);
+    try {
+        await base44.functions.invoke('startClassification', { reportId, forceProceed: true });
+        toast.success('Forced continuation.');
+        navigate(createPageUrl('Dashboard'));
+    } catch (e) { toast.error('Error'); } finally { setSubmitting(false); }
+  };
+
+  if (loading) return <Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>;
+  if (!report) return <div>Report not found</div>;
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-8">
-      <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4">
-        <ArrowLeft className="w-4 h-4 mr-2" /> Back
-      </Button>
-
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          {language === 'he' ? 'נדרשת הבהרה' : 'Clarification Needed'}
-          <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
-             {report.product_name}
-          </Badge>
-        </h1>
+    <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+            <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2 pl-0"><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
+            <h1 className="text-3xl font-bold">Missing Information</h1>
+            <p className="text-slate-500">Report ID: {report.report_id}</p>
+        </div>
+        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Action Required</Badge>
       </div>
 
-      {/* Read Only Zone */}
-      <Card className="bg-slate-50 border-dashed">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">
-             {language === 'he' ? 'פרטי דוח (קריאה בלבד)' : 'Report Context (Read Only)'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-           <div>
-              <span className="text-xs text-slate-400 block">Product</span>
-              <span className="font-medium">{report.product_name}</span>
-           </div>
-           <div>
-              <span className="text-xs text-slate-400 block">Destination</span>
-              <span className="font-medium">{report.destination_country}</span>
-           </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Left: Context (Read Only) */}
+        <Card className="bg-slate-50/80 h-full">
+            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><FileText className="w-5 h-5"/> Case Context</CardTitle></CardHeader>
+            <CardContent className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">PRODUCT</span><span className="font-medium">{report.product_name}</span></div>
+                    <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">DESTINATION</span><span className="font-medium">{report.destination_country}</span></div>
+                </div>
+                <div>
+                    <span className="text-xs text-slate-400 block mb-2">ORIGINAL INPUT</span>
+                    <div className="bg-white p-4 rounded border text-sm max-h-60 overflow-y-auto whitespace-pre-wrap">{report.user_input_text || 'None'}</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {(report.uploaded_file_urls || []).map((_, i) => <Badge key={i} variant="secondary">File {i+1}</Badge>)}
+                    {(report.external_link_urls || []).map((_, i) => <Badge key={i} variant="secondary">Link {i+1}</Badge>)}
+                </div>
+            </CardContent>
+        </Card>
 
-      {/* Expert Feedback */}
-      <Alert variant="destructive" className="bg-orange-50 border-orange-200 text-orange-900">
-        <AlertCircle className="h-5 w-5" />
-        <AlertTitle className="font-bold mb-2">
-           {language === 'he' ? 'דרישת המומחה' : 'Expert Request'}
-        </AlertTitle>
-        <AlertDescription className="text-lg">
-           {report.missing_info_question || "Please provide additional technical details."}
-        </AlertDescription>
-      </Alert>
+        {/* Right: Action */}
+        <div className="space-y-6">
+            <Alert variant="destructive" className="bg-orange-50 border-orange-200 text-orange-900">
+                <AlertTriangle className="h-5 w-5"/>
+                <AlertTitle>Expert Request</AlertTitle>
+                <AlertDescription>{report.missing_info_question || "Please provide details."}</AlertDescription>
+            </Alert>
 
-      {/* Response Zone */}
-      <Card>
-        <CardHeader>
-           <CardTitle>{language === 'he' ? 'תשובתך' : 'Your Response'}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-            <Textarea 
-                value={responseText}
-                onChange={e => setResponseText(e.target.value)}
-                placeholder={language === 'he' ? 'כתוב את ההבהרה כאן...' : 'Type your clarification here...'}
-                className="min-h-[120px]"
-            />
-            
-            <div className="flex items-center gap-4">
-                <Button variant="outline" className="relative" disabled={uploading}>
-                    <input type="file" multiple className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileChange} />
-                    <UploadCloud className="w-4 h-4 mr-2" />
-                    {uploading ? 'Uploading...' : (language === 'he' ? 'צרף קבצים' : 'Attach Files')}
-                </Button>
-                {files.length > 0 && <span className="text-sm text-green-600">{files.length} files attached</span>}
-            </div>
+            <Card className="border-t-4 border-t-[#114B5F]">
+                <CardHeader><CardTitle>Provide Info</CardTitle></CardHeader>
+                <CardContent className="space-y-5">
+                    <Textarea value={responseText} onChange={e => setResponseText(e.target.value)} placeholder="Type your answer..." className="min-h-[100px]"/>
+                    
+                    <div className="flex gap-2 items-center">
+                        <Button variant="outline" disabled={uploading} className="relative w-full">
+                            <input type="file" multiple className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileChange} />
+                            <UploadCloud className="w-4 h-4 mr-2"/> {uploading ? 'Uploading...' : 'Upload Files'}
+                        </Button>
+                    </div>
+                    {files.length > 0 && <div className="text-xs text-green-600">{files.length} new files</div>}
 
-            <div className="pt-4 border-t flex justify-end gap-3">
-                <Button 
-                    variant="ghost" 
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                    onClick={() => {
-                        if (!confirm(language === 'he' ? 'האם אתה בטוח? הדיוק עלול להיפגע.' : 'Are you sure? Accuracy might be compromised.')) return;
-                        setSubmitting(true);
-                        // Trigger Analysis with FORCE flag
-                        base44.functions.invoke('startClassification', { reportId, force_proceed: true })
-                            .then(() => {
-                                toast.success(language === 'he' ? 'המשך כפוי בוצע' : 'Forced Proceed Executed');
-                                navigate(createPageUrl('Dashboard'));
-                            })
-                            .catch((e) => {
-                                console.error(e);
-                                setSubmitting(false);
-                            });
-                    }}
-                    disabled={submitting}
-                >
-                    {language === 'he' ? 'התעלם והמשך (לא מומלץ)' : 'Ignore & Proceed (Not Recommended)'}
-                </Button>
+                    <div className="flex gap-2">
+                        <Input value={newLink} onChange={e => setNewLink(e.target.value)} placeholder="Add URL..." />
+                        <Button variant="secondary" onClick={handleAddLink}>Add</Button>
+                    </div>
+                    {links.map((l, i) => <Badge key={i} variant="outline">{l}</Badge>)}
 
-                <Button 
-                    onClick={handleUpdate} 
-                    disabled={submitting}
-                    className="bg-[#114B5F] hover:bg-[#0D3A4A] text-white"
-                >
-                    {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    {language === 'he' ? 'עדכן והמשך ניתוח' : 'Update & Resume Analysis'}
-                </Button>
-            </div>
-        </CardContent>
-      </Card>
+                    <div className="pt-6 border-t flex justify-between items-center">
+                        <Button variant="ghost" onClick={handleProceedAnyway} className="text-red-600 text-xs">Force Proceed (Risk Low Accuracy)</Button>
+                        <Button onClick={handleUpdate} disabled={submitting} className="bg-[#114B5F] text-white">
+                            {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin"/>} Submit Update
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+      </div>
     </div>
   );
 }

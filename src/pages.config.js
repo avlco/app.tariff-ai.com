@@ -1,3 +1,4 @@
+import ClarifyReport from './pages/ClarifyReport';
 import Cookies from './pages/Cookies';
 import Customers from './pages/Customers';
 import Dashboard from './pages/Dashboard';
@@ -12,11 +13,11 @@ import ShipmentView from './pages/ShipmentView';
 import Shipments from './pages/Shipments';
 import Support from './pages/Support';
 import Terms from './pages/Terms';
-import ClarifyReport from './pages/ClarifyReport';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "ClarifyReport": ClarifyReport,
     "Cookies": Cookies,
     "Customers": Customers,
     "Dashboard": Dashboard,
@@ -31,7 +32,6 @@ export const PAGES = {
     "Shipments": Shipments,
     "Support": Support,
     "Terms": Terms,
-    "ClarifyReport": ClarifyReport,
 }
 
 export const pagesConfig = {

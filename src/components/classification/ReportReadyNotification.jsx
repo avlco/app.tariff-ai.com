@@ -1,67 +1,72 @@
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, X, Eye } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useLanguage } from '../providers/LanguageContext';
+import React, { useEffect, useState } from 'react';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-export default function ReportReadyNotification({ show, reportId, onClose }) {
-  const { language } = useLanguage();
+export default function ReportReadyNotification() {
   const navigate = useNavigate();
-  
-  const handleViewReport = () => {
-    navigate(createPageUrl(`ReportView?id=${reportId}`));
-    onClose();
-  };
-  
-  return (
-    <AnimatePresence>
-      {show && (
-        <motion.div
-          initial={{ opacity: 0, y: -100 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -100 }}
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4"
-        >
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-green-200 dark:border-green-800 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0">
-                <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
-                </div>
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-slate-900 dark:text-white mb-1">
-                  {language === 'he' ? 'הדוח מוכן!' : 'Report Ready!'}
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                  {language === 'he' 
-                    ? 'הסיווג הושלם בהצלחה. לחץ לצפייה בדוח המלא.'
-                    : 'Classification completed successfully. Click to view the full report.'}
-                </p>
+  // Store processed IDs in state to avoid re-toasting in same session
+  const [processedIds, setProcessedIds] = useState(new Set());
+
+  useEffect(() => {
+    const checkReports = async () => {
+      try {
+        const reports = await base44.entities.ClassificationReport.list({
+            sort: { field: 'created_date', order: 'desc' },
+            limit: 10
+        });
+
+        reports.forEach(report => {
+            // Check if we already processed this specific status event for this report
+            const uniqueEventKey = `${report.id}_${report.status}`;
+            
+            // Check LocalStorage for permanent persistence across refreshes
+            const isRead = localStorage.getItem(`read_${uniqueEventKey}`);
+
+            if (!processedIds.has(uniqueEventKey) && !isRead) {
                 
-                <Button
-                  onClick={handleViewReport}
-                  size="sm"
-                  className="bg-gradient-to-r from-[#114B5F] to-[#42C0B9] hover:from-[#0D3A4A] hover:to-[#35A89E]"
-                >
-                  <Eye className="w-4 h-4 me-2" />
-                  {language === 'he' ? 'צפה בדוח' : 'View Report'}
-                </Button>
-              </div>
-              
-              <button
-                onClick={onClose}
-                className="flex-shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+                if (report.status === 'completed') {
+                    toast.success(`Report Ready: ${report.product_name}`, {
+                        action: {
+                            label: 'View',
+                            onClick: () => {
+                                localStorage.setItem(`read_${uniqueEventKey}`, 'true');
+                                navigate(createPageUrl('ReportView', { id: report.id }));
+                            }
+                        },
+                        duration: 8000,
+                    });
+                    setProcessedIds(prev => new Set(prev).add(uniqueEventKey));
+                }
+                
+                if (report.status === 'waiting_for_user') {
+                    toast.warning(`Action Required: ${report.product_name}`, {
+                        description: 'Expert needs clarification.',
+                        action: {
+                            label: 'Resolve',
+                            onClick: () => {
+                                localStorage.setItem(`read_${uniqueEventKey}`, 'true');
+                                navigate(createPageUrl('ClarifyReport', { id: report.id })); // Ensure this page maps correctly in router
+                            }
+                        },
+                        duration: Infinity, // Stay until clicked
+                    });
+                    setProcessedIds(prev => new Set(prev).add(uniqueEventKey));
+                }
+            }
+        });
+      } catch (error) {
+        console.error("Notification polling error:", error);
+      }
+    };
+
+    // Poll every 5 seconds
+    const interval = setInterval(checkReports, 5000);
+    checkReports(); // Initial check
+
+    return () => clearInterval(interval);
+  }, [navigate, processedIds]);
+
+  return null; // Headless component
 }

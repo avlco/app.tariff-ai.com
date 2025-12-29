@@ -54,8 +54,8 @@ export default Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, force_proceed } = await req.json();
-    if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
+    // EXTRACT FORCE PROCEED
+    const { reportId, forceProceed } = await req.json();
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
@@ -224,26 +224,20 @@ Output JSON Schema:
         base44_client: base44
     });
 
-    // Check readiness score logic (Threshold raised to 80)
-    // If force_proceed is true, we BYPASS the check even if score is low.
-    const isReady = (result.status === 'success' && (result.readiness_score && result.readiness_score >= 80)) || force_proceed;
+    // CRITICAL LOGIC FIX:
+    const scorePasses = result.status === 'success' && (result.readiness_score && result.readiness_score >= 80);
+    const isReady = scorePasses || (forceProceed === true); // Override if forced
 
     if (!isReady) {
-        // --- ASYNC BRAIN UPDATE ---
-        
-        // 1. Update Report with waiting status and detected fields
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             status: 'waiting_for_user',
             processing_status: 'waiting_for_user',
             missing_info_question: result.missing_info_question,
-            // Save Detected Fields to DB if available
             country_of_manufacture: result.detected_form_fields?.country_of_manufacture || report.country_of_manufacture,
-            destination_country: result.detected_form_fields?.destination_country || report.destination_country,
-            // Intended use isn't a top-level field in report schema, but we can store it in user_input_text or a new field if schema allowed.
-            // For now, we update the main ones.
+            destination_country: result.detected_form_fields?.destination_country || report.destination_country
         });
         
-        // 2. Send Email Notification
+        // Email logic remains here...
         if (user.email) {
             try {
                 const appUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://app.base44.com'; // fallback
@@ -270,26 +264,29 @@ Output JSON Schema:
         return Response.json({ 
             success: true, 
             status: 'waiting_for_user', 
-            question: result.missing_info_question,
-            detected_form_fields: result.detected_form_fields
+            question: result.missing_info_question
         });
     } else {
+        // Proceeding
+        let finalSpec = result.technical_spec;
+        if (forceProceed && !scorePasses) {
+            finalSpec.data_quality_note = "User forced classification despite missing data.";
+        }
+
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             processing_status: 'analyzing_completed',
-            structural_analysis: result.technical_spec,
-            // Store assumptions or other metadata if schema allows, or just log
+            structural_analysis: finalSpec
         });
         return Response.json({ 
             success: true, 
             status: 'analyzing_completed', 
-            spec: result.technical_spec,
+            spec: finalSpec,
             readiness: result.readiness_score,
             detected_form_fields: result.detected_form_fields
         });
     }
 
   } catch (error) {
-    console.error('Agent A (Analyst) Error:', error);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });
