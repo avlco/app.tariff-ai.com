@@ -476,10 +476,31 @@ export default function ReportView() {
                         <h4 className="text-sm font-medium text-slate-500">Origin</h4>
                         <p className="text-lg font-medium">{report.country_of_origin}</p>
                      </div>
-                     <div>
-                        <h4 className="text-sm font-medium text-slate-500">Manufacture</h4>
-                        <p className="text-lg font-medium">{report.country_of_manufacture}</p>
-                     </div>
+                     
+                     {/* Regulatory Context Panel */}
+                     {tradeResource && (
+                        <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100">
+                            <h4 className="text-xs font-semibold text-blue-800 uppercase tracking-wider mb-2">Regulatory Context</h4>
+                            
+                            <div className="mb-2">
+                                <span className="text-xs text-slate-500 block">Regional Agreements:</span>
+                                <span className="text-sm font-medium text-slate-700">{tradeResource.regional_agreements || 'None'}</span>
+                            </div>
+                            
+                            <div className="mb-2">
+                                <span className="text-xs text-slate-500 block">HS Structure:</span>
+                                <span className="text-sm font-mono text-slate-700">{tradeResource.hs_structure || 'Standard'}</span>
+                            </div>
+
+                            <div>
+                                <span className="text-xs text-slate-500 block">Tax Method:</span>
+                                <Badge variant="outline" className="bg-white text-xs font-normal mt-1">
+                                    {tradeResource.tax_method || 'CIF'}
+                                </Badge>
+                            </div>
+                        </div>
+                     )}
+
                      <div className="pt-4 border-t">
                         <h4 className="text-sm font-medium text-slate-500">Import Requirements</h4>
                         <ul className="mt-2 space-y-2">
