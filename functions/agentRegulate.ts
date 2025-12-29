@@ -88,11 +88,17 @@ Product: ${report.product_name}
 You are a Senior Trade Compliance Officer.
 Task: Strict Compliance Check & Tax Calculation for import into [${report.destination_country}].
 
+CONTEXT - COUNTRY TRADE DATA:
+- Tax Calculation Method: ${resource?.tax_method || 'CIF (Default)'}
+- Regional Agreements: ${resource?.regional_agreements || 'None'}
+- HS Code Structure: ${resource?.hs_structure || 'Standard'}
+
 Requirements:
 1. **Tax Breakdown:**
-   - **Duty Rate:** Exact % for 2025.
+   - **Duty Rate:** Exact % for 2025. Consider ${resource?.regional_agreements ? `agreements like ${resource.regional_agreements}` : 'applicable trade agreements'}.
    - **VAT:** Specify General VAT vs Import VAT if different.
    - **Excise/Other:** Check for Purchase Tax (Excise), Dumping Duties, or special levies.
+   - **Calculation Basis:** Note that taxes are calculated based on ${resource?.tax_method || 'CIF'} value.
 
 2. **Standards & Legality:**
    - **Standards:** Detail ISO, CE, or local standard requirements (e.g. SII in Israel, FCC in US).
