@@ -117,12 +117,19 @@ export default Deno.serve(async (req) => {
     
     const officialLinks = resource ? [
         ...(resource.customs_links || []),
-        ...(resource.regulation_links || [])
+        ...(resource.regulation_links || []),
+        ...(resource.trade_agreements_links || []),
+        ...(resource.government_links || [])
     ] : [];
 
     const context = `
 Destination Country: ${destCountry}
 Current Date: ${new Date().toISOString().split('T')[0]}
+
+COUNTRY TRADE PROFILE:
+- HS Code Structure: ${resource?.hs_structure || 'Standard WCO 6-digit + local'}
+- Regional Agreements: ${resource?.regional_agreements || 'None specified'}
+- Tax Method: ${resource?.tax_method || 'CIF (Default)'}
 
 OFFICIAL SOURCE LINKS (PRIORITY 1):
 ${officialLinks.length > 0 ? officialLinks.join('\n') : 'No specific official links found in DB, use general search.'}
