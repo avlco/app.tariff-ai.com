@@ -110,9 +110,23 @@ export default Deno.serve(async (req) => {
     
     const spec = report.structural_analysis;
     const destCountry = report.destination_country;
+
+    // Fetch Official Trade Resources
+    const tradeResources = await base44.entities.CountryTradeResource.filter({ country_name: destCountry });
+    const resource = tradeResources[0];
     
+    const officialLinks = resource ? [
+        ...(resource.customs_links || []),
+        ...(resource.regulation_links || [])
+    ] : [];
+
     const context = `
 Destination Country: ${destCountry}
+Current Date: ${new Date().toISOString().split('T')[0]}
+
+OFFICIAL SOURCE LINKS (PRIORITY 1):
+${officialLinks.length > 0 ? officialLinks.join('\n') : 'No specific official links found in DB, use general search.'}
+
 Technical Specification:
 - Name: ${spec.standardized_name}
 - Material: ${spec.material_composition}
@@ -126,8 +140,17 @@ You are a Customs Researcher.
 Task: Intelligence gathering for HS Classification (No final decision).
 Reasoning Effort: HIGH.
 
+PROTOCOL - 3-LAYER SEARCH:
+1. **Layer 1 (Official Links):** Access the provided OFFICIAL SOURCE LINKS first. Extract 2025 tariff rates and notes directly from these sites.
+2. **Layer 2 (Global Professional DBs):** If official sites are unclear, search WCO, regional union sites (EU, USITC, etc.), or official government trade portals.
+3. **Layer 3 (Open Web):** Only if layers 1 & 2 fail, perform open web search.
+
+FRESHNESS RULE:
+- Verify data is valid for **Current Date**.
+- Explicitly check for recent tax changes (even 1% differences).
+
 Objectives:
-1. Find the **2025 Customs Tariff** for [${destCountry}] (Ensure data is latest 2025).
+1. Find the **2025 Customs Tariff** for [${destCountry}].
 2. Search for **Explanatory Notes** and legal exclusions relevant to: ${spec.standardized_name} (${spec.material_composition}).
 3. Search for previous rulings or precedents for similar items in ${destCountry} or WCO.
 4. Find 3-5 potential HS Headings (4-digit) that might fit.
