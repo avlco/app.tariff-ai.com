@@ -72,8 +72,8 @@ Product Name: ${report.product_name}
 Country of Manufacture: ${report.country_of_manufacture}
 Destination Country: ${report.destination_country}
 
-User Input (Chat History):
-${report.chat_history?.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n') || 'No chat history.'}
+User Input:
+${report.user_input_text || ''}
 `;
 
     // 1. Prepare Promises for Parallel Execution
@@ -228,20 +228,46 @@ Output JSON Schema:
     const isReady = result.status === 'success' && (result.readiness_score && result.readiness_score >= 80);
 
     if (!isReady) {
+        // --- ASYNC BRAIN UPDATE ---
+        
+        // 1. Update Report with waiting status and detected fields
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             status: 'waiting_for_user',
             processing_status: 'waiting_for_user',
             missing_info_question: result.missing_info_question,
-            chat_history: [
-                ...(report.chat_history || []),
-                {
-                    role: 'assistant',
-                    content: result.missing_info_question,
-                    timestamp: new Date().toISOString()
-                }
-            ]
+            // Save Detected Fields to DB if available
+            country_of_manufacture: result.detected_form_fields?.country_of_manufacture || report.country_of_manufacture,
+            destination_country: result.detected_form_fields?.destination_country || report.destination_country,
+            // Intended use isn't a top-level field in report schema, but we can store it in user_input_text or a new field if schema allowed.
+            // For now, we update the main ones.
         });
-        return Response.json({ success: true, status: 'waiting_for_user', question: result.missing_info_question });
+        
+        // 2. Send Email Notification
+        if (user.email) {
+            try {
+                await base44.integrations.Core.SendEmail({
+                    to: user.email,
+                    subject: `Action Required: Report #${reportId} pending clarification`,
+                    body: `
+                        <h2>Expert Clarification Needed</h2>
+                        <p>We've analyzed your product data but need a few more details to ensure accurate classification.</p>
+                        <p><strong>Missing Information:</strong> ${result.missing_info_question}</p>
+                        <p>Please log in to the dashboard to resolve this issue.</p>
+                        <br/>
+                        <p>Best regards,<br/>Tariff AI Team</p>
+                    `
+                });
+            } catch (emailErr) {
+                console.error("Failed to send notification email:", emailErr);
+            }
+        }
+
+        return Response.json({ 
+            success: true, 
+            status: 'waiting_for_user', 
+            question: result.missing_info_question,
+            detected_form_fields: result.detected_form_fields
+        });
     } else {
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             processing_status: 'analyzing_completed',

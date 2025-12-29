@@ -57,12 +57,14 @@ export default Deno.serve(async (req) => {
         await logProgress(reportId, 'analyst', 'Starting structural analysis (Agent A)');
         const analystRes = await base44.functions.invoke('agentAnalyze', { reportId });
         
+        // --- SPLIT WORKFLOW CHECK ---
         if (analystRes.data.status === 'waiting_for_user' || analystRes.data.status === 'insufficient_data') {
-            await logProgress(reportId, 'analyst', 'Insufficient data, waiting for user', 'pending');
+            await logProgress(reportId, 'analyst', 'Insufficient data, stopped for clarification', 'pending');
+            // STOP EXECUTION HERE.
             return Response.json({
                 success: true,
                 status: 'waiting_for_user',
-                action: 'input_required',
+                action: 'stopped_for_clarification',
                 question: analystRes.data.question
             });
         }

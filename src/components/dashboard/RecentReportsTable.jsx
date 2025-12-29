@@ -75,14 +75,29 @@ export default function RecentReportsTable({ reports, loading }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge className={`${statusColors[report?.status] || statusColors.pending} border`}>
-                    {t(report?.status || 'pending')}
-                  </Badge>
-                  <Link to={createPageUrl(`ReportView?id=${report?.id}`)}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Eye className="w-4 h-4 text-slate-500" />
-                    </Button>
-                  </Link>
+                  {report?.status === 'waiting_for_user' ? (
+                      <div className="flex items-center gap-2">
+                          <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+                              {t('waiting_for_user') || 'Action Required'}
+                          </Badge>
+                          <Link to={createPageUrl(`ClarifyReport?id=${report?.id}`)}>
+                              <Button size="sm" className="h-8 bg-orange-600 hover:bg-orange-700 text-white text-xs">
+                                  Resolve
+                              </Button>
+                          </Link>
+                      </div>
+                  ) : (
+                      <>
+                          <Badge className={`${statusColors[report?.status] || statusColors.pending} border`}>
+                              {t(report?.status || 'pending')}
+                          </Badge>
+                          <Link to={createPageUrl(`ReportView?id=${report?.id}`)}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Eye className="w-4 h-4 text-slate-500" />
+                              </Button>
+                          </Link>
+                      </>
+                  )}
                 </div>
               </div>
             ))}
