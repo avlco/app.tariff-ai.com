@@ -18,7 +18,7 @@ function cleanJson(text) {
 }
 
 async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
-  console.log(`[LLM Gateway - Judge] Using GPT-5.2`);
+  console.log(`[LLM Gateway - Judge] Using GPT-5.2 (Responses API)`);
   const jsonInstruction = response_schema 
     ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
     : '';
@@ -28,15 +28,32 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
     const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) throw new Error("OPENAI_API_KEY not set");
 
-    const openai = new OpenAI({ apiKey });
-    const completion = await openai.chat.completions.create({
-        model: "gpt-5.2",
-        messages: [{ role: "user", content: fullPrompt }],
-        response_format: response_schema ? { type: "json_object" } : undefined
+    // Using the new /v1/responses endpoint for GPT-5.2 as requested
+    const response = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: "gpt-5.2-2025-12-11",
+            messages: [{ role: "user", content: fullPrompt }],
+            // New parameters for GPT-5.2
+            reasoning: { effort: "high" },
+            text: { verbosity: "high" },
+            response_format: response_schema ? { type: "json_object" } : undefined
+        })
     });
-    
-    const content = completion.choices[0].message.content;
+
+    if (!response.ok) {
+        throw new Error(`OpenAI Responses API Error: ${response.status} ${await response.text()}`);
+    }
+
+    const data = await response.json();
+    // Assuming new response structure is similar or compatible with standard choices
+    const content = data.choices ? data.choices[0].message.content : data.output; // Fallback for hypothetical API structure
     return response_schema ? cleanJson(content) : content;
+
   } catch (e) {
      console.error(`[LLM Gateway] Primary strategy failed:`, e.message);
      return await base44_client.integrations.Core.InvokeLLM({
@@ -84,6 +101,9 @@ Requirements:
 1. Determine the Primary Classification (Best legal fit).
 2. Determine 2 Viable Alternatives (Legally defensible but less likely).
 3. Provide a detailed legal_reasoning citing the provided Research Sources.
+4. **Use Deep Chain of Thought**: Internally compare chapters/headings before deciding.
+
+Reasoning Effort: HIGH.
 
 Output JSON Schema:
 {

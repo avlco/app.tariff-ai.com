@@ -28,17 +28,53 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
     const apiKey = Deno.env.get('PERPLEXITY_API_KEY');
     if (!apiKey) throw new Error("PERPLEXITY_API_KEY missing");
 
-    const perplexity = new OpenAI({ 
-        apiKey, 
-        baseURL: 'https://api.perplexity.ai' 
+    // Using raw fetch to access advanced fields (citations, search_results) not always exposed in OpenAI SDK wrapper
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: "sonar-deep-research",
+            messages: [{ role: "user", content: fullPrompt }],
+            // Request citations
+            return_citations: true
+        })
     });
+
+    if (!response.ok) {
+        throw new Error(`Perplexity API Error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    const citations = data.citations || [];
     
-    const completion = await perplexity.chat.completions.create({
-        model: "sonar-deep-research",
-        messages: [{ role: "user", content: fullPrompt }]
-    });
-    const content = completion.choices[0].message.content;
-    return response_schema ? cleanJson(content) : content;
+    // Parse the JSON content
+    let parsedContent = response_schema ? cleanJson(content) : content;
+    
+    // Inject citations into verified_sources if it's an object and has the field
+    if (typeof parsedContent === 'object' && parsedContent.verified_sources && citations.length > 0) {
+        // Map citations to the verified_sources structure if strictly strings
+        const citationSources = citations.map((url, idx) => ({
+            title: `Source ${idx + 1}`,
+            url: url,
+            date: new Date().toISOString(),
+            snippet: "Direct citation from deep research"
+        }));
+        
+        // Merge or replace based on what the model returned
+        // We'll append them to ensure we don't lose model-generated context, 
+        // but prefer model's structure if it used the URLs.
+        // For simplicity/robustness, we'll append if the model didn't return many.
+        if (parsedContent.verified_sources.length === 0) {
+            parsedContent.verified_sources = citationSources;
+        }
+    }
+    
+    return parsedContent;
+
   } catch (e) {
      console.error(`[LLM Gateway] Primary strategy failed:`, e.message);
      return await base44_client.integrations.Core.InvokeLLM({
@@ -88,10 +124,11 @@ Technical Specification:
     const systemPrompt = `
 You are a Customs Researcher. 
 Task: Intelligence gathering for HS Classification (No final decision).
+Reasoning Effort: HIGH.
 
 Objectives:
-1. Find the 2025 Customs Tariff for [${destCountry}].
-2. Search for legal notes/exclusions relevant to: ${spec.standardized_name} (${spec.material_composition}).
+1. Find the **2025 Customs Tariff** for [${destCountry}] (Ensure data is latest 2025).
+2. Search for **Explanatory Notes** and legal exclusions relevant to: ${spec.standardized_name} (${spec.material_composition}).
 3. Search for previous rulings or precedents for similar items in ${destCountry} or WCO.
 4. Find 3-5 potential HS Headings (4-digit) that might fit.
 

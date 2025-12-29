@@ -17,30 +17,47 @@ function cleanJson(text) {
   }
 }
 
-async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
+async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client, system_prompt }) {
   console.log(`[LLM Gateway - QA] Using Claude Opus 4.5`);
   const jsonInstruction = response_schema 
     ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
     : '';
-  const fullPrompt = prompt + jsonInstruction;
+  
+  // Note: We separate system prompt for caching if provided
+  const userPrompt = prompt + jsonInstruction;
 
   try {
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
     if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
     const anthropic = new Anthropic({ apiKey });
-    const msg = await anthropic.messages.create({
-        model: "claude-opus-4.5",
+    
+    // Prepare params with prompt caching if system prompt provided
+    const params = {
+        model: "claude-opus-4-5-20251101",
         max_tokens: 4096,
-        messages: [{ role: "user", content: fullPrompt }]
-    });
+        messages: [{ role: "user", content: userPrompt }]
+    };
+
+    if (system_prompt) {
+        params.system = [
+            {
+                type: "text",
+                text: system_prompt,
+                cache_control: { type: "ephemeral" }
+            }
+        ];
+    }
+
+    const msg = await anthropic.messages.create(params);
     
     const content = msg.content[0].text;
     return response_schema ? cleanJson(content) : content;
   } catch (e) {
      console.error(`[LLM Gateway] Primary strategy failed:`, e.message);
+     // Fallback generally doesn't support complex system prompt caching logic, so we concatenate
      return await base44_client.integrations.Core.InvokeLLM({
-        prompt: fullPrompt,
+        prompt: (system_prompt ? system_prompt + "\n\n" : "") + userPrompt,
         response_json_schema: response_schema
     });
   }
@@ -99,10 +116,10 @@ Output JSON Schema:
 }
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nFULL REPORT DATA:\n${context}`;
-
+    // Pass system prompt separately for caching
     const result = await invokeSpecializedLLM({
-        prompt: fullPrompt,
+        prompt: `FULL REPORT DATA:\n${context}`,
+        system_prompt: systemPrompt, // Passing system prompt for caching
         task_type: 'reasoning',
         response_schema: {
             type: "object",
