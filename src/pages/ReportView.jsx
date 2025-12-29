@@ -304,9 +304,36 @@ export default function ReportView() {
                             <TabsList className="w-full justify-start mb-4">
                                 <TabsTrigger value="technical">{language === 'he' ? 'מפרט טכני' : 'Technical Spec'}</TabsTrigger>
                                 <TabsTrigger value="legal">{language === 'he' ? 'נימוק משפטי מלא' : 'Full Legal Reasoning'}</TabsTrigger>
+                                <TabsTrigger value="compliance">{language === 'he' ? 'תאימות ורגולציה' : 'Compliance & Regulation'}</TabsTrigger>
                                 <TabsTrigger value="sources">{language === 'he' ? 'מקורות' : 'Verified Sources'}</TabsTrigger>
                             </TabsList>
                             
+                            <TabsContent value="compliance" className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
+                                            <Shield className="w-4 h-4" />
+                                            {language === 'he' ? 'מיסים נוספים (Excise)' : 'Excise & Other Taxes'}
+                                        </h4>
+                                        <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.excise_taxes || '---'}</p>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            {language === 'he' ? 'דרישות תקינה' : 'Standards Requirements'}
+                                        </h4>
+                                        <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.standards_requirements || '---'}</p>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-lg md:col-span-2">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
+                                            <Lock className="w-4 h-4" />
+                                            {language === 'he' ? 'חוקיות יבוא' : 'Import Legality'}
+                                        </h4>
+                                        <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.import_legality || '---'}</p>
+                                    </div>
+                                </div>
+                            </TabsContent>
+
                             <TabsContent value="technical" className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="p-4 bg-slate-50 rounded-lg">
