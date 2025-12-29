@@ -126,13 +126,13 @@ export default Deno.serve(async (req) => {
 Destination Country: ${destCountry}
 Current Date: ${new Date().toISOString().split('T')[0]}
 
-COUNTRY TRADE PROFILE:
+COUNTRY TRADE PROFILE (Expert System Source):
 - HS Code Structure: ${resource?.hs_structure || 'Standard WCO 6-digit + local'}
 - Regional Agreements: ${resource?.regional_agreements || 'None specified'}
 - Tax Method: ${resource?.tax_method || 'CIF (Default)'}
 
-OFFICIAL SOURCE LINKS (PRIORITY 1):
-${officialLinks.length > 0 ? officialLinks.join('\n') : 'No specific official links found in DB, use general search.'}
+OFFICIAL SOURCE LINKS (PRIORITY 1 - MANDATORY CRAWL):
+${officialLinks.length > 0 ? officialLinks.join('\n') : 'No specific official links found in DB.'}
 
 Technical Specification:
 - Name: ${spec.standardized_name}
@@ -147,13 +147,14 @@ You are a Customs Researcher.
 Task: Intelligence gathering for HS Classification (No final decision).
 Reasoning Effort: HIGH.
 
-PROTOCOL - 3-LAYER SEARCH:
-1. **Layer 1 (Official Links):** Access the provided OFFICIAL SOURCE LINKS first. Extract 2025 tariff rates and notes directly from these sites.
-2. **Layer 2 (Global Professional DBs):** If official sites are unclear, search WCO, regional union sites (EU, USITC, etc.), or official government trade portals.
-3. **Layer 3 (Open Web):** Only if layers 1 & 2 fail, perform open web search.
+PROTOCOL - 3-LAYER SEARCH (STRICT ORDER):
+1. **Priority 1 (Mandatory Crawl):** ACTIVELY CRAWL the provided "OFFICIAL SOURCE LINKS". You MUST attempt to extract data directly from these URLs first.
+2. **Priority 2 (Secondary Search - Regional):** If Priority 1 fails, search specifically for the "Regional Agreements" listed in the profile (e.g., "${resource?.regional_agreements || 'Trade Agreements'}") combined with the product description in Global Trade Databases.
+3. **Priority 3 (Fallback):** Open web search is ONLY allowed if Priority 1 & 2 yield zero specific results for the HS Code.
 
-FRESHNESS RULE:
-- Verify data is valid for **Current Date**.
+FRESHNESS CONSTRAINT:
+- Compare identified rates against today's date (2025).
+- **Golden Rule:** If a conflict exists between your training data and the source URL text, the **source URL wins**.
 - Explicitly check for recent tax changes (even 1% differences).
 
 Objectives:
