@@ -52,6 +52,19 @@ export default function ChatInterface({ messages, onSendMessage, onFileUpload, o
   
   return (
     <div className="flex flex-col h-[400px] border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900">
+      {/* Data Collection Status */}
+      <div className="bg-slate-50 dark:bg-slate-800 p-2 border-b text-xs flex gap-3 overflow-x-auto">
+        <div className="flex items-center gap-1 text-green-600">
+          <span className="font-bold">✓</span> {language === 'he' ? 'שם מוצר' : 'Product Name'}
+        </div>
+        <div className="flex items-center gap-1 text-green-600">
+          <span className="font-bold">✓</span> {language === 'he' ? 'מדינת יעד' : 'Destination'}
+        </div>
+        <div className="flex items-center gap-1 text-slate-500">
+          <span className="animate-pulse">●</span> {language === 'he' ? 'מחקר מפרט טכני...' : 'Reseaching Spec...'}
+        </div>
+      </div>
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 ? (
@@ -64,7 +77,7 @@ export default function ChatInterface({ messages, onSendMessage, onFileUpload, o
           messages.map((msg, idx) => (
             <div
               key={idx}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
             >
               <div
                 className={`max-w-[80%] px-4 py-2 rounded-2xl ${
@@ -75,6 +88,20 @@ export default function ChatInterface({ messages, onSendMessage, onFileUpload, o
               >
                 {msg.content}
               </div>
+              
+              {/* "Start Classification" Button inside Chat (Simulated based on AI readiness) */}
+              {msg.role === 'assistant' && idx === messages.length - 1 && messages.length > 2 && (
+                 <div className="mt-2 ml-2">
+                    <Button 
+                        size="sm" 
+                        variant="outline"
+                        className="text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                        onClick={() => onSendMessage(language === 'he' ? 'פשוט תתחיל' : 'Just start')}
+                    >
+                        {language === 'he' ? '✨ יש מספיק מידע - התחל סיווג' : '✨ Enough info - Start Classification'}
+                    </Button>
+                 </div>
+              )}
             </div>
           ))
         )}

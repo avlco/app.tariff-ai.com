@@ -86,12 +86,20 @@ ${JSON.stringify(report.chat_history || [])}
 You are an expert Forensic Product Analyst.
 Task: Analyze the raw user input and create a standardized Technical Specification in English.
 
-Fail Fast Rule: 
-If the input is too vague to classify (e.g., 'A box' without material, 'part 54' without function), return status: 'insufficient_data' and generate a specific question for the user in their language (Hebrew or English based on their input) to get the missing critical info.
+Assumption Mode:
+Instead of failing fast, if critical info is missing but can be inferred or standard assumptions exist (e.g. "Standard Cotton T-Shirt" implies 100% Cotton unless stated otherwise), make the assumption and document it.
+Only return 'insufficient_data' if it is absolutely impossible to proceed (e.g., "Part 54" with no other context).
+
+Readiness Score:
+Calculate a readiness_score (0-100).
+- > 70: Enough info to proceed (even with assumptions). Status should be 'success'.
+- < 70: Critical gaps. Status 'insufficient_data'.
 
 Output JSON Schema:
 {
   "status": "success" | "insufficient_data",
+  "readiness_score": "number",
+  "assumptions_made": ["string"],
   "missing_info_question": "string (only if insufficient_data)",
   "technical_spec": {
     "standardized_name": "string",
@@ -131,7 +139,10 @@ Output JSON Schema:
         base44_client: base44
     });
 
-    if (result.status === 'insufficient_data') {
+    // Check readiness score logic
+    const isReady = result.status === 'success' || (result.readiness_score && result.readiness_score > 70);
+
+    if (!isReady) {
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             status: 'waiting_for_user',
             processing_status: 'waiting_for_user',
@@ -149,9 +160,15 @@ Output JSON Schema:
     } else {
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             processing_status: 'analyzing_completed',
-            structural_analysis: result.technical_spec
+            structural_analysis: result.technical_spec,
+            // Store assumptions or other metadata if schema allows, or just log
         });
-        return Response.json({ success: true, status: 'analyzing_completed', spec: result.technical_spec });
+        return Response.json({ 
+            success: true, 
+            status: 'analyzing_completed', 
+            spec: result.technical_spec,
+            readiness: result.readiness_score
+        });
     }
 
   } catch (error) {
