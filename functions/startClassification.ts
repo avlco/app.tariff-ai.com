@@ -138,7 +138,14 @@ export default Deno.serve(async (req) => {
 
         if (!qaPassed) {
              await logProgress(reportId, 'qa', 'QA Failed after max retries. Marking report as failed.', 'failed');
-             // agentQA already sets status to 'failed' in DB if it fails, so we just return
+             
+             // Explicitly mark as failed since agentQA now keeps it pending for retries
+             await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+                 status: 'failed',
+                 processing_status: 'failed',
+                 error_details: 'QA Check Failed after max retries'
+             });
+
              return Response.json({
                  success: false,
                  status: 'failed',
