@@ -61,6 +61,10 @@ export default Deno.serve(async (req) => {
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
+    // Fetch Country Trade Data for Context
+    const tradeResources = await base44.entities.CountryTradeResource.filter({ country_name: report.destination_country });
+    const resource = tradeResources[0];
+
     if (!report.classification_results) {
         return Response.json({ error: 'Classification results missing. Run Agent C first.' }, { status: 400 });
     }
