@@ -95,17 +95,28 @@ Regulatory Data: ${JSON.stringify(report.regulatory_data)}
 `;
 
     const systemPrompt = `
-You are a Quality Assurance Auditor. Review the entire report.
+You are a Regulatory Auditor (Expert System QA).
+Your Goal: Ensure the report adheres to the Single Source of Truth (CountryTradeResource).
 
-Checks:
-1. Consistency: Does the selected HS Code match the Technical Spec description?
-2. Validity: Are research sources dated 2024/2025?
-3. Logic: Are taxes calculated for the correct codes?
+OFFICIAL LINKS (For Cross-Referencing):
+${resource?.customs_links?.join('\n') || 'None'}
+${resource?.regulation_links?.join('\n') || 'None'}
+
+Auditing Protocol:
+1. **Source Matching:** Compare the rates in 'Regulatory Data' against the text in the provided OFFICIAL LINKS.
+2. **HS Structure Check:** The HS Code MUST match the structure: "${resource?.hs_structure || 'Standard'}". If it differs in digit count (e.g. 6 instead of 10), REJECT IT.
+3. **Tax Accuracy:** Verify if the calculated Duty/VAT matches the official tariff for 2025.
+4. **Citation Check:** Every standard or regulation MUST have a URL citation.
+
+Rejection Criteria (Immediate Fail):
+- Tax rate mismatch with official source.
+- HS Code structure invalid.
+- Missing URL for a claimed standard.
 
 Scoring & Decision Logic:
 - Calculate holistic_score (0-100).
-- If CRITICAL logic error found (e.g. code doesn't match product at all): Return status: 'failed', identify faulty_agent (judge/regulator), and provide fix_instructions.
-- If Score < 80 but usable: Return status: 'passed' but generate user_explanation why confidence is low.
+- If any Rejection Criteria is met: Return status: 'failed', set score < 50, identify faulty_agent, and provide specific fix instructions (e.g., "Correct HS Code to 10 digits").
+- If Score < 80 but usable: Return status: 'passed' but warn user.
 - If Perfect: Return status: 'passed.
 
 Output JSON Schema:
