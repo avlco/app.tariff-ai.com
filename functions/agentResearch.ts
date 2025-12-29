@@ -99,7 +99,7 @@ Objectives:
 1. Find the 2025 Customs Tariff for [${destCountry}].
 2. Search for legal notes/exclusions relevant to: ${spec.standardized_name} (${spec.material_composition}).
 3. Search for previous rulings or precedents for similar items in ${destCountry} or WCO.
-4. Find 3-5 potential HS Headings (4-digit) that might fit.
+4. Find 3-5 potential Full HS Codes (8-10 digit) specific to the destination country's tariff schedule.
 
 Output JSON Schema:
 {
