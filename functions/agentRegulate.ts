@@ -159,6 +159,11 @@ Output JSON Schema:
                             properties: {
                                 duty_rate: { type: "string" },
                                 vat_rate: { type: "string" },
+                                excise_tax: { type: "string" },
+                                anti_dumping_duty: { type: "string" },
+                                other_fees: { type: "string" },
+                                standards_requirements: { type: "string" },
+                                import_legality: { type: "string" },
                                 import_requirements: { type: "array", items: { type: "string" } }
                             }
                         },
