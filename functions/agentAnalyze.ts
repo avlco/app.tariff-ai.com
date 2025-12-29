@@ -1,6 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.18.0';
 
+// --- INLINED GATEWAY LOGIC (ANALYST SPECIFIC) ---
+
 function cleanJson(text) {
   if (typeof text === 'object') return text;
   try { return JSON.parse(text); } catch (e) {
@@ -11,9 +13,40 @@ function cleanJson(text) {
     if (firstOpen !== -1 && lastClose !== -1) {
       try { return JSON.parse(text.substring(firstOpen, lastClose + 1)); } catch (e3) {}
     }
-    throw new Error("Failed to parse JSON: " + text.substring(0, 50));
+    throw new Error("Failed to parse JSON response");
   }
 }
+
+async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
+  console.log(`[LLM Gateway - Analyst] Using Claude Sonnet 4.5`);
+  const jsonInstruction = response_schema 
+    ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
+    : '';
+  const fullPrompt = prompt + jsonInstruction;
+
+  try {
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+    const anthropic = new Anthropic({ apiKey });
+    const msg = await anthropic.messages.create({
+        model: "claude-sonnet-4.5",
+        max_tokens: 8192, // High context window support
+        messages: [{ role: "user", content: fullPrompt }]
+    });
+    
+    const content = msg.content[0].text;
+    return response_schema ? cleanJson(content) : content;
+  } catch (e) {
+     console.error(`[LLM Gateway] Primary strategy failed:`, e.message);
+     return await base44_client.integrations.Core.InvokeLLM({
+        prompt: fullPrompt,
+        response_json_schema: response_schema
+    });
+  }
+}
+
+// --- END INLINED GATEWAY ---
 
 export default Deno.serve(async (req) => {
   try {
@@ -21,7 +54,7 @@ export default Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, knowledgeBase } = await req.json();
+    const { reportId } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
@@ -49,12 +82,6 @@ Chat History:
 ${JSON.stringify(report.chat_history || [])}
 `;
 
-    const kbContext = knowledgeBase ? `
-Knowledge Base for ${knowledgeBase.country}:
-HS Structure: ${knowledgeBase.hs_code_structure}
-Customs Links: ${knowledgeBase.customs_links}
-` : '';
-
     const systemPrompt = `
 You are an expert Forensic Product Analyst.
 Task: Analyze the raw user input and create a standardized Technical Specification in English.
@@ -77,9 +104,12 @@ Output JSON Schema:
 }
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nINPUT DATA:\n${context}\n${kbContext}`;
-    
-    const responseSchema = {
+    const fullPrompt = `${systemPrompt}\n\nINPUT DATA:\n${context}`;
+
+    const result = await invokeSpecializedLLM({
+        prompt: fullPrompt,
+        task_type: 'analysis',
+        response_schema: {
             type: "object",
             properties: {
                 status: { type: "string", enum: ["success", "insufficient_data"] },
@@ -97,26 +127,9 @@ Output JSON Schema:
                 industry_category: { type: "string" }
             },
             required: ["status"]
-        };
-
-    const jsonInstruction = `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(responseSchema, null, 2)}`;
-
-    // INLINED ANTHROPIC CALL
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
-    
-    const anthropic = new Anthropic({ apiKey });
-    const msg = await anthropic.messages.create({
-        model: "claude-opus-4-5-20251101", 
-        max_tokens: 4096,
-        thinking: { type: "enabled", budget_tokens: 4000 },
-        messages: [{ role: "user", content: fullPrompt + jsonInstruction }]
+        },
+        base44_client: base44
     });
-    
-    const textBlock = msg.content.find(b => b.type === 'text');
-    if (!textBlock) throw new Error("No text content in Claude response");
-    const result = cleanJson(textBlock.text);
-    // END INLINED CALL
 
     if (result.status === 'insufficient_data') {
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {

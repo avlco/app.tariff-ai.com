@@ -1,7 +1,6 @@
 import Cookies from './pages/Cookies';
 import Customers from './pages/Customers';
 import Dashboard from './pages/Dashboard';
-import NewClassification from './pages/NewClassification';
 import NewShipment from './pages/NewShipment';
 import Privacy from './pages/Privacy';
 import Profile from './pages/Profile';
@@ -19,7 +18,6 @@ export const PAGES = {
     "Cookies": Cookies,
     "Customers": Customers,
     "Dashboard": Dashboard,
-    "NewClassification": NewClassification,
     "NewShipment": NewShipment,
     "Privacy": Privacy,
     "Profile": Profile,

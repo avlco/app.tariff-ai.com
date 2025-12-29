@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
@@ -9,14 +9,15 @@ import RecentReportsTable from '../components/dashboard/RecentReportsTable';
 import UsageChart from '../components/dashboard/UsageChart';
 import PlanCard from '../components/dashboard/PlanCard';
 import ClassifyButton from '../components/classification/ClassifyButton';
+import NewClassificationDialog from '../components/classification/NewClassificationDialog';
 import { Button } from '@/components/ui/button';
 import { FileText, TrendingUp, Clock, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Dashboard() {
   const { t, language } = useLanguage();
-  const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [classifyDialogOpen, setClassifyDialogOpen] = useState(false);
   
   useEffect(() => {
     const loadUser = async () => {
@@ -44,6 +45,7 @@ export default function Dashboard() {
   
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -57,19 +59,40 @@ export default function Dashboard() {
             {language === 'he' ? 'סקירה כללית של הפעילות שלך' : 'Overview of your activity'}
           </p>
         </div>
-        {/* CRITICAL CHANGE: Navigate to /NewClassification */}
-        <ClassifyButton onClick={() => navigate('/NewClassification')} />
+        <ClassifyButton onClick={() => setClassifyDialogOpen(true)} />
       </motion.div>
       
+      <NewClassificationDialog 
+        open={classifyDialogOpen} 
+        onOpenChange={setClassifyDialogOpen} 
+      />
+      
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title={t('reportsThisMonth')} value={thisMonthReports} icon={FileText} color="teal" />
-        <StatsCard title={t('completed')} value={completedReports} icon={TrendingUp} color="navy" />
-        <StatsCard title={t('pending')} value={pendingReports} icon={Clock} color="gold" />
+        <StatsCard
+          title={t('reportsThisMonth')}
+          value={thisMonthReports}
+          icon={FileText}
+          color="teal"
+        />
+        <StatsCard
+          title={t('completed')}
+          value={completedReports}
+          icon={TrendingUp}
+          color="navy"
+        />
+        <StatsCard
+          title={t('pending')}
+          value={pendingReports}
+          icon={Clock}
+          color="gold"
+        />
         <div className="md:col-span-2 lg:col-span-1">
           <PlanCard user={user} />
         </div>
       </div>
       
+      {/* Charts and Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <UsageChart />
         <RecentReportsTable reports={reports} loading={isLoading} />
