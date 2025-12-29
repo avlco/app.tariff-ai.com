@@ -265,7 +265,7 @@ export default function ReportView() {
                                         <Badge className="bg-[#114B5F] hover:bg-[#114B5F]">{primaryResult.confidence_score}%</Badge>
                                     </TableCell>
                                     <TableCell>{regulatoryPrimary.duty_rate}</TableCell>
-                                    <TableCell className="text-sm text-slate-600 max-w-md truncate" title={primaryResult.reasoning}>
+                                    <TableCell className="text-sm text-slate-600" title={primaryResult.reasoning}>
                                         <Badge variant="outline" className="text-[#114B5F] border-[#114B5F] mb-1">Primary</Badge>
                                         <br/>
                                         {primaryResult.reasoning}
@@ -280,7 +280,7 @@ export default function ReportView() {
                                             <TableCell className="font-mono text-slate-600">{alt.hs_code}</TableCell>
                                             <TableCell>{alt.confidence_score}%</TableCell>
                                             <TableCell>{reg.duty_rate || '---'}</TableCell>
-                                            <TableCell className="text-sm text-slate-600 max-w-md">
+                                            <TableCell className="text-sm text-slate-600">
                                                  <span className="font-semibold text-slate-900 block mb-1">Why rejected:</span>
                                                  {alt.rejection_reason || alt.reasoning}
                                             </TableCell>
