@@ -1,5 +1,19 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { invokeSpecializedLLM } from './utils/llmGateway.ts';
+import OpenAI from 'npm:openai@^4.28.0';
+
+function cleanJson(text) {
+  if (typeof text === 'object') return text;
+  try { return JSON.parse(text); } catch (e) {
+    const match = text.match(/```(?:json)?\n([\s\S]*?)\n```/);
+    if (match) { try { return JSON.parse(match[1]); } catch (e2) {} }
+    const firstOpen = text.indexOf('{');
+    const lastClose = text.lastIndexOf('}');
+    if (firstOpen !== -1 && lastClose !== -1) {
+      try { return JSON.parse(text.substring(firstOpen, lastClose + 1)); } catch (e3) {}
+    }
+    throw new Error("Failed to parse JSON: " + text.substring(0, 50));
+  }
+}
 
 export default Deno.serve(async (req) => {
   try {
@@ -38,18 +52,28 @@ Output Schema:
 `;
     
     const fullPrompt = `${systemPrompt}\n\nEVIDENCE:\n${context}` + (feedback ? `\n\nFEEDBACK:\n${feedback}` : "");
-
-    const result = await invokeSpecializedLLM({
-        prompt: fullPrompt,
-        task_type: 'reasoning',
-        response_schema: {
+    const jsonInstruction = `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify({
             classification_results: {
                 primary: { hs_code: "string", confidence_score: 0, reasoning: "string" },
                 alternatives: [{ hs_code: "string", confidence_score: 0, reasoning: "string", rejection_reason: "string" }]
             }
-        },
-        base44_client: base44
+        }, null, 2)}`;
+
+    // INLINED OPENAI CALL
+    const apiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!apiKey) throw new Error("OPENAI_API_KEY not set");
+    
+    const openai = new OpenAI({ apiKey });
+    const completion = await openai.chat.completions.create({
+        model: "gpt-5.2-2025-12-11", 
+        messages: [{ role: "user", content: fullPrompt + jsonInstruction }],
+        extra_body: { reasoning_effort: "high" },
+        response_format: { type: "json_object" }
     });
+    
+    const content = completion.choices[0].message.content;
+    const result = cleanJson(content);
+    // END INLINED CALL
 
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         classification_results: result.classification_results,
@@ -62,6 +86,7 @@ Output Schema:
     return Response.json({ success: true, results: result.classification_results });
 
   } catch (error) {
+    console.error('Agent Judge Error:', error);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });

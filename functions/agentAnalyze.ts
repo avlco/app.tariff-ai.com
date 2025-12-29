@@ -1,5 +1,19 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { invokeSpecializedLLM } from './utils/llmGateway.ts';
+import Anthropic from 'npm:@anthropic-ai/sdk@^0.18.0';
+
+function cleanJson(text) {
+  if (typeof text === 'object') return text;
+  try { return JSON.parse(text); } catch (e) {
+    const match = text.match(/```(?:json)?\n([\s\S]*?)\n```/);
+    if (match) { try { return JSON.parse(match[1]); } catch (e2) {} }
+    const firstOpen = text.indexOf('{');
+    const lastClose = text.lastIndexOf('}');
+    if (firstOpen !== -1 && lastClose !== -1) {
+      try { return JSON.parse(text.substring(firstOpen, lastClose + 1)); } catch (e3) {}
+    }
+    throw new Error("Failed to parse JSON: " + text.substring(0, 50));
+  }
+}
 
 export default Deno.serve(async (req) => {
   try {
@@ -64,11 +78,8 @@ Output JSON Schema:
 `;
 
     const fullPrompt = `${systemPrompt}\n\nINPUT DATA:\n${context}\n${kbContext}`;
-
-    const result = await invokeSpecializedLLM({
-        prompt: fullPrompt,
-        task_type: 'analysis',
-        response_schema: {
+    
+    const responseSchema = {
             type: "object",
             properties: {
                 status: { type: "string", enum: ["success", "insufficient_data"] },
@@ -86,9 +97,26 @@ Output JSON Schema:
                 industry_category: { type: "string" }
             },
             required: ["status"]
-        },
-        base44_client: base44
+        };
+
+    const jsonInstruction = `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(responseSchema, null, 2)}`;
+
+    // INLINED ANTHROPIC CALL
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+    
+    const anthropic = new Anthropic({ apiKey });
+    const msg = await anthropic.messages.create({
+        model: "claude-opus-4-5-20251101", 
+        max_tokens: 4096,
+        thinking: { type: "enabled", budget_tokens: 4000 },
+        messages: [{ role: "user", content: fullPrompt + jsonInstruction }]
     });
+    
+    const textBlock = msg.content.find(b => b.type === 'text');
+    if (!textBlock) throw new Error("No text content in Claude response");
+    const result = cleanJson(textBlock.text);
+    // END INLINED CALL
 
     if (result.status === 'insufficient_data') {
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
