@@ -18,10 +18,16 @@ const processingSteps = [
     en: 'Analyzing data'
   },
   { 
+    key: 'researching', 
+    icon: Search,
+    he: 'מבצע מחקר עמוק ברשת (Deep Research)',
+    en: 'Performing Deep Web Research'
+  },
+  { 
     key: 'classifying_hs', 
     icon: FileText,
-    he: 'סיווג קוד HS',
-    en: 'Classifying HS code'
+    he: 'מפעיל לוגיקת הנמקה מתקדמת (High Reasoning)',
+    en: 'Applying Advanced Reasoning Logic'
   },
   { 
     key: 'calculating_duties', 
