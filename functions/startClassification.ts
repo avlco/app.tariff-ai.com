@@ -61,11 +61,51 @@ export default Deno.serve(async (req) => {
         await logProgress(reportId, 'qa', 'Starting QA Audit (Agent E)');
         const qaRes = await base44.functions.invoke('agentQA', { reportId });
         
+        // --- FINALIZATION & NOTIFICATION ---
+
         if (qaRes.data.status !== 'failed') {
              await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
                 status: 'completed',
                 processing_status: 'completed'
             });
+
+            // Send Success Email
+            try {
+                if (user.email) {
+                    const appUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://app.base44.com';
+                    const reportLink = `${appUrl}/reports/view?id=${reportId}`;
+                    // Attempt to extract HS code from QA result or fetch updated report (simplified here)
+                    // We assume the agentJudge saved it, or we could fetch it. 
+                    // For now, generic success message.
+                    
+                    await base44.integrations.Core.SendEmail({
+                        to: user.email,
+                        subject: `Classification Complete: Report #${reportId}`,
+                        body: `
+                            <h2>Your Report is Ready</h2>
+                            <p>The classification process for report #${reportId} has successfully completed.</p>
+                            <p><a href="${reportLink}" style="background-color: #42C0B9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Report</a></p>
+                        `
+                    });
+                }
+            } catch (emailErr) {
+                console.error("Success email failed:", emailErr);
+            }
+
+        } else {
+             // QA Failed -> Handled below or here if we want explicit email
+             // Usually QA failure flows into the main catch if it throws, or we handle it here.
+             // Based on code structure, if qaRes.data.status === 'failed', we consider it a soft failure or need logic.
+             // Let's assume we want to notify failure too if it didn't throw.
+             if (user.email) {
+                 try {
+                     await base44.integrations.Core.SendEmail({
+                        to: user.email,
+                        subject: `Classification Failed: Report #${reportId}`,
+                        body: `The classification process encountered quality issues. Please check the dashboard for details.`
+                    });
+                 } catch(e) {}
+             }
         }
 
         return Response.json({ success: true, status: 'completed', report_id: reportId });
@@ -78,6 +118,24 @@ export default Deno.serve(async (req) => {
                 processing_status: 'failed',
                 error_details: error.message
             });
+            
+            // Send Failure Email
+            try {
+                if (user && user.email) {
+                    await base44.integrations.Core.SendEmail({
+                        to: user.email,
+                        subject: `Classification Error: Report #${reportId}`,
+                        body: `
+                            <h2>Process Failed</h2>
+                            <p>We encountered an error while processing your report.</p>
+                            <p><strong>Error:</strong> ${error.message}</p>
+                            <p>Please try again or contact support.</p>
+                        `
+                    });
+                }
+            } catch (emailErr) {
+                console.error("Failure email failed:", emailErr);
+            }
         }
         return Response.json({ success: false, error: error.message }, { status: 500 });
     }

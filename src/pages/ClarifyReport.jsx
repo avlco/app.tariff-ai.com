@@ -57,7 +57,7 @@ export default function ClarifyReport() {
 
   const handleUpdate = async () => {
     if (!responseText && files.length === 0 && links.length === 0) {
-        toast.error('Please provide some information.');
+        toast.error(language === 'he' ? 'אנא ספק מידע' : 'Please provide information.');
         return;
     }
     setSubmitting(true);
@@ -66,6 +66,7 @@ export default function ClarifyReport() {
       const updatedFiles = [...(report.uploaded_file_urls || []), ...files];
       const updatedLinks = [...(report.external_link_urls || []), ...links];
 
+      // 1. Update DB synchronously
       await base44.entities.ClassificationReport.update(reportId, {
         user_input_text: updatedUserInput,
         uploaded_file_urls: updatedFiles,
@@ -75,20 +76,33 @@ export default function ClarifyReport() {
         missing_info_question: null
       });
 
+      // 2. Fire and Forget - Restart Workflow
       base44.functions.invoke('startClassification', { reportId }).catch(console.error);
-      toast.success('Updated. Analysis resumed.');
+
+      // 3. Navigate immediately
+      toast.success(language === 'he' ? 'המידע עודכן, הסיווג נמשך ברקע.' : 'Updated. Classification resumed in background.');
       navigate(createPageUrl('Dashboard'));
-    } catch (e) { toast.error('Error updating'); } finally { setSubmitting(false); }
+
+    } catch (e) { 
+        toast.error('Error updating report'); 
+        console.error(e);
+        setSubmitting(false); 
+    } 
   };
 
   const handleProceedAnyway = async () => {
-    if (!confirm('Proceeding without info may reduce accuracy. Continue?')) return;
+    if (!confirm(language === 'he' ? 'להמשיך ללא מידע? הדיוק עלול להיפגע.' : 'Proceed without info? Accuracy might be reduced.')) return;
     setSubmitting(true);
     try {
-        await base44.functions.invoke('startClassification', { reportId, forceProceed: true });
-        toast.success('Forced continuation.');
+        // Fire and Forget
+        base44.functions.invoke('startClassification', { reportId, forceProceed: true }).catch(console.error);
+        
+        toast.success(language === 'he' ? 'התהליך נכפה ברקע.' : 'Process forced in background.');
         navigate(createPageUrl('Dashboard'));
-    } catch (e) { toast.error('Error'); } finally { setSubmitting(false); }
+    } catch (e) { 
+        toast.error('Error initiating force proceed');
+        setSubmitting(false);
+    }
   };
 
   if (loading) return <Loader2 className="w-8 h-8 animate-spin mx-auto mt-10"/>;

@@ -224,9 +224,13 @@ Output JSON Schema:
         base44_client: base44
     });
 
-    // CRITICAL LOGIC FIX:
+    // --- ONE-SHOT LOGIC UPGRADE ---
+    // Detect if user provided clarification in the text (Mandatory Proceed)
+    const hasClarification = report.user_input_text && report.user_input_text.includes('[User Clarification]:');
+
+    // Logic: Pass if Score >= 80 OR Force Flag OR User Clarified
     const scorePasses = result.status === 'success' && (result.readiness_score && result.readiness_score >= 80);
-    const isReady = scorePasses || (forceProceed === true); // Override if forced
+    const isReady = scorePasses || (forceProceed === true) || hasClarification;
 
     if (!isReady) {
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
@@ -269,7 +273,10 @@ Output JSON Schema:
     } else {
         // Proceeding
         let finalSpec = result.technical_spec;
-        if (forceProceed && !scorePasses) {
+        
+        if (hasClarification && !scorePasses) {
+            finalSpec.data_quality_note = "Proceeding based on user clarification (Best Effort)";
+        } else if (forceProceed && !scorePasses) {
             finalSpec.data_quality_note = "User forced classification despite missing data.";
         }
 
