@@ -7,35 +7,30 @@ export default Deno.serve(async (req) => {
         const user = await base44.auth.me();
         if (!user || !user.email) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const email = user.email.toLowerCase();
-        
-        // 1. Try to find by Email (Standardizing to lowercase)
+        // FIX: Normalize email to prevent duplicates/mismatches
+        const normalizedEmail = user.email.toLowerCase();
+
+        // Search using Service Role (Bypass RLS)
         const records = await base44.asServiceRole.entities.UserMasterData.filter({ 
-            user_email: email 
+            user_email: normalizedEmail 
         });
         
         const timestamp = new Date().toISOString();
         
         if (records.length > 0) {
-            // FOUND: Update the existing record
-            const recordId = records[0].id;
-            console.log(`Updating existing user record: ${recordId}`);
-            
-            await base44.asServiceRole.entities.UserMasterData.update(recordId, {
+            // Update existing record
+            await base44.asServiceRole.entities.UserMasterData.update(records[0].id, {
                 policy_accepted: true,
-                policy_accepted_date: timestamp,
-                last_login: timestamp
+                policy_accepted_date: timestamp
             });
         } else {
-            // NOT FOUND: Create new record
-            console.log(`Creating new record for: ${email}`);
-            
+            // Create new record
             await base44.asServiceRole.entities.UserMasterData.create({
-                user_email: email,
+                user_email: normalizedEmail,
                 policy_accepted: true,
                 policy_accepted_date: timestamp,
-                full_name: user.full_name || email.split('@')[0],
-                account_status: 'active',
+                user_name: user.user_metadata?.full_name || normalizedEmail.split('@')[0],
+                status: 'active',
                 role: 'user'
             });
         }

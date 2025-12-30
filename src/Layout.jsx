@@ -19,24 +19,23 @@ function LayoutContent({ children, currentPageName }) {
       const userData = await base44.auth.me();
       setUser(userData);
 
-      if (userData?.email) {
-        const email = userData.email.toLowerCase();
+      if (userData && userData.email) {
+        // FIX: Normalize email for check
+        const normalizedEmail = userData.email.toLowerCase();
         
-        // Fetch user record
-        const records = await base44.entities.UserMasterData.filter({ user_email: email });
+        const masterData = await base44.entities.UserMasterData.filter({ 
+            user_email: normalizedEmail 
+        });
         
-        // LOGIC: Show modal if:
-        // 1. No record exists (New User)
-        // 2. Record exists but policy_accepted is false/null
-        const userRecord = records[0];
-        const needsConsent = !userRecord || !userRecord.policy_accepted;
-
-        if (needsConsent) {
+        // Show modal if no record OR policy not accepted
+        if (masterData.length === 0 || !masterData[0].policy_accepted) {
             setShowConsentModal(true);
         }
       }
     } catch (e) {
-      console.error("Auth check error", e);
+      console.error("Auth check failed:", e);
+      // Fail safe: don't block unless we know for sure user is logged in
+      setShowConsentModal(false);
     }
   };
 
@@ -44,7 +43,7 @@ function LayoutContent({ children, currentPageName }) {
     loadUser();
   }, []);
   
-  // Optimistic Update: Close modal immediately on success
+  // FIX: Just update local state, don't reload page
   const handlePolicyAccepted = () => {
       setShowConsentModal(false);
   };
@@ -85,7 +84,9 @@ function LayoutContent({ children, currentPageName }) {
 export default function Layout({ children, currentPageName }) {
   return (
     <LanguageProvider>
-      <LayoutContent currentPageName={currentPageName}>{children}</LayoutContent>
+      <LayoutContent currentPageName={currentPageName}>
+        {children}
+      </LayoutContent>
     </LanguageProvider>
   );
 }
