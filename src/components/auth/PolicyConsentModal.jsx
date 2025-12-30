@@ -18,31 +18,17 @@ export default function PolicyConsentModal({ user, onAccept }) {
   const handleAccept = async () => {
     setIsProcessing(true);
     try {
-      // 1. Update user record (UserMasterData)
-      // We try to find existing record first
-      const userData = await base44.entities.UserMasterData.filter({ user_email: user.email });
-      
-      if (userData.length > 0) {
-        await base44.entities.UserMasterData.update(userData[0].id, {
-          policy_accepted: true,
-          policy_accepted_date: new Date().toISOString()
-        });
-      } else {
-         // Create if doesn't exist (edge case for new users without master data)
-         await base44.entities.UserMasterData.create({
-            user_email: user.email,
-            full_name: user.full_name,
-            policy_accepted: true,
-            policy_accepted_date: new Date().toISOString()
-         });
-      }
+      // FIX: Call Backend Function instead of direct DB access
+      await base44.functions.invoke('acceptPolicy', {});
       
       toast.success(language === 'he' ? 'התנאים אושרו בהצלחה' : 'Terms accepted successfully');
       
-      // Call parent callback to close modal immediately
       if (onAccept) {
           onAccept();
       }
+      
+      // Reload to ensure context updates
+      window.location.reload();
       
     } catch (error) {
       console.error("PolicyConsentModal error:", error);
