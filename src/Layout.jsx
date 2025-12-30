@@ -4,7 +4,7 @@ import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import PolicyConsentModal from './components/auth/PolicyConsentModal';
 import ReportReadyNotification from './components/classification/ReportReadyNotification';
-import { Toaster } from "@/components/ui/sonner"; // IMPORT ADDED for Toasts
+import { Toaster } from "@/components/ui/sonner";
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence } from 'framer-motion';
 
@@ -18,7 +18,6 @@ function LayoutContent({ children, currentPageName }) {
     try {
       const userData = await base44.auth.me();
       setUser(userData);
-
       if (userData) {
         const masterData = await base44.entities.UserMasterData.filter({ user_email: userData.email });
         if (masterData.length === 0 || !masterData[0].policy_accepted) {
@@ -43,17 +42,11 @@ function LayoutContent({ children, currentPageName }) {
         .font-sans { font-family: 'Inter', sans-serif; }
       `}</style>
       
-      {/* 1. Toaster for ephemeral messages */}
-      <Toaster position="top-center" /> 
-
-      {/* 2. Persistent Notification Center */}
+      {/* Centralized Notification Hub */}
       <ReportReadyNotification /> 
+      <Toaster position="top-center" />
 
-      <Sidebar 
-        currentPage={currentPageName} 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
-      />
+      <Sidebar currentPage={currentPageName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       <div className={`${isRTL ? 'lg:mr-64' : 'lg:ml-64'} min-h-screen flex flex-col`}>
         <Header user={user} onMenuClick={() => setSidebarOpen(true)} />
@@ -64,10 +57,7 @@ function LayoutContent({ children, currentPageName }) {
 
       <AnimatePresence>
         {showConsentModal && user && (
-            <PolicyConsentModal 
-                user={user} 
-                onAccept={() => setShowConsentModal(false)} 
-            />
+            <PolicyConsentModal user={user} onAccept={() => setShowConsentModal(false)} />
         )}
       </AnimatePresence>
     </div>
@@ -77,9 +67,7 @@ function LayoutContent({ children, currentPageName }) {
 export default function Layout({ children, currentPageName }) {
   return (
     <LanguageProvider>
-      <LayoutContent currentPageName={currentPageName}>
-        {children}
-      </LayoutContent>
+      <LayoutContent currentPageName={currentPageName}>{children}</LayoutContent>
     </LanguageProvider>
   );
 }

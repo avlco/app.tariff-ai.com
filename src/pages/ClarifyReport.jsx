@@ -21,7 +21,8 @@ export default function ClarifyReport() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  
+  const [showProcessing, setShowProcessing] = useState(false);
+
   const [responseText, setResponseText] = useState('');
   const [files, setFiles] = useState([]);
   const [newLink, setNewLink] = useState('');
@@ -79,9 +80,11 @@ export default function ClarifyReport() {
       // 2. Fire and Forget - Restart Workflow
       base44.functions.invoke('startClassification', { reportId }).catch(console.error);
 
-      // 3. Navigate immediately
-      toast.success(language === 'he' ? 'המידע עודכן, הסיווג נמשך ברקע.' : 'Updated. Classification resumed in background.');
-      navigate(createPageUrl('Dashboard'));
+      // 3. Show Feedback & Delay Navigate
+      setShowProcessing(true);
+      setTimeout(() => {
+        navigate(createPageUrl('Dashboard'));
+      }, 2500);
 
     } catch (e) { 
         toast.error('Error updating report'); 
@@ -97,8 +100,11 @@ export default function ClarifyReport() {
         // Fire and Forget
         base44.functions.invoke('startClassification', { reportId, forceProceed: true }).catch(console.error);
         
-        toast.success(language === 'he' ? 'התהליך נכפה ברקע.' : 'Process forced in background.');
-        navigate(createPageUrl('Dashboard'));
+        // Show Feedback & Delay Navigate
+        setShowProcessing(true);
+        setTimeout(() => {
+            navigate(createPageUrl('Dashboard'));
+        }, 2500);
     } catch (e) { 
         toast.error('Error initiating force proceed');
         setSubmitting(false);
