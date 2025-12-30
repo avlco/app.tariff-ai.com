@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LanguageProvider, useLanguage } from './components/providers/LanguageContext';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import PolicyConsentModal from './components/auth/PolicyConsentModal';
 import ReportReadyNotification from './components/classification/ReportReadyNotification';
+import { Toaster } from "@/components/ui/sonner"; // IMPORT ADDED for Toasts
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence } from 'framer-motion';
 
@@ -13,57 +14,18 @@ function LayoutContent({ children, currentPageName }) {
   const [showConsentModal, setShowConsentModal] = useState(false);
   const { isRTL } = useLanguage();
 
-  // Global Notification State
-  const [notification, setNotification] = useState({ show: false, reportId: null });
-  const lastCheckRef = useRef(new Date().toISOString());
-
-  // Polling for Notifications
-  useEffect(() => {
-    if (!user) return;
-    
-    const interval = setInterval(async () => {
-      try {
-        // Find reports updated recently that are completed or waiting_for_user
-        const reports = await base44.entities.ClassificationReport.list('-updated_date', 5);
-        const lastCheck = new Date(lastCheckRef.current);
-        
-        const newUpdate = reports.find(r => {
-           const updated = new Date(r.updated_date);
-           return updated > lastCheck && (r.status === 'completed' || r.status === 'waiting_for_user');
-        });
-
-        if (newUpdate) {
-           setNotification({ show: true, reportId: newUpdate.id });
-           lastCheckRef.current = new Date().toISOString();
-        }
-      } catch (e) {
-        console.error("Polling error", e);
-      }
-    }, 15000); // 15 seconds poll
-
-    return () => clearInterval(interval);
-  }, [user]);
-  
   const loadUser = async () => {
     try {
       const userData = await base44.auth.me();
       setUser(userData);
 
       if (userData) {
-        // Check if user accepted policies
         const masterData = await base44.entities.UserMasterData.filter({ user_email: userData.email });
-        
-        // Modal should ONLY show if:
-        // 1. User has no master data record (new user)
-        // OR
-        // 2. User has master data but policy_accepted is false
         if (masterData.length === 0 || !masterData[0].policy_accepted) {
             setShowConsentModal(true);
         }
       }
     } catch (e) {
-      // Not logged in or error
-      // If error or not logged in, we ensure modal is hidden
       setShowConsentModal(false);
     }
   };
@@ -76,62 +38,17 @@ function LayoutContent({ children, currentPageName }) {
     <div className={`min-h-screen bg-[#FAFBFC] dark:bg-[#0B1120] ${isRTL ? 'font-heebo' : 'font-sans'}`}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
-
-        :root {
-          --primary-navy: #114B5F;
-          --primary-teal: #42C0B9;
-          --primary-gold: #D89C42;
-          --text-primary: #0F172A;
-          --text-secondary: #475569;
-          --text-tertiary: #64748B;
-        }
-
-        .dark {
-          --text-primary: #F8FAFC;
-          --text-secondary: #CBD5E1;
-          --text-tertiary: #94A3B8;
-        }
-
-        .font-heebo {
-          font-family: 'Heebo', sans-serif;
-        }
-
-        .font-sans {
-          font-family: 'Inter', sans-serif;
-        }
-
-        .dark {
-          color-scheme: dark;
-        }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-          background: transparent;
-        }
-
-        ::-webkit-scrollbar-thumb {
-          background: #CBD5E1;
-          border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-          background: #94A3B8;
-        }
-
-        .dark ::-webkit-scrollbar-thumb {
-          background: #475569;
-        }
-
-        .dark ::-webkit-scrollbar-thumb:hover {
-          background: #64748B;
-        }
+        :root { --primary-navy: #114B5F; --primary-teal: #42C0B9; --primary-gold: #D89C42; }
+        .font-heebo { font-family: 'Heebo', sans-serif; }
+        .font-sans { font-family: 'Inter', sans-serif; }
       `}</style>
       
+      {/* 1. Toaster for ephemeral messages */}
+      <Toaster position="top-center" /> 
+
+      {/* 2. Persistent Notification Center */}
+      <ReportReadyNotification /> 
+
       <Sidebar 
         currentPage={currentPageName} 
         isOpen={sidebarOpen} 
@@ -153,12 +70,6 @@ function LayoutContent({ children, currentPageName }) {
             />
         )}
       </AnimatePresence>
-
-      <ReportReadyNotification 
-         show={notification.show} 
-         reportId={notification.reportId} 
-         onClose={() => setNotification({ ...notification, show: false })} 
-      />
     </div>
   );
 }
