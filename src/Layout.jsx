@@ -7,6 +7,7 @@ import ReportReadyNotification from './components/classification/ReportReadyNoti
 import { Toaster } from "@/components/ui/sonner";
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence } from 'framer-motion';
+import { LEGAL_VERSION } from '@/components/legalConfig'; // Import Version
 
 function LayoutContent({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -20,22 +21,28 @@ function LayoutContent({ children, currentPageName }) {
       setUser(userData);
 
       if (userData && userData.email) {
-        // FIX: Normalize email for check
         const normalizedEmail = userData.email.toLowerCase();
         
-        const masterData = await base44.entities.UserMasterData.filter({ 
-            user_email: normalizedEmail 
-        });
-        
-        // Show modal if no record OR policy not accepted
-        if (masterData.length === 0 || !masterData[0].policy_accepted) {
+        // Fetch user record
+        const records = await base44.entities.UserMasterData.filter({ user_email: normalizedEmail });
+        const userRecord = records[0];
+
+        // THE CORE LOGIC:
+        // Show modal IF:
+        // 1. User record does not exist
+        // 2. OR Policy is not marked as accepted
+        // 3. OR Accepted version is older/different than current required version
+        const needsConsent = 
+            !userRecord || 
+            !userRecord.policy_accepted || 
+            userRecord.policy_version !== LEGAL_VERSION;
+
+        if (needsConsent) {
             setShowConsentModal(true);
         }
       }
     } catch (e) {
-      console.error("Auth check failed:", e);
-      // Fail safe: don't block unless we know for sure user is logged in
-      setShowConsentModal(false);
+      console.error("Auth check failed", e);
     }
   };
 
@@ -43,7 +50,7 @@ function LayoutContent({ children, currentPageName }) {
     loadUser();
   }, []);
   
-  // FIX: Just update local state, don't reload page
+  // Optimistic UI Update
   const handlePolicyAccepted = () => {
       setShowConsentModal(false);
   };
@@ -74,6 +81,7 @@ function LayoutContent({ children, currentPageName }) {
             <PolicyConsentModal 
                 user={user} 
                 onAccept={handlePolicyAccepted} 
+                requiredVersion={LEGAL_VERSION} // Pass version to modal
             />
         )}
       </AnimatePresence>

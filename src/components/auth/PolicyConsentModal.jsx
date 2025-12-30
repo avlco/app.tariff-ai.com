@@ -9,7 +9,9 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { ShieldCheck, LogOut, ChevronRight, ChevronLeft } from 'lucide-react';
 
-export default function PolicyConsentModal({ user, onAccept }) {
+import { Loader2 } from 'lucide-react';
+
+export default function PolicyConsentModal({ user, onAccept, requiredVersion }) {
   const { language, isRTL } = useLanguage();
   const [activeTab, setActiveTab] = useState('terms'); 
   const [accepted, setAccepted] = useState({ terms: false, privacy: false });
@@ -18,20 +20,18 @@ export default function PolicyConsentModal({ user, onAccept }) {
   const handleAccept = async () => {
     setIsProcessing(true);
     try {
-      // 1. Send update to server
-      await base44.functions.invoke('acceptPolicy', {});
+      // Pass the explicit version being accepted
+      await base44.functions.invoke('acceptPolicy', { 
+          version: requiredVersion 
+      });
       
-      // 2. Show success message
       toast.success(language === 'he' ? 'התנאים אושרו בהצלחה' : 'Terms accepted successfully');
       
-      // 3. FIX: Close modal IMMEDIATELY. Do NOT reload page.
-      if (onAccept) {
-          onAccept(); 
-      }
+      if (onAccept) onAccept(); 
       
     } catch (error) {
-      console.error("PolicyConsentModal error:", error);
-      toast.error(language === 'he' ? 'שגיאה באישור התנאים' : 'Error accepting terms');
+      console.error("Policy error:", error);
+      toast.error('Error saving consent.');
     } finally {
       setIsProcessing(false);
     }
@@ -193,7 +193,7 @@ export default function PolicyConsentModal({ user, onAccept }) {
                             disabled={!accepted.privacy || isProcessing}
                             className="bg-[#42C0B9] hover:bg-[#35A89E] text-white"
                         >
-                            {t.continue}
+                            {isProcessing ? <Loader2 className="animate-spin w-4 h-4"/> : t.continue}
                         </Button>
                     )}
                 </div>
