@@ -25,12 +25,13 @@ export default Deno.serve(async (req) => {
             });
         } else {
             // Create new record
+            // FIX: Use correct schema fields (full_name, account_status)
             await base44.asServiceRole.entities.UserMasterData.create({
                 user_email: normalizedEmail,
                 policy_accepted: true,
                 policy_accepted_date: timestamp,
-                user_name: user.user_metadata?.full_name || normalizedEmail.split('@')[0],
-                status: 'active',
+                full_name: user.user_metadata?.full_name || normalizedEmail.split('@')[0],
+                account_status: 'active',
                 role: 'user'
             });
         }
