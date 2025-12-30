@@ -11,6 +11,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, FileText, UploadCloud, Loader2, ArrowLeft, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 export default function ClarifyReport() {
   const { language } = useLanguage();
@@ -182,6 +183,19 @@ export default function ClarifyReport() {
             </Card>
         </div>
       </div>
+
+      <Dialog open={showProcessing}>
+        <DialogContent className="sm:max-w-md text-center outline-none" hideClose>
+            <div className="flex flex-col items-center p-6">
+                <Loader2 className="w-12 h-12 text-[#114B5F] animate-spin mb-4" />
+                <h2 className="text-lg font-bold">Processing Resumed</h2>
+                <p className="text-slate-500 text-sm mt-2">
+                    We received your input. The expert system is analyzing it now.
+                    You will be notified once the classification is ready.
+                </p>
+            </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
