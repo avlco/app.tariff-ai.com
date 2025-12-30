@@ -18,13 +18,23 @@ function LayoutContent({ children, currentPageName }) {
     try {
       const userData = await base44.auth.me();
       setUser(userData);
-      if (userData) {
-        const masterData = await base44.entities.UserMasterData.filter({ user_email: userData.email });
+
+      if (userData && userData.email) {
+        // FIX: Normalize email for check
+        const normalizedEmail = userData.email.toLowerCase();
+        
+        const masterData = await base44.entities.UserMasterData.filter({ 
+            user_email: normalizedEmail 
+        });
+        
+        // Show modal if no record OR policy not accepted
         if (masterData.length === 0 || !masterData[0].policy_accepted) {
             setShowConsentModal(true);
         }
       }
     } catch (e) {
+      console.error("Auth check failed:", e);
+      // Fail safe: don't block unless we know for sure user is logged in
       setShowConsentModal(false);
     }
   };
@@ -32,6 +42,11 @@ function LayoutContent({ children, currentPageName }) {
   useEffect(() => {
     loadUser();
   }, []);
+  
+  // FIX: Just update local state, don't reload page
+  const handlePolicyAccepted = () => {
+      setShowConsentModal(false);
+  };
   
   return (
     <div className={`min-h-screen bg-[#FAFBFC] dark:bg-[#0B1120] ${isRTL ? 'font-heebo' : 'font-sans'}`}>
@@ -42,9 +57,8 @@ function LayoutContent({ children, currentPageName }) {
         .font-sans { font-family: 'Inter', sans-serif; }
       `}</style>
       
-      {/* Centralized Notification Hub */}
-      <ReportReadyNotification /> 
       <Toaster position="top-center" />
+      <ReportReadyNotification /> 
 
       <Sidebar currentPage={currentPageName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
@@ -57,7 +71,10 @@ function LayoutContent({ children, currentPageName }) {
 
       <AnimatePresence>
         {showConsentModal && user && (
-            <PolicyConsentModal user={user} onAccept={() => setShowConsentModal(false)} />
+            <PolicyConsentModal 
+                user={user} 
+                onAccept={handlePolicyAccepted} 
+            />
         )}
       </AnimatePresence>
     </div>
@@ -67,7 +84,9 @@ function LayoutContent({ children, currentPageName }) {
 export default function Layout({ children, currentPageName }) {
   return (
     <LanguageProvider>
-      <LayoutContent currentPageName={currentPageName}>{children}</LayoutContent>
+      <LayoutContent currentPageName={currentPageName}>
+        {children}
+      </LayoutContent>
     </LanguageProvider>
   );
 }

@@ -11,24 +11,23 @@ import { ShieldCheck, LogOut, ChevronRight, ChevronLeft } from 'lucide-react';
 
 export default function PolicyConsentModal({ user, onAccept }) {
   const { language, isRTL } = useLanguage();
-  const [activeTab, setActiveTab] = useState('terms'); // terms, privacy
+  const [activeTab, setActiveTab] = useState('terms'); 
   const [accepted, setAccepted] = useState({ terms: false, privacy: false });
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleAccept = async () => {
     setIsProcessing(true);
     try {
-      // FIX: Call Backend Function instead of direct DB access
+      // 1. Send update to server
       await base44.functions.invoke('acceptPolicy', {});
       
+      // 2. Show success message
       toast.success(language === 'he' ? 'התנאים אושרו בהצלחה' : 'Terms accepted successfully');
       
+      // 3. FIX: Close modal IMMEDIATELY. Do NOT reload page.
       if (onAccept) {
-          onAccept();
+          onAccept(); 
       }
-      
-      // Reload to ensure context updates
-      window.location.reload();
       
     } catch (error) {
       console.error("PolicyConsentModal error:", error);
@@ -46,7 +45,7 @@ export default function PolicyConsentModal({ user, onAccept }) {
     setIsProcessing(true);
     try {
       await base44.functions.invoke('deleteUserAccount');
-      await base44.auth.logout();
+      await base44.auth.signOut(); // Changed from logout to signOut based on SDK
       window.location.href = '/';
     } catch (error) {
       console.error(error);
@@ -82,6 +81,7 @@ export default function PolicyConsentModal({ user, onAccept }) {
     }
   }[language];
 
+  // ... (Rest of the rendering code remains exactly the same as your file)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <motion.div 
@@ -89,7 +89,6 @@ export default function PolicyConsentModal({ user, onAccept }) {
         animate={{ opacity: 1, scale: 1 }}
         className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
-        {/* Header */}
         <div className="p-6 bg-[#114B5F] text-white flex justify-between items-center shrink-0">
             <div>
                 <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -98,15 +97,12 @@ export default function PolicyConsentModal({ user, onAccept }) {
                 </h2>
                 <p className="text-white/80 mt-1">{t.subtitle}</p>
             </div>
-            
-            {/* Steps indicator */}
             <div className="flex gap-2">
                 <div className={`h-2 w-8 rounded-full transition-colors ${activeTab === 'terms' ? 'bg-[#42C0B9]' : 'bg-white/20'}`} />
                 <div className={`h-2 w-8 rounded-full transition-colors ${activeTab === 'privacy' ? 'bg-[#42C0B9]' : 'bg-white/20'}`} />
             </div>
         </div>
 
-        {/* Content Area - Native Scroll */}
         <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
             <AnimatePresence mode="wait">
                 {activeTab === 'terms' ? (
@@ -133,9 +129,7 @@ export default function PolicyConsentModal({ user, onAccept }) {
             </AnimatePresence>
         </div>
 
-        {/* Footer */}
         <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0">
-            
             <div className="flex flex-col gap-3 mb-6">
                 {activeTab === 'terms' && (
                     <motion.div 
@@ -172,7 +166,6 @@ export default function PolicyConsentModal({ user, onAccept }) {
                 )}
             </div>
 
-            {/* Main Action Buttons */}
             <div className="flex justify-between items-center">
                 <Button 
                     variant="outline" 
@@ -206,7 +199,6 @@ export default function PolicyConsentModal({ user, onAccept }) {
                 </div>
             </div>
 
-            {/* Decline Button - Centered at bottom */}
             <div className="flex justify-center mt-6">
                 <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm" onClick={handleReject}>
                     <LogOut className="w-3 h-3 me-2" />
