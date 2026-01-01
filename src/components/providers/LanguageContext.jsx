@@ -119,7 +119,12 @@ const translations = {
     classificationReady: 'סיווג מוכן',
     processFailed: 'תהליך נכשל',
     resolveNow: 'פתור כעת',
-    viewReport: 'צפה בדוח'
+    viewReport: 'צפה בדוח',
+    product: 'מוצר',
+    destination: 'יעד',
+    reportId: 'מזהה דוח',
+    file: 'קובץ',
+    link: 'קישור'
   },
   en: {
     // Navigation
@@ -238,7 +243,12 @@ const translations = {
     classificationReady: 'Classification Ready',
     processFailed: 'Process Failed',
     resolveNow: 'Resolve Now',
-    viewReport: 'View Report'
+    viewReport: 'View Report',
+    product: 'PRODUCT',
+    destination: 'DESTINATION',
+    reportId: 'Report ID',
+    file: 'File',
+    link: 'Link'
   }
 };
 

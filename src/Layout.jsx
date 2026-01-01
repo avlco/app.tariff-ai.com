@@ -64,7 +64,11 @@ function LayoutContent({ children, currentPageName }) {
         .font-sans { font-family: 'Inter', sans-serif; }
       `}</style>
       
-      <Toaster position="top-center" />
+      <Toaster 
+          position={isRTL ? 'top-left' : 'top-right'}
+          dir={isRTL ? 'rtl' : 'ltr'}
+          richColors
+      />
       <ReportReadyNotification /> 
 
       <Sidebar currentPage={currentPageName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />

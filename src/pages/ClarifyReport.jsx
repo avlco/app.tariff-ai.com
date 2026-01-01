@@ -126,7 +126,7 @@ export default function ClarifyReport() {
                 {t('back')}
             </Button>
             <h1 className="text-3xl font-bold">{t('missingInformation')}</h1>
-            <p className="text-slate-500">Report ID: {report.report_id}</p>
+            <p className="text-slate-500">{t('reportId')}: {report.report_id}</p>
         </div>
         <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">{t('action_required')}</Badge>
       </div>
@@ -145,8 +145,8 @@ export default function ClarifyReport() {
                     <div className="bg-white p-4 rounded border text-sm max-h-60 overflow-y-auto whitespace-pre-wrap">{report.user_input_text || 'None'}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {(report.uploaded_file_urls || []).map((_, i) => <Badge key={i} variant="secondary">File {i+1}</Badge>)}
-                    {(report.external_link_urls || []).map((_, i) => <Badge key={i} variant="secondary">Link {i+1}</Badge>)}
+                    {(report.uploaded_file_urls || []).map((_, i) => <Badge key={i} variant="secondary">{t('file')} {i+1}</Badge>)}
+                    {(report.external_link_urls || []).map((_, i) => <Badge key={i} variant="secondary">{t('link')} {i+1}</Badge>)}
                 </div>
             </CardContent>
         </Card>
