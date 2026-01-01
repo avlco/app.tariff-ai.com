@@ -25,6 +25,7 @@ export default function ReportReadyNotification() {
             
             if (isRead === 'true') return;
 
+            // שימוש ב-Strings דינמיים שמתעדכנים לפי השפה הנוכחית
             if (report.status === 'waiting_for_user') {
                 activeNotifications.push({
                     id: report.id,
@@ -61,9 +62,9 @@ export default function ReportReadyNotification() {
     };
 
     const interval = setInterval(checkReports, 4000);
-    checkReports();
+    checkReports(); // הרצה ראשונית
     return () => clearInterval(interval);
-  }, [t, language]); // Added dependencies
+  }, [t, language]); // <--- התיקון הקריטי: מאזין לשינויי שפה
 
   const dismiss = (key) => {
       localStorage.setItem(`read_${key}`, 'true');
@@ -79,13 +80,13 @@ export default function ReportReadyNotification() {
   if (notifications.length === 0) return null;
 
   return (
-    // התיקון הגדול: שימוש ב-isRTL כדי לקבוע left-6 או right-6
+    // התיקון הקריטי למיקום: אם עברית -> left-6, אחרת -> right-6
     <div className={`fixed top-20 z-50 flex flex-col gap-3 w-80 pointer-events-none ${isRTL ? 'left-6' : 'right-6'}`}>
       <AnimatePresence>
         {notifications.map(n => (
           <motion.div
             key={n.key}
-            // התאמת כיוון האנימציה (כניסה משמאל או מימין)
+            // כניסה חלקה מהצד הנכון
             initial={{ opacity: 0, x: isRTL ? -50 : 50 }} 
             animate={{ opacity: 1, x: 0 }} 
             exit={{ opacity: 0, x: isRTL ? -50 : 50 }}
@@ -105,6 +106,7 @@ export default function ReportReadyNotification() {
                 <p className="text-xs text-slate-600 mt-1 mb-3">{n.message}</p>
                 <Button size="sm" onClick={() => handleAction(n)} className="w-full h-8 text-xs bg-slate-900 text-white hover:bg-slate-800">
                     {n.type === 'waiting' ? t('resolveNow') : t('viewReport')} 
+                    {/* היפוך החץ ב-RTL */}
                     {isRTL ? <ArrowLeft className="w-3 h-3 ms-2"/> : <ArrowRight className="w-3 h-3 ms-2"/>}
                 </Button>
             </Card>
