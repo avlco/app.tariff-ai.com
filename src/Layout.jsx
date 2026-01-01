@@ -13,7 +13,7 @@ function LayoutContent({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
-  const { isRTL, language } = useLanguage(); // שימוש בשפה לקביעת מיקום
+  const { isRTL, language } = useLanguage();
 
   const loadUser = async () => {
     try {
@@ -56,8 +56,9 @@ function LayoutContent({ children, currentPageName }) {
         .font-sans { font-family: 'Inter', sans-serif; }
       `}</style>
       
-      {/* ה-Toaster החכם: זז לצד שמאל בעברית */}
+      {/* הוספת key={language} מכריחה את הרכיב להתמקם מחדש בעת החלפת שפה */}
       <Toaster 
+        key={language}
         position={isRTL ? 'bottom-left' : 'bottom-right'} 
         dir={isRTL ? 'rtl' : 'ltr'} 
         richColors 
