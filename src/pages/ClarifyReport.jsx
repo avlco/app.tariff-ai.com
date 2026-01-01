@@ -137,8 +137,8 @@ export default function ClarifyReport() {
             <CardHeader><CardTitle className="text-lg flex items-center gap-2"><FileText className="w-5 h-5"/> {t('caseContext')}</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">PRODUCT</span><span className="font-medium">{report.product_name}</span></div>
-                    <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">DESTINATION</span><span className="font-medium">{report.destination_country}</span></div>
+                    <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">{t('product')}</span><span className="font-medium">{report.product_name}</span></div>
+                    <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">{t('destination')}</span><span className="font-medium">{report.destination_country}</span></div>
                 </div>
                 <div>
                     <span className="text-xs text-slate-400 block mb-2">{t('originalInput')}</span>
