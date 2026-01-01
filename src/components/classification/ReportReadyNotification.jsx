@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { X, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react'; // Icons
+import { X, CheckCircle, AlertCircle, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -16,7 +16,6 @@ export default function ReportReadyNotification() {
   useEffect(() => {
     const checkReports = async () => {
       try {
-        // FIX: Use simple string syntax for sorting
         const reports = await base44.entities.ClassificationReport.list('-updated_date', 10);
         
         const activeNotifications = [];
@@ -31,7 +30,7 @@ export default function ReportReadyNotification() {
                     id: report.id,
                     type: 'waiting',
                     title: t('action_required'),
-                    message: language === 'he' ? `${report.product_name} דורש הבהרה` : `${report.product_name} needs clarification.`,
+                    message: language === 'he' ? `${report.product_name} דורש הבהרה` : `${report.product_name} needs clarification`,
                     key: uniqueKey,
                     persistent: true
                 });
@@ -40,7 +39,7 @@ export default function ReportReadyNotification() {
                     id: report.id,
                     type: 'completed',
                     title: t('classificationReady'),
-                    message: language === 'he' ? `הסיווג של ${report.product_name} הושלם` : `${report.product_name} is done.`,
+                    message: language === 'he' ? `הסיווג של ${report.product_name} הושלם` : `${report.product_name} is done`,
                     key: uniqueKey,
                     persistent: false
                 });
@@ -49,7 +48,7 @@ export default function ReportReadyNotification() {
                     id: report.id,
                     type: 'failed',
                     title: t('processFailed'),
-                    message: language === 'he' ? `נכשל סיווג ${report.product_name}` : `Could not classify ${report.product_name}.`,
+                    message: language === 'he' ? `נכשל סיווג ${report.product_name}` : `Could not classify ${report.product_name}`,
                     key: uniqueKey,
                     persistent: false
                 });
@@ -61,10 +60,10 @@ export default function ReportReadyNotification() {
       }
     };
 
-    const interval = setInterval(checkReports, 4000); // Check every 4s
+    const interval = setInterval(checkReports, 4000);
     checkReports();
     return () => clearInterval(interval);
-  }, [language, t]);
+  }, [t, language]); // Added dependencies
 
   const dismiss = (key) => {
       localStorage.setItem(`read_${key}`, 'true');
@@ -80,12 +79,16 @@ export default function ReportReadyNotification() {
   if (notifications.length === 0) return null;
 
   return (
-    <div className="fixed top-20 right-6 z-50 flex flex-col gap-3 w-80 pointer-events-none">
+    // התיקון הגדול: שימוש ב-isRTL כדי לקבוע left-6 או right-6
+    <div className={`fixed top-20 z-50 flex flex-col gap-3 w-80 pointer-events-none ${isRTL ? 'left-6' : 'right-6'}`}>
       <AnimatePresence>
         {notifications.map(n => (
           <motion.div
             key={n.key}
-            initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 50 }}
+            // התאמת כיוון האנימציה (כניסה משמאל או מימין)
+            initial={{ opacity: 0, x: isRTL ? -50 : 50 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            exit={{ opacity: 0, x: isRTL ? -50 : 50 }}
             className="pointer-events-auto"
           >
             <Card className={`border-l-4 shadow-xl p-4 bg-white/95 backdrop-blur 
@@ -102,7 +105,7 @@ export default function ReportReadyNotification() {
                 <p className="text-xs text-slate-600 mt-1 mb-3">{n.message}</p>
                 <Button size="sm" onClick={() => handleAction(n)} className="w-full h-8 text-xs bg-slate-900 text-white hover:bg-slate-800">
                     {n.type === 'waiting' ? t('resolveNow') : t('viewReport')} 
-                    {isRTL ? <ArrowLeft className="w-3 h-3 me-2" /> : <ArrowRight className="w-3 h-3 ml-2" />}
+                    {isRTL ? <ArrowLeft className="w-3 h-3 ms-2"/> : <ArrowRight className="w-3 h-3 ms-2"/>}
                 </Button>
             </Card>
           </motion.div>
