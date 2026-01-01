@@ -4,7 +4,7 @@ import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import PolicyConsentModal from './components/auth/PolicyConsentModal';
 import ReportReadyNotification from './components/classification/ReportReadyNotification';
-import { Toaster } from "@/components/ui/sonner"; // וודא שזה הייבוא הנכון אצלך
+import { Toaster } from "@/components/ui/sonner";
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence } from 'framer-motion';
 import { LEGAL_VERSION } from '@/components/legalConfig';
@@ -13,9 +13,7 @@ function LayoutContent({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
-  
-  // שימוש בהוק כדי לקבל את כיוון השפה
-  const { isRTL } = useLanguage();
+  const { isRTL, language } = useLanguage(); // שימוש בשפה לקביעת מיקום
 
   const loadUser = async () => {
     try {
@@ -58,10 +56,7 @@ function LayoutContent({ children, currentPageName }) {
         .font-sans { font-family: 'Inter', sans-serif; }
       `}</style>
       
-      {/* תיקון קריטי למיקום:
-          בעברית (RTL) - נמקם בצד שמאל למטה/למעלה כדי לא להתנגש עם התפריט הימני.
-          באנגלית (LTR) - נמקם בצד ימין למטה/למעלה.
-      */}
+      {/* ה-Toaster החכם: זז לצד שמאל בעברית */}
       <Toaster 
         position={isRTL ? 'bottom-left' : 'bottom-right'} 
         dir={isRTL ? 'rtl' : 'ltr'} 
