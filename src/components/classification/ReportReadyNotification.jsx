@@ -2,14 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { X, CheckCircle, AlertCircle, ArrowRight, Loader2 } from 'lucide-react'; // Icons
+import { X, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react'; // Icons
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useLanguage } from '../providers/LanguageContext';
 
 export default function ReportReadyNotification() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
+  const { t, language, isRTL } = useLanguage();
 
   useEffect(() => {
     const checkReports = async () => {
@@ -28,8 +30,8 @@ export default function ReportReadyNotification() {
                 activeNotifications.push({
                     id: report.id,
                     type: 'waiting',
-                    title: 'Action Required',
-                    message: `${report.product_name} needs clarification.`,
+                    title: t('action_required'),
+                    message: language === 'he' ? `${report.product_name} דורש הבהרה` : `${report.product_name} needs clarification.`,
                     key: uniqueKey,
                     persistent: true
                 });
@@ -37,8 +39,8 @@ export default function ReportReadyNotification() {
                 activeNotifications.push({
                     id: report.id,
                     type: 'completed',
-                    title: 'Classification Ready',
-                    message: `${report.product_name} is done.`,
+                    title: t('classificationReady'),
+                    message: language === 'he' ? `הסיווג של ${report.product_name} הושלם` : `${report.product_name} is done.`,
                     key: uniqueKey,
                     persistent: false
                 });
@@ -46,8 +48,8 @@ export default function ReportReadyNotification() {
                  activeNotifications.push({
                     id: report.id,
                     type: 'failed',
-                    title: 'Process Failed',
-                    message: `Could not classify ${report.product_name}.`,
+                    title: t('processFailed'),
+                    message: language === 'he' ? `נכשל סיווג ${report.product_name}` : `Could not classify ${report.product_name}.`,
                     key: uniqueKey,
                     persistent: false
                 });
@@ -62,7 +64,7 @@ export default function ReportReadyNotification() {
     const interval = setInterval(checkReports, 4000); // Check every 4s
     checkReports();
     return () => clearInterval(interval);
-  }, []);
+  }, [language, t]);
 
   const dismiss = (key) => {
       localStorage.setItem(`read_${key}`, 'true');
@@ -99,7 +101,8 @@ export default function ReportReadyNotification() {
                 </div>
                 <p className="text-xs text-slate-600 mt-1 mb-3">{n.message}</p>
                 <Button size="sm" onClick={() => handleAction(n)} className="w-full h-8 text-xs bg-slate-900 text-white hover:bg-slate-800">
-                    {n.type === 'waiting' ? 'Resolve Now' : 'View Report'} <ArrowRight className="w-3 h-3 ml-2"/>
+                    {n.type === 'waiting' ? t('resolveNow') : t('viewReport')} 
+                    {isRTL ? <ArrowLeft className="w-3 h-3 me-2" /> : <ArrowRight className="w-3 h-3 ml-2" />}
                 </Button>
             </Card>
           </motion.div>

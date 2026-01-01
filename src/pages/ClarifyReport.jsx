@@ -13,8 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, FileText, UploadCloud, Loader2, ArrowLeft, ExternalLink, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 
+import { ArrowRight } from 'lucide-react';
+
 export default function ClarifyReport() {
-  const { language } = useLanguage();
+  const { t, language, isRTL } = useLanguage();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const reportId = searchParams.get('id');
@@ -59,7 +61,7 @@ export default function ClarifyReport() {
 
   const handleUpdate = async () => {
     if (!responseText && files.length === 0 && links.length === 0) {
-        toast.error(language === 'he' ? 'אנא ספק מידע' : 'Please provide information.');
+        toast.error(t('provideInfo'));
         return;
     }
     setSubmitting(true);
@@ -95,7 +97,7 @@ export default function ClarifyReport() {
   };
 
   const handleProceedAnyway = async () => {
-    if (!confirm(language === 'he' ? 'להמשיך ללא מידע? הדיוק עלול להיפגע.' : 'Proceed without info? Accuracy might be reduced.')) return;
+    if (!confirm(t('forceProceed'))) return;
     setSubmitting(true);
     try {
         // Fire and Forget
@@ -119,24 +121,27 @@ export default function ClarifyReport() {
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-            <Button variant="ghost" onClick={() => navigate(-1)} className="mb-2 pl-0"><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
-            <h1 className="text-3xl font-bold">Missing Information</h1>
+            <Button variant="ghost" onClick={() => navigate(-1)} className={`mb-2 ${isRTL ? 'pr-0' : 'pl-0'}`}>
+                {isRTL ? <ArrowRight className="w-4 h-4 me-2" /> : <ArrowLeft className="w-4 h-4 me-2" />} 
+                {t('back')}
+            </Button>
+            <h1 className="text-3xl font-bold">{t('missingInformation')}</h1>
             <p className="text-slate-500">Report ID: {report.report_id}</p>
         </div>
-        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Action Required</Badge>
+        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">{t('action_required')}</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left: Context (Read Only) */}
         <Card className="bg-slate-50/80 h-full">
-            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><FileText className="w-5 h-5"/> Case Context</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><FileText className="w-5 h-5"/> {t('caseContext')}</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">PRODUCT</span><span className="font-medium">{report.product_name}</span></div>
                     <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">DESTINATION</span><span className="font-medium">{report.destination_country}</span></div>
                 </div>
                 <div>
-                    <span className="text-xs text-slate-400 block mb-2">ORIGINAL INPUT</span>
+                    <span className="text-xs text-slate-400 block mb-2">{t('originalInput')}</span>
                     <div className="bg-white p-4 rounded border text-sm max-h-60 overflow-y-auto whitespace-pre-wrap">{report.user_input_text || 'None'}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -150,19 +155,19 @@ export default function ClarifyReport() {
         <div className="space-y-6">
             <Alert variant="destructive" className="bg-orange-50 border-orange-200 text-orange-900">
                 <AlertTriangle className="h-5 w-5"/>
-                <AlertTitle>Expert Request</AlertTitle>
-                <AlertDescription>{report.missing_info_question || "Please provide details."}</AlertDescription>
+                <AlertTitle>{t('expertRequest')}</AlertTitle>
+                <AlertDescription>{report.missing_info_question || t('provideInfo')}</AlertDescription>
             </Alert>
 
             <Card className="border-t-4 border-t-[#114B5F]">
-                <CardHeader><CardTitle>Provide Info</CardTitle></CardHeader>
+                <CardHeader><CardTitle>{t('provideInfo')}</CardTitle></CardHeader>
                 <CardContent className="space-y-5">
                     <Textarea value={responseText} onChange={e => setResponseText(e.target.value)} placeholder="Type your answer..." className="min-h-[100px]"/>
                     
                     <div className="flex gap-2 items-center">
                         <Button variant="outline" disabled={uploading} className="relative w-full">
                             <input type="file" multiple className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileChange} />
-                            <UploadCloud className="w-4 h-4 mr-2"/> {uploading ? 'Uploading...' : 'Upload Files'}
+                            <UploadCloud className="w-4 h-4 me-2"/> {uploading ? 'Uploading...' : 'Upload Files'}
                         </Button>
                     </div>
                     {files.length > 0 && <div className="text-xs text-green-600">{files.length} new files</div>}
@@ -174,9 +179,9 @@ export default function ClarifyReport() {
                     {links.map((l, i) => <Badge key={i} variant="outline">{l}</Badge>)}
 
                     <div className="pt-6 border-t flex justify-between items-center">
-                        <Button variant="ghost" onClick={handleProceedAnyway} className="text-red-600 text-xs">Force Proceed (Risk Low Accuracy)</Button>
+                        <Button variant="ghost" onClick={handleProceedAnyway} className="text-red-600 text-xs">{t('forceProceed')}</Button>
                         <Button onClick={handleUpdate} disabled={submitting} className="bg-[#114B5F] text-white">
-                            {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin"/>} Submit Update
+                            {submitting && <Loader2 className="w-4 h-4 me-2 animate-spin"/>} {t('submitUpdate')}
                         </Button>
                     </div>
                 </CardContent>
