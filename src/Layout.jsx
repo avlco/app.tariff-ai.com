@@ -56,7 +56,7 @@ function LayoutContent({ children, currentPageName }) {
         .font-sans { font-family: 'Inter', sans-serif; }
       `}</style>
       
-      {/* הוספת key={language} מכריחה את הרכיב להתמקם מחדש בעת החלפת שפה */}
+      {/* key={language} מכריח יצירה מחדש של הרכיב בשינוי שפה - קריטי למיקום */}
       <Toaster 
         key={language}
         position={isRTL ? 'bottom-left' : 'bottom-right'} 
