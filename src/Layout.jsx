@@ -4,15 +4,17 @@ import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import PolicyConsentModal from './components/auth/PolicyConsentModal';
 import ReportReadyNotification from './components/classification/ReportReadyNotification';
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/sonner"; // וודא שזה הייבוא הנכון אצלך
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence } from 'framer-motion';
-import { LEGAL_VERSION } from '@/components/legalConfig'; // Import Version
+import { LEGAL_VERSION } from '@/components/legalConfig';
 
 function LayoutContent({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  
+  // שימוש בהוק כדי לקבל את כיוון השפה
   const { isRTL } = useLanguage();
 
   const loadUser = async () => {
@@ -22,16 +24,9 @@ function LayoutContent({ children, currentPageName }) {
 
       if (userData && userData.email) {
         const normalizedEmail = userData.email.toLowerCase();
-        
-        // Fetch user record
         const records = await base44.entities.UserMasterData.filter({ user_email: normalizedEmail });
         const userRecord = records[0];
 
-        // THE CORE LOGIC:
-        // Show modal IF:
-        // 1. User record does not exist
-        // 2. OR Policy is not marked as accepted
-        // 3. OR Accepted version is older/different than current required version
         const needsConsent = 
             !userRecord || 
             !userRecord.policy_accepted || 
@@ -50,7 +45,6 @@ function LayoutContent({ children, currentPageName }) {
     loadUser();
   }, []);
   
-  // Optimistic UI Update
   const handlePolicyAccepted = () => {
       setShowConsentModal(false);
   };
@@ -64,16 +58,22 @@ function LayoutContent({ children, currentPageName }) {
         .font-sans { font-family: 'Inter', sans-serif; }
       `}</style>
       
+      {/* תיקון קריטי למיקום:
+          בעברית (RTL) - נמקם בצד שמאל למטה/למעלה כדי לא להתנגש עם התפריט הימני.
+          באנגלית (LTR) - נמקם בצד ימין למטה/למעלה.
+      */}
       <Toaster 
-          position={isRTL ? 'top-left' : 'top-right'}
-          dir={isRTL ? 'rtl' : 'ltr'}
-          richColors
+        position={isRTL ? 'bottom-left' : 'bottom-right'} 
+        dir={isRTL ? 'rtl' : 'ltr'} 
+        richColors 
+        closeButton
       />
+
       <ReportReadyNotification /> 
 
       <Sidebar currentPage={currentPageName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
-      <div className={`${isRTL ? 'lg:mr-64' : 'lg:ml-64'} min-h-screen flex flex-col`}>
+      <div className={`${isRTL ? 'lg:mr-64' : 'lg:ml-64'} min-h-screen flex flex-col transition-all duration-300`}>
         <Header user={user} onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 p-4 lg:p-6">
           {children}
@@ -85,7 +85,7 @@ function LayoutContent({ children, currentPageName }) {
             <PolicyConsentModal 
                 user={user} 
                 onAccept={handlePolicyAccepted} 
-                requiredVersion={LEGAL_VERSION} // Pass version to modal
+                requiredVersion={LEGAL_VERSION} 
             />
         )}
       </AnimatePresence>
