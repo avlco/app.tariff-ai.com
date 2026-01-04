@@ -66,9 +66,9 @@ export default function PolicyConsentModal({ user, onAccept, policyContent, isRe
 
   if (!policyContent) return null;
 
-  // Safe access to content based on language
-  const termsHtml = policyContent.terms_content?.[language] || policyContent.terms_content?.['en'] || '';
-  const privacyHtml = policyContent.privacy_content?.[language] || policyContent.privacy_content?.['en'] || '';
+  // Safe access to content based on language with fallback
+  const termsHtml = policyContent.terms_content?.[language] || policyContent.terms_content?.['en'] || '<p>No content available.</p>';
+  const privacyHtml = policyContent.privacy_content?.[language] || policyContent.privacy_content?.['en'] || '<p>No content available.</p>';
   const changeSummary = policyContent.change_summary?.[language] || policyContent.change_summary?.['en'] || '';
 
   return (
@@ -141,24 +141,24 @@ export default function PolicyConsentModal({ user, onAccept, policyContent, isRe
         </div>
 
         <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 space-y-3">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer" onClick={() => setAcceptedTerms(!acceptedTerms)}>
                 <Checkbox 
                     id="terms-check" 
                     checked={acceptedTerms}
                     onCheckedChange={setAcceptedTerms}
                 />
-                <label htmlFor="terms-check" className="text-sm font-medium cursor-pointer select-none flex-1">
+                <label htmlFor="terms-check" className="text-sm font-medium cursor-pointer select-none flex-1 pointer-events-none">
                     {labels.acceptTerms}
                 </label>
             </div>
 
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer" onClick={() => setAcceptedPrivacy(!acceptedPrivacy)}>
                 <Checkbox 
                     id="privacy-check" 
                     checked={acceptedPrivacy}
                     onCheckedChange={setAcceptedPrivacy}
                 />
-                <label htmlFor="privacy-check" className="text-sm font-medium cursor-pointer select-none flex-1">
+                <label htmlFor="privacy-check" className="text-sm font-medium cursor-pointer select-none flex-1 pointer-events-none">
                     {labels.acceptPrivacy}
                 </label>
             </div>
