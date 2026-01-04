@@ -1,28 +1,25 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useLanguage } from '../providers/LanguageContext';
-import PrivacyContent from '../legal/PrivacyContent';
-import TermsContent from '../legal/TermsContent';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { ShieldCheck, LogOut, ChevronRight, ChevronLeft } from 'lucide-react';
+import { ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
-import { Loader2 } from 'lucide-react';
-
-export default function PolicyConsentModal({ user, onAccept, requiredVersion }) {
+export default function PolicyConsentModal({ user, onAccept, policyContent, isReacceptance }) {
   const { language, isRTL } = useLanguage();
-  const [activeTab, setActiveTab] = useState('terms'); 
-  const [accepted, setAccepted] = useState({ terms: false, privacy: false });
+  const [accepted, setAccepted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleAccept = async () => {
     setIsProcessing(true);
     try {
-      // Pass the explicit version being accepted
       await base44.functions.invoke('acceptPolicy', { 
-          version: requiredVersion 
+          version_number: policyContent.version_number,
+          user_agent: navigator.userAgent
       });
       
       toast.success(language === 'he' ? 'התנאים אושרו בהצלחה' : 'Terms accepted successfully');
@@ -37,176 +34,89 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
     }
   };
 
-  const handleReject = async () => {
-    if (!confirm(language === 'he' ? 'האם אתה בטוח? סירוב יגרום למחיקת החשבון.' : 'Are you sure? Rejecting will delete your account.')) {
-        return;
-    }
-
-    setIsProcessing(true);
-    try {
-      await base44.functions.invoke('deleteUserAccount');
-      await base44.auth.signOut(); // Changed from logout to signOut based on SDK
-      window.location.href = '/';
-    } catch (error) {
-      console.error(error);
-      toast.error(language === 'he' ? 'שגיאה במחיקת החשבון' : 'Error deleting account');
-      setIsProcessing(false);
-    }
-  };
-
-  const t = {
+  const labels = {
     en: {
-      title: 'Welcome to tariff.ai',
-      subtitle: 'Please review and accept our policies to continue.',
-      terms: 'Terms of Service',
-      privacy: 'Privacy Policy',
-      acceptTerms: 'I have read and accept the Terms of Service',
-      acceptPrivacy: 'I have read and accept the Privacy Policy',
+      title: 'Terms of Service & Privacy Policy',
+      subtitle: `Version ${policyContent?.version_number}`,
+      updatedTitle: 'Policy Updated',
+      accept: 'I have read and accept the Terms of Service and Privacy Policy',
       continue: 'Accept & Continue',
-      decline: 'Decline',
-      next: 'Next',
-      prev: 'Previous',
+      loading: 'Loading...'
     },
     he: {
-      title: 'ברוכים הבאים ל-tariff.ai',
-      subtitle: 'אנא קראו ואשרו את המדיניות שלנו כדי להמשיך.',
-      terms: 'תנאי שימוש',
-      privacy: 'מדיניות פרטיות',
-      acceptTerms: 'קראתי ואני מאשר את תנאי השימוש',
-      acceptPrivacy: 'קראתי ואני מאשר את מדיניות הפרטיות',
+      title: 'תנאי שימוש ומדיניות פרטיות',
+      subtitle: `גרסה ${policyContent?.version_number}`,
+      updatedTitle: 'המדיניות עודכנה',
+      accept: 'קראתי ואני מאשר את תנאי השימוש ומדיניות הפרטיות',
       continue: 'אשר והמשך',
-      decline: 'סרב',
-      next: 'הבא',
-      prev: 'הקודם',
+      loading: 'טוען...'
     }
   }[language];
 
-  // ... (Rest of the rendering code remains exactly the same as your file)
+  if (!policyContent) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+    <Dialog open={true}>
+      <DialogContent 
+        className="sm:max-w-4xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden" 
+        hideClose={true}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <div className="p-6 bg-[#114B5F] text-white flex justify-between items-center shrink-0">
-            <div>
-                <h2 className="text-2xl font-bold flex items-center gap-2">
+        <div className="p-6 bg-[#114B5F] text-white shrink-0">
+            <DialogHeader>
+                <DialogTitle className="text-2xl font-bold flex items-center gap-2">
                     <ShieldCheck className="w-6 h-6 text-[#42C0B9]" />
-                    {t.title}
-                </h2>
-                <p className="text-white/80 mt-1">{t.subtitle}</p>
-            </div>
-            <div className="flex gap-2">
-                <div className={`h-2 w-8 rounded-full transition-colors ${activeTab === 'terms' ? 'bg-[#42C0B9]' : 'bg-white/20'}`} />
-                <div className={`h-2 w-8 rounded-full transition-colors ${activeTab === 'privacy' ? 'bg-[#42C0B9]' : 'bg-white/20'}`} />
-            </div>
+                    {labels.title}
+                </DialogTitle>
+                <DialogDescription className="text-white/80 mt-1">
+                    {labels.subtitle}
+                </DialogDescription>
+            </DialogHeader>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-6 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600">
-            <AnimatePresence mode="wait">
-                {activeTab === 'terms' ? (
-                    <motion.div
-                        key="terms"
-                        initial={{ opacity: 0, x: isRTL ? 20 : -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: isRTL ? -20 : 20 }}
-                        className="bg-white dark:bg-slate-900 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-800"
-                    >
-                         <TermsContent minimal={true} />
-                    </motion.div>
-                ) : (
-                    <motion.div
-                        key="privacy"
-                        initial={{ opacity: 0, x: isRTL ? -20 : 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: isRTL ? 20 : -20 }}
-                        className="bg-white dark:bg-slate-900 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-800"
-                    >
-                        <PrivacyContent minimal={true} />
-                    </motion.div>
-                )}
-            </AnimatePresence>
+        <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950 p-6 flex flex-col gap-4">
+            {isReacceptance && policyContent.change_summary && (
+                <Alert variant="default" className="bg-orange-50 border-orange-200 text-orange-900 shrink-0">
+                    <AlertCircle className="h-4 w-4 text-orange-600" />
+                    <AlertTitle>{labels.updatedTitle}</AlertTitle>
+                    <AlertDescription>
+                        {policyContent.change_summary}
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            <ScrollArea className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+                <div 
+                    className="prose dark:prose-invert max-w-none text-sm"
+                    dangerouslySetInnerHTML={{ __html: policyContent.content_html }}
+                />
+            </ScrollArea>
         </div>
 
         <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0">
-            <div className="flex flex-col gap-3 mb-6">
-                {activeTab === 'terms' && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                    >
-                        <Checkbox 
-                            id="terms-check" 
-                            checked={accepted.terms}
-                            onCheckedChange={(checked) => setAccepted(prev => ({ ...prev, terms: checked }))}
-                        />
-                        <label htmlFor="terms-check" className="text-sm font-medium cursor-pointer select-none flex-1">
-                            {t.acceptTerms}
-                        </label>
-                    </motion.div>
-                )}
-
-                {activeTab === 'privacy' && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                    >
-                        <Checkbox 
-                            id="privacy-check" 
-                            checked={accepted.privacy}
-                            onCheckedChange={(checked) => setAccepted(prev => ({ ...prev, privacy: checked }))}
-                        />
-                        <label htmlFor="privacy-check" className="text-sm font-medium cursor-pointer select-none flex-1">
-                            {t.acceptPrivacy}
-                        </label>
-                    </motion.div>
-                )}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors mb-6">
+                <Checkbox 
+                    id="policy-check" 
+                    checked={accepted}
+                    onCheckedChange={setAccepted}
+                />
+                <label htmlFor="policy-check" className="text-sm font-medium cursor-pointer select-none flex-1">
+                    {labels.accept}
+                </label>
             </div>
 
-            <div className="flex justify-between items-center">
+            <div className="flex justify-end">
                 <Button 
-                    variant="outline" 
-                    onClick={() => setActiveTab('terms')}
-                    disabled={activeTab === 'terms'}
-                    className={activeTab === 'terms' ? 'invisible' : ''}
+                    onClick={handleAccept} 
+                    disabled={!accepted || isProcessing}
+                    className="bg-[#42C0B9] hover:bg-[#35A89E] text-white w-full sm:w-auto min-w-[150px]"
                 >
-                    {isRTL ? <ChevronRight className="w-4 h-4 me-2" /> : <ChevronLeft className="w-4 h-4 me-2" />}
-                    {t.prev}
-                </Button>
-
-                <div className="flex gap-3">
-                    {activeTab === 'terms' ? (
-                        <Button 
-                            onClick={() => setActiveTab('privacy')} 
-                            disabled={!accepted.terms}
-                            className="bg-[#114B5F] hover:bg-[#0d3a4a]"
-                        >
-                            {t.next}
-                            {isRTL ? <ChevronLeft className="w-4 h-4 ms-2" /> : <ChevronRight className="w-4 h-4 ms-2" />}
-                        </Button>
-                    ) : (
-                        <Button 
-                            onClick={handleAccept} 
-                            disabled={!accepted.privacy || isProcessing}
-                            className="bg-[#42C0B9] hover:bg-[#35A89E] text-white"
-                        >
-                            {isProcessing ? <Loader2 className="animate-spin w-4 h-4"/> : t.continue}
-                        </Button>
-                    )}
-                </div>
-            </div>
-
-            <div className="flex justify-center mt-6">
-                <Button variant="ghost" className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm" onClick={handleReject}>
-                    <LogOut className="w-3 h-3 me-2" />
-                    {t.decline}
+                    {isProcessing ? <Loader2 className="animate-spin w-4 h-4"/> : labels.continue}
                 </Button>
             </div>
         </div>
-      </motion.div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

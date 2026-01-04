@@ -7,30 +7,49 @@ import ReportReadyNotification from './components/classification/ReportReadyNoti
 import { Toaster } from "@/components/ui/sonner";
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence } from 'framer-motion';
-import { LEGAL_VERSION } from '@/components/legalConfig';
+// import { LEGAL_VERSION } from '@/components/legalConfig'; // Deprecated
 
 function LayoutContent({ children, currentPageName }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [policyContent, setPolicyContent] = useState(null);
+  const [isReacceptance, setIsReacceptance] = useState(false);
   const { isRTL, language } = useLanguage();
 
   const loadUser = async () => {
     try {
+      // 1. Fetch User
       const userData = await base44.auth.me();
       setUser(userData);
 
       if (userData && userData.email) {
         const normalizedEmail = userData.email.toLowerCase();
-        const records = await base44.entities.UserMasterData.filter({ user_email: normalizedEmail });
-        const userRecord = records[0];
+        
+        // 2. Parallel Fetch: User Record & Latest Policy
+        const [userRecords, policyResponse] = await Promise.all([
+            base44.entities.UserMasterData.filter({ user_email: normalizedEmail }),
+            base44.functions.invoke('getLatestLegalDocument')
+        ]);
+        
+        const userRecord = userRecords[0];
+        const activePolicy = policyResponse?.data;
+
+        if (!activePolicy) return; // No policy active? Skip consent logic (or handle error)
+
+        // 3. Compare Versions
+        const userAcceptedVersion = userRecord?.policy_version;
+        const currentVersion = activePolicy.version_number;
 
         const needsConsent = 
             !userRecord || 
             !userRecord.policy_accepted || 
-            userRecord.policy_version !== LEGAL_VERSION;
+            userAcceptedVersion !== currentVersion;
 
         if (needsConsent) {
+            setPolicyContent(activePolicy);
+            // If they accepted SOME version before, but it's different now -> Reacceptance
+            setIsReacceptance(!!(userRecord?.policy_accepted && userAcceptedVersion && userAcceptedVersion !== currentVersion));
             setShowConsentModal(true);
         }
       }
@@ -77,11 +96,12 @@ function LayoutContent({ children, currentPageName }) {
       </div>
 
       <AnimatePresence>
-        {showConsentModal && user && (
+        {showConsentModal && user && policyContent && (
             <PolicyConsentModal 
                 user={user} 
                 onAccept={handlePolicyAccepted} 
-                requiredVersion={LEGAL_VERSION} 
+                policyContent={policyContent}
+                isReacceptance={isReacceptance}
             />
         )}
       </AnimatePresence>
