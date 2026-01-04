@@ -93,7 +93,7 @@ export default Deno.serve(async (req) => {
             try {
                 if (user.email) {
                     const appUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://app.base44.com';
-                    const reportLink = `${appUrl}/reports/view?id=${reportId}`;
+                    const reportLink = `${appUrl}/ReportView?id=${reportId}`;
                     // Attempt to extract HS code from QA result or fetch updated report (simplified here)
                     // We assume the agentJudge saved it, or we could fetch it. 
                     // For now, generic success message.

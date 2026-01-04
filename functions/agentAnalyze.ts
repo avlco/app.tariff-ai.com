@@ -249,7 +249,7 @@ Output JSON Schema:
         if (user.email) {
             try {
                 const appUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://app.base44.com'; // fallback
-                const actionLink = `${appUrl}/reports/clarify?id=${reportId}`;
+                const actionLink = `${appUrl}/ClarifyReport?id=${reportId}`;
                 
                 await base44.integrations.Core.SendEmail({
                     to: user.email,
