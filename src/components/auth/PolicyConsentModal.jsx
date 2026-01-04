@@ -7,7 +7,7 @@ import PrivacyContent from '../legal/PrivacyContent';
 import TermsContent from '../legal/TermsContent';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { ShieldCheck, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { ShieldCheck, ArrowRight, ArrowLeft, Loader2, LogOut } from 'lucide-react';
 
 export default function PolicyConsentModal({ user, onAccept, requiredVersion }) {
   const { language, isRTL } = useLanguage();
@@ -45,12 +45,19 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
       
     } catch (error) {
       console.error("Policy error:", error);
-      // If error is 409 or similar non-critical, we might want to close anyway, 
-      // but for now we show error. 
-      // If the backend function returned 500, it bubbles here.
       toast.error('Error saving consent: ' + (error.message || 'Server error'));
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleDecline = async () => {
+    try {
+      await base44.auth.logout();
+      window.location.reload();
+    } catch (e) {
+      console.error("Logout failed", e);
+      window.location.reload();
     }
   };
 
@@ -64,7 +71,8 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
       next: 'Next',
       back: 'Back',
       confirm: 'Accept & Finish',
-      processing: 'Securing Consent...'
+      processing: 'Securing Consent...',
+      decline: 'Decline & Log Out'
     },
     he: {
       title: 'הסכמה משפטית',
@@ -75,7 +83,8 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
       next: 'הבא',
       back: 'חזור',
       confirm: 'אשר וסיים',
-      processing: 'מאשר הסכמה...'
+      processing: 'מאשר הסכמה...',
+      decline: 'סרב והתנתק'
     }
   }[language];
 
@@ -152,33 +161,44 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
         </div>
 
         {/* Footer Actions */}
-        <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 flex justify-between items-center">
-            {step > 1 ? (
-                <Button variant="ghost" onClick={handleBack} disabled={isProcessing}>
-                    {isRTL ? <ArrowRight className="w-4 h-4 me-2"/> : <ArrowLeft className="w-4 h-4 me-2"/>}
-                    {t.back}
-                </Button>
-            ) : <div/>}
+        <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 flex justify-between items-center gap-4">
+            <Button 
+                variant="ghost" 
+                onClick={handleDecline} 
+                className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+                <LogOut className="w-4 h-4 me-2" />
+                {t.decline}
+            </Button>
 
-            {step === 1 ? (
-                <Button 
-                    onClick={handleNext} 
-                    disabled={!accepted.terms}
-                    className="bg-[#114B5F] hover:bg-[#0d3a4a] text-white min-w-[100px]"
-                >
-                    {t.next}
-                    {isRTL ? <ArrowLeft className="w-4 h-4 ms-2"/> : <ArrowRight className="w-4 h-4 ms-2"/>}
-                </Button>
-            ) : (
-                <Button 
-                    onClick={handleFinalConfirm} 
-                    disabled={isProcessing || !accepted.privacy}
-                    className="bg-[#42C0B9] hover:bg-[#35A89E] text-white min-w-[140px]"
-                >
-                    {isProcessing ? <Loader2 className="w-4 h-4 animate-spin me-2"/> : <ShieldCheck className="w-4 h-4 me-2"/>}
-                    {isProcessing ? t.processing : t.confirm}
-                </Button>
-            )}
+            <div className="flex items-center gap-2">
+                {step > 1 && (
+                    <Button variant="ghost" onClick={handleBack} disabled={isProcessing}>
+                        {isRTL ? <ArrowRight className="w-4 h-4 me-2"/> : <ArrowLeft className="w-4 h-4 me-2"/>}
+                        {t.back}
+                    </Button>
+                )}
+
+                {step === 1 ? (
+                    <Button 
+                        onClick={handleNext} 
+                        disabled={!accepted.terms}
+                        className="bg-[#114B5F] hover:bg-[#0d3a4a] text-white min-w-[100px]"
+                    >
+                        {t.next}
+                        {isRTL ? <ArrowLeft className="w-4 h-4 ms-2"/> : <ArrowRight className="w-4 h-4 ms-2"/>}
+                    </Button>
+                ) : (
+                    <Button 
+                        onClick={handleFinalConfirm} 
+                        disabled={isProcessing || !accepted.privacy}
+                        className="bg-[#42C0B9] hover:bg-[#35A89E] text-white min-w-[140px]"
+                    >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin me-2"/> : <ShieldCheck className="w-4 h-4 me-2"/>}
+                        {isProcessing ? t.processing : t.confirm}
+                    </Button>
+                )}
+            </div>
         </div>
       </motion.div>
     </div>
