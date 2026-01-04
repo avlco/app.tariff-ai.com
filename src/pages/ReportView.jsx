@@ -29,7 +29,7 @@ import {
   ExternalLink,
   Lock,
   Crown,
-  Share2,
+  Share2, Copy, Loader2,
   ChevronLeft,
   AlertTriangle,
   Scale
@@ -37,6 +37,15 @@ import {
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
 
@@ -47,6 +56,11 @@ export default function ReportView() {
   const [tradeResource, setTradeResource] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  const [isSharing, setIsSharing] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [shareLink, setShareLink] = useState('');
+  const [shareExpiry, setShareExpiry] = useState('');
   
   const urlParams = new URLSearchParams(window.location.search);
   const reportId = urlParams.get('id');
@@ -77,6 +91,32 @@ export default function ReportView() {
   }, [reportId]);
   
   const isPremium = user?.subscription_plan && ['pay_per_use', 'basic', 'pro', 'agency', 'enterprise'].includes(user.subscription_plan);
+
+  const handleShareReport = async () => {
+    if (!reportId) return;
+    setIsSharing(true);
+    try {
+      const { data } = await base44.functions.invoke('generateShareableReportLink', { reportId });
+      if (data.success) {
+        setShareLink(data.shareUrl);
+        setShareExpiry(data.expiryDate);
+        setShowShareDialog(true);
+        toast.success(language === 'he' ? 'קישור שיתוף נוצר בהצלחה!' : 'Share link generated successfully!');
+      } else {
+        throw new Error(data.error || 'Failed to generate share link');
+      }
+    } catch (error) {
+      console.error('Error generating share link:', error);
+      toast.error(language === 'he' ? 'שגיאה ביצירת קישור שיתוף: ' + error.message : 'Error generating share link: ' + error.message);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(shareLink);
+    toast.success(language === 'he' ? 'הקישור הועתק!' : 'Link copied to clipboard!');
+  };
   
   if (loading) {
     return (
@@ -164,6 +204,12 @@ export default function ReportView() {
           </div>
           
           <div className="flex items-center gap-2">
+             {report.status === 'completed' && (
+                <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
+                  {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
+                  {language === 'he' ? 'שתף' : 'Share'}
+                </Button>
+             )}
              <Button variant="outline" onClick={() => window.print()}>
                <FileText className="w-4 h-4 me-2"/>
                {language === 'he' ? 'הדפס' : 'Print'}
@@ -567,5 +613,32 @@ export default function ReportView() {
 
       </div>
     </div>
+
+    <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>{language === 'he' ? 'שתף דוח' : 'Share Report'}</DialogTitle>
+          <DialogDescription>
+            {language === 'he' ? 'העתק את הקישור הציבורי לדוח זה.' : 'Copy the public link to this report.'}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex items-center space-x-2">
+          <Input readOnly value={shareLink} className="flex-grow" />
+          <Button onClick={copyToClipboard} variant="outline" size="icon">
+            <Copy className="h-4 w-4" />
+          </Button>
+        </div>
+        {shareExpiry && (
+          <p className="text-xs text-slate-500 mt-2">
+            {language === 'he' ? 'תוקף קישור: ' : 'Link valid until: '}
+            {format(new Date(shareExpiry), 'dd/MM/yyyy HH:mm')}
+            {language === 'he' ? ' (7 ימים)' : ' (7 days)'}
+          </p>
+        )}
+        <DialogFooter>
+          <Button onClick={() => setShowShareDialog(false)}>{language === 'he' ? 'סגור' : 'Close'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
