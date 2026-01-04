@@ -26,10 +26,16 @@ function LayoutContent({ children, currentPageName }) {
         const records = await base44.entities.UserMasterData.filter({ user_email: normalizedEmail });
         const userRecord = records[0];
 
+        // Guard Clause: If record fetching failed or data is incomplete, DO NOT evaluate consent (Phase 2)
+        if (!userRecord) {
+            console.log("User record not found/synced yet. Skipping consent check.");
+            return;
+        }
+
+        // Strict Type Check for Version Comparison (Phase 2)
         const needsConsent = 
-            !userRecord || 
             !userRecord.policy_accepted || 
-            userRecord.policy_version !== LEGAL_VERSION;
+            String(userRecord.policy_version_accepted || userRecord.policy_version) !== String(LEGAL_VERSION);
 
         if (needsConsent) {
             setShowConsentModal(true);
