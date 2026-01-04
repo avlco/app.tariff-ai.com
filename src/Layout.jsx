@@ -69,7 +69,7 @@ function LayoutContent({ children, currentPageName }) {
       <Sidebar currentPage={currentPageName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
       <div className={`${isRTL ? 'lg:mr-64' : 'lg:ml-64'} min-h-screen flex flex-col transition-all duration-300`}>
-        <Header user={user} onMenuClick={() => setSidebarOpen(true)} />
+        <Header user={user} onMenuClick={() => setSidebarOpen(true)} notificationBell={<NotificationBell />} />
         <main className="flex-1 p-4 lg:p-6">
           {children}
         </main>

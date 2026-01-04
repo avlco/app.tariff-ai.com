@@ -124,7 +124,12 @@ const translations = {
     destination: 'יעד',
     reportId: 'מזהה דוח',
     file: 'קובץ',
-    link: 'קישור'
+    link: 'קישור',
+    notifications: 'הודעות',
+    markAllAsRead: 'סמן הכל כנקרא',
+    noNotifications: 'אין הודעות חדשות',
+    viewNotification: 'צפה',
+    notificationDismissed: 'ההודעה נדחתה'
   },
   en: {
     // Navigation
@@ -248,7 +253,12 @@ const translations = {
     destination: 'DESTINATION',
     reportId: 'Report ID',
     file: 'File',
-    link: 'Link'
+    link: 'Link',
+    notifications: 'Notifications',
+    markAllAsRead: 'Mark all as read',
+    noNotifications: 'No notifications',
+    viewNotification: 'View',
+    notificationDismissed: 'Notification dismissed'
   }
 };
 
