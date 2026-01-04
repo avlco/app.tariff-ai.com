@@ -34,7 +34,6 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
       const { data } = await base44.functions.invoke('acceptPolicy', { 
           version: requiredVersion,
           user_agent: window.navigator.userAgent,
-          // IP address handled by backend
       });
       
       if (data.success) {
@@ -46,6 +45,9 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
       
     } catch (error) {
       console.error("Policy error:", error);
+      // If error is 409 or similar non-critical, we might want to close anyway, 
+      // but for now we show error. 
+      // If the backend function returned 500, it bubbles here.
       toast.error('Error saving consent: ' + (error.message || 'Server error'));
     } finally {
       setIsProcessing(false);

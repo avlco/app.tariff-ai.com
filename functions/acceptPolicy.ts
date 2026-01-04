@@ -8,13 +8,13 @@ export default Deno.serve(async (req) => {
         if (!user || !user.email) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
         const body = await req.json();
-        const { version, user_agent: clientUA, ip_address: clientIP } = body;
+        const { version, user_agent: clientUA } = body;
         
         if (!version) return Response.json({ error: 'Version required' }, { status: 400 });
 
         const normalizedEmail = user.email.toLowerCase();
         const timestamp = new Date().toISOString();
-        const ip = clientIP || req.headers.get("x-forwarded-for") || "unknown";
+        const ip = req.headers.get("x-forwarded-for") || "unknown";
         const ua = clientUA || req.headers.get("user-agent") || "unknown";
 
         // 1. Audit Trail - Insert Immutable Record
@@ -30,8 +30,7 @@ export default Deno.serve(async (req) => {
             });
         } catch (logError) {
             console.error("Failed to create audit log:", logError);
-            // We continue even if log fails, but ideally this should be atomic. 
-            // For now, prioritising user flow but logging error.
+            // We continue even if log fails, prioritising user flow
         }
 
         // 2. State Sync - Update UserMasterData
@@ -52,18 +51,38 @@ export default Deno.serve(async (req) => {
             if (records.length > 0) {
                 await base44.asServiceRole.entities.UserMasterData.update(records[0].id, updateData);
             } else {
-                await base44.asServiceRole.entities.UserMasterData.create({
-                    user_email: normalizedEmail,
-                    full_name: user.user_metadata?.full_name || normalizedEmail.split('@')[0],
-                    account_status: 'active',
-                    role: 'user',
-                    registration_date: timestamp,
-                    ...updateData
-                });
+                // Try to create - handle potential race condition if created in parallel
+                try {
+                    await base44.asServiceRole.entities.UserMasterData.create({
+                        user_email: normalizedEmail,
+                        full_name: user.user_metadata?.full_name || normalizedEmail.split('@')[0],
+                        account_status: 'active',
+                        role: 'user',
+                        registration_date: timestamp,
+                        ...updateData
+                    });
+                } catch (createError) {
+                    console.log("Create failed, retrying update (potential race condition):", createError.message);
+                    // Re-fetch and update if create failed
+                    const retryRecords = await base44.asServiceRole.entities.UserMasterData.filter({ 
+                        user_email: normalizedEmail 
+                    });
+                    if (retryRecords.length > 0) {
+                        await base44.asServiceRole.entities.UserMasterData.update(retryRecords[0].id, updateData);
+                    } else {
+                        throw createError;
+                    }
+                }
             }
         } catch (masterDataError) {
             console.error("Failed to update UserMasterData:", masterDataError);
-            throw new Error(`Failed to update user record: ${masterDataError.message}`);
+            // We still return success to the UI if the main audit was logged or if it's a non-blocking error,
+            // but ideally we should let the UI know.
+            // However, to unblock the user, if we reached here, we might want to return success 
+            // BUT only if we are sure the user can proceed. 
+            // If master data isn't updated, the layout might pop the modal again.
+            // So we return the error here to be safe, unless it's a 'duplicate' error which we tried to handle above.
+             throw new Error(`Failed to update user record: ${masterDataError.message}`);
         }
 
         return Response.json({ success: true, version_accepted: version });
