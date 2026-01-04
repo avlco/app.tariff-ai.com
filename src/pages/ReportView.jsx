@@ -612,7 +612,6 @@ export default function ReportView() {
         </div>
 
       </div>
-    </div>
 
     <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
       <DialogContent className="sm:max-w-[425px]">
@@ -640,5 +639,6 @@ export default function ReportView() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </div>
   );
 }
