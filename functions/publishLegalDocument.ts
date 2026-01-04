@@ -9,10 +9,10 @@ export default Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized: Admin access required' }, { status: 403 });
         }
 
-        const { version, content, summary } = await req.json();
+        const { version, terms_content, privacy_content, change_summary } = await req.json();
 
-        if (!version || !content) {
-            return Response.json({ error: 'Version and content are required' }, { status: 400 });
+        if (!version || !terms_content || !privacy_content) {
+            return Response.json({ error: 'Version, terms content, and privacy content are required' }, { status: 400 });
         }
 
         // 1. Deactivate current active documents
@@ -27,8 +27,9 @@ export default Deno.serve(async (req) => {
         // 2. Create new active document
         const newDoc = await base44.asServiceRole.entities.LegalDocumentVersion.create({
             version_number: version,
-            content_html: content,
-            change_summary: summary,
+            terms_content: terms_content,
+            privacy_content: privacy_content,
+            change_summary: change_summary || {},
             is_active: true,
             published_at: new Date().toISOString(),
             published_by: user.email
