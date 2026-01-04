@@ -4,21 +4,26 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useLanguage } from '../providers/LanguageContext';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
+import { ShieldCheck, AlertCircle, Loader2, FileText, Lock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 export default function PolicyConsentModal({ user, onAccept, policyContent, isReacceptance }) {
   const { language, isRTL } = useLanguage();
-  const [accepted, setAccepted] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [activeTab, setActiveTab] = useState('terms');
 
   const handleAccept = async () => {
     setIsProcessing(true);
     try {
       await base44.functions.invoke('acceptPolicy', { 
           version_number: policyContent.version_number,
+          accepted_terms: true,
+          accepted_privacy: true,
           user_agent: navigator.userAgent
       });
       
@@ -36,24 +41,35 @@ export default function PolicyConsentModal({ user, onAccept, policyContent, isRe
 
   const labels = {
     en: {
-      title: 'Terms of Service & Privacy Policy',
+      title: 'Terms & Privacy Updates',
       subtitle: `Version ${policyContent?.version_number}`,
       updatedTitle: 'Policy Updated',
-      accept: 'I have read and accept the Terms of Service and Privacy Policy',
+      termsTab: 'Terms of Service',
+      privacyTab: 'Privacy Policy',
+      acceptTerms: 'I have read and accept the Terms of Service',
+      acceptPrivacy: 'I have read and accept the Privacy Policy',
       continue: 'Accept & Continue',
       loading: 'Loading...'
     },
     he: {
-      title: 'תנאי שימוש ומדיניות פרטיות',
+      title: 'עדכוני תנאים ופרטיות',
       subtitle: `גרסה ${policyContent?.version_number}`,
       updatedTitle: 'המדיניות עודכנה',
-      accept: 'קראתי ואני מאשר את תנאי השימוש ומדיניות הפרטיות',
+      termsTab: 'תנאי שימוש',
+      privacyTab: 'מדיניות פרטיות',
+      acceptTerms: 'קראתי ואני מאשר את תנאי השימוש',
+      acceptPrivacy: 'קראתי ואני מאשר את מדיניות הפרטיות',
       continue: 'אשר והמשך',
       loading: 'טוען...'
     }
   }[language];
 
   if (!policyContent) return null;
+
+  // Safe access to content based on language
+  const termsHtml = policyContent.terms_content?.[language] || policyContent.terms_content?.['en'] || '';
+  const privacyHtml = policyContent.privacy_content?.[language] || policyContent.privacy_content?.['en'] || '';
+  const changeSummary = policyContent.change_summary?.[language] || policyContent.change_summary?.['en'] || '';
 
   return (
     <Dialog open={true}>
@@ -76,40 +92,81 @@ export default function PolicyConsentModal({ user, onAccept, policyContent, isRe
         </div>
 
         <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950 p-6 flex flex-col gap-4">
-            {isReacceptance && policyContent.change_summary && (
+            {isReacceptance && changeSummary && (
                 <Alert variant="default" className="bg-orange-50 border-orange-200 text-orange-900 shrink-0">
                     <AlertCircle className="h-4 w-4 text-orange-600" />
                     <AlertTitle>{labels.updatedTitle}</AlertTitle>
                     <AlertDescription>
-                        {policyContent.change_summary}
+                        {changeSummary}
                     </AlertDescription>
                 </Alert>
             )}
 
-            <ScrollArea className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
-                <div 
-                    className="prose dark:prose-invert max-w-none text-sm"
-                    dangerouslySetInnerHTML={{ __html: policyContent.content_html }}
-                />
-            </ScrollArea>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+                <TabsList className="w-full justify-start border-b rounded-none p-0 h-auto bg-transparent">
+                    <TabsTrigger 
+                        value="terms" 
+                        className="rounded-t-lg rounded-b-none border-b-2 border-transparent data-[state=active]:border-[#114B5F] data-[state=active]:bg-white px-6 py-3"
+                    >
+                        <FileText className="w-4 h-4 me-2"/> {labels.termsTab}
+                    </TabsTrigger>
+                    <TabsTrigger 
+                        value="privacy" 
+                        className="rounded-t-lg rounded-b-none border-b-2 border-transparent data-[state=active]:border-[#114B5F] data-[state=active]:bg-white px-6 py-3"
+                    >
+                        <Lock className="w-4 h-4 me-2"/> {labels.privacyTab}
+                    </TabsTrigger>
+                </TabsList>
+
+                <div className="flex-1 bg-white dark:bg-slate-900 border border-t-0 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative">
+                    <TabsContent value="terms" className="h-full m-0">
+                        <ScrollArea className="h-full p-6">
+                            <div 
+                                className="prose dark:prose-invert max-w-none text-sm"
+                                dangerouslySetInnerHTML={{ __html: termsHtml }}
+                            />
+                        </ScrollArea>
+                    </TabsContent>
+                    
+                    <TabsContent value="privacy" className="h-full m-0">
+                        <ScrollArea className="h-full p-6">
+                            <div 
+                                className="prose dark:prose-invert max-w-none text-sm"
+                                dangerouslySetInnerHTML={{ __html: privacyHtml }}
+                            />
+                        </ScrollArea>
+                    </TabsContent>
+                </div>
+            </Tabs>
         </div>
 
-        <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors mb-6">
+        <div className="p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 space-y-3">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                 <Checkbox 
-                    id="policy-check" 
-                    checked={accepted}
-                    onCheckedChange={setAccepted}
+                    id="terms-check" 
+                    checked={acceptedTerms}
+                    onCheckedChange={setAcceptedTerms}
                 />
-                <label htmlFor="policy-check" className="text-sm font-medium cursor-pointer select-none flex-1">
-                    {labels.accept}
+                <label htmlFor="terms-check" className="text-sm font-medium cursor-pointer select-none flex-1">
+                    {labels.acceptTerms}
                 </label>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <Checkbox 
+                    id="privacy-check" 
+                    checked={acceptedPrivacy}
+                    onCheckedChange={setAcceptedPrivacy}
+                />
+                <label htmlFor="privacy-check" className="text-sm font-medium cursor-pointer select-none flex-1">
+                    {labels.acceptPrivacy}
+                </label>
+            </div>
+
+            <div className="flex justify-end pt-2">
                 <Button 
                     onClick={handleAccept} 
-                    disabled={!accepted || isProcessing}
+                    disabled={!acceptedTerms || !acceptedPrivacy || isProcessing}
                     className="bg-[#42C0B9] hover:bg-[#35A89E] text-white w-full sm:w-auto min-w-[150px]"
                 >
                     {isProcessing ? <Loader2 className="animate-spin w-4 h-4"/> : labels.continue}

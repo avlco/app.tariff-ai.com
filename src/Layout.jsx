@@ -47,10 +47,15 @@ function LayoutContent({ children, currentPageName }) {
             userAcceptedVersion !== currentVersion;
 
         if (needsConsent) {
-            setPolicyContent(activePolicy);
-            // If they accepted SOME version before, but it's different now -> Reacceptance
-            setIsReacceptance(!!(userRecord?.policy_accepted && userAcceptedVersion && userAcceptedVersion !== currentVersion));
-            setShowConsentModal(true);
+            // Check if content exists before showing modal to avoid empty modal
+            const hasContent = activePolicy.terms_content && activePolicy.privacy_content;
+            
+            if (hasContent) {
+                setPolicyContent(activePolicy);
+                // If they accepted SOME version before, but it's different now -> Reacceptance
+                setIsReacceptance(!!(userRecord?.policy_accepted && userAcceptedVersion && userAcceptedVersion !== currentVersion));
+                setShowConsentModal(true);
+            }
         }
       }
     } catch (e) {
