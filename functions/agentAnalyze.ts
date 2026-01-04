@@ -225,6 +225,26 @@ Output JSON Schema:
             destination_country: result.detected_form_fields?.destination_country || report.destination_country
         });
         
+        // Create clarification needed notification
+        try {
+            await base44.functions.invoke('createNotification', {
+                type: 'clarification_needed',
+                titleHe: 'נדרש מידע נוסף',
+                titleEn: 'Information Required',
+                messageHe: `הדוח "${report.product_name}" דורש הבהרה לפני המשך הסיווג`,
+                messageEn: `Report "${report.product_name}" needs clarification to continue`,
+                priority: 'high',
+                relatedEntityType: 'ClassificationReport',
+                relatedEntityId: reportId,
+                actionUrl: `/ClarifyReport?id=${reportId}`,
+                actionLabelHe: 'השלם עכשיו',
+                actionLabelEn: 'Complete Now',
+                expiresInHours: 336
+            });
+        } catch (notifErr) {
+            console.error("Failed to create clarification notification:", notifErr);
+        }
+
         // Email logic remains here...
         if (user.email) {
             try {

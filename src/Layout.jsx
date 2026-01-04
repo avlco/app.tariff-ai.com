@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { LanguageProvider, useLanguage } from './components/providers/LanguageContext';
+import { NotificationProvider } from './components/providers/NotificationContext';
+import NotificationBell from './components/layout/NotificationBell';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import PolicyConsentModal from './components/auth/PolicyConsentModal';
-import ReportReadyNotification from './components/classification/ReportReadyNotification';
 import { Toaster } from "@/components/ui/sonner";
 import { base44 } from '@/api/base44Client';
 import { AnimatePresence } from 'framer-motion';
@@ -92,9 +93,11 @@ function LayoutContent({ children, currentPageName }) {
 export default function Layout({ children, currentPageName }) {
   return (
     <LanguageProvider>
-      <LayoutContent currentPageName={currentPageName}>
-        {children}
-      </LayoutContent>
+      <NotificationProvider>
+        <LayoutContent currentPageName={currentPageName}>
+          {children}
+        </LayoutContent>
+      </NotificationProvider>
     </LanguageProvider>
   );
 }

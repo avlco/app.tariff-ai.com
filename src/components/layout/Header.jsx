@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export default function Header({ user, onMenuClick }) {
+export default function Header({ user, onMenuClick, notificationBell }) {
   const { t, isRTL, language } = useLanguage();
   
   return (
@@ -32,6 +32,7 @@ export default function Header({ user, onMenuClick }) {
       </div>
       
       <div className="flex items-center gap-2">
+        {notificationBell}
       </div>
     </header>
   );

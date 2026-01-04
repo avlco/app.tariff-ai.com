@@ -69,6 +69,26 @@ export default Deno.serve(async (req) => {
                 processing_status: 'completed'
             });
 
+            // Create in-app notification
+            try {
+                await base44.functions.invoke('createNotification', {
+                    type: 'report_completed',
+                    titleHe: 'הדוח מוכן לצפייה',
+                    titleEn: 'Report Ready',
+                    messageHe: `הסיווג עבור הדוח #${reportId} הושלם בהצלחה`,
+                    messageEn: `Classification for report #${reportId} completed successfully`,
+                    priority: 'medium',
+                    relatedEntityType: 'ClassificationReport',
+                    relatedEntityId: reportId,
+                    actionUrl: `/ReportView?id=${reportId}`,
+                    actionLabelHe: 'צפה בדוח',
+                    actionLabelEn: 'View Report',
+                    expiresInHours: 168
+                });
+            } catch (notifErr) {
+                console.error("Failed to create notification:", notifErr);
+            }
+
             // Send Success Email
             try {
                 if (user.email) {
@@ -119,22 +139,42 @@ export default Deno.serve(async (req) => {
                 error_details: error.message
             });
             
+            // Create failure notification
+            try {
+               await base44.functions.invoke('createNotification', {
+                   type: 'report_failed',
+                   titleHe: 'הסיווג נכשל',
+                   titleEn: 'Classification Failed',
+                   messageHe: `הסיווג עבור הדוח #${reportId} נכשל. נדרשת בדיקה`,
+                   messageEn: `Classification for report #${reportId} failed. Review required`,
+                   priority: 'high',
+                   relatedEntityType: 'ClassificationReport',
+                   relatedEntityId: reportId,
+                   actionUrl: `/ReportView?id=${reportId}`,
+                   actionLabelHe: 'צפה בפרטים',
+                   actionLabelEn: 'View Details',
+                   expiresInHours: 336
+               });
+            } catch (notifErr) {
+               console.error("Failed to create notification:", notifErr);
+            }
+
             // Send Failure Email
             try {
-                if (user && user.email) {
-                    await base44.integrations.Core.SendEmail({
-                        to: user.email,
-                        subject: `Classification Error: Report #${reportId}`,
-                        body: `
-                            <h2>Process Failed</h2>
-                            <p>We encountered an error while processing your report.</p>
-                            <p><strong>Error:</strong> ${error.message}</p>
-                            <p>Please try again or contact support.</p>
-                        `
-                    });
-                }
+               if (user && user.email) {
+                   await base44.integrations.Core.SendEmail({
+                       to: user.email,
+                       subject: `Classification Error: Report #${reportId}`,
+                       body: `
+                           <h2>Process Failed</h2>
+                           <p>We encountered an error while processing your report.</p>
+                           <p><strong>Error:</strong> ${error.message}</p>
+                           <p>Please try again or contact support.</p>
+                       `
+                   });
+               }
             } catch (emailErr) {
-                console.error("Failure email failed:", emailErr);
+               console.error("Failure email failed:", emailErr);
             }
         }
         return Response.json({ success: false, error: error.message }, { status: 500 });
