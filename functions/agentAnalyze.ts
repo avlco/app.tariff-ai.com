@@ -248,7 +248,7 @@ Output JSON Schema:
         // Email logic remains here...
         if (user.email) {
             try {
-                const appUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://app.base44.com'; // fallback
+                const appUrl = 'https://app.tariff-ai.com';
                 const actionLink = `${appUrl}/ClarifyReport?id=${reportId}`;
                 
                 await base44.integrations.Core.SendEmail({
