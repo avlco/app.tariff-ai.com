@@ -248,10 +248,10 @@ Output JSON Schema:
         // Email logic remains here...
         if (user.email) {
             try {
-                // Fix: Hardcoded app domain for emails
+                // FIXED: Hardcoded App URL and Component Route
                 const appUrl = 'https://app.tariff-ai.com';
                 const actionLink = `${appUrl}/ClarifyReport?id=${reportId}`;
-                
+
                 await base44.integrations.Core.SendEmail({
                     to: user.email,
                     subject: `Action Required: Report #${reportId} pending clarification`,

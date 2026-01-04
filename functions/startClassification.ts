@@ -92,13 +92,10 @@ export default Deno.serve(async (req) => {
             // Send Success Email
             try {
                 if (user.email) {
-                    // Fix: Hardcoded app domain for emails
+                    // FIXED: Hardcoded App URL and Component Route
                     const appUrl = 'https://app.tariff-ai.com';
                     const reportLink = `${appUrl}/ReportView?id=${reportId}`;
-                    // Attempt to extract HS code from QA result or fetch updated report (simplified here)
-                    // We assume the agentJudge saved it, or we could fetch it. 
-                    // For now, generic success message.
-                    
+
                     await base44.integrations.Core.SendEmail({
                         to: user.email,
                         subject: `Classification Complete: Report #${reportId}`,
