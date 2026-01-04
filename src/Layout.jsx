@@ -60,13 +60,11 @@ function LayoutContent({ children, currentPageName }) {
       {/* key={language} מכריח יצירה מחדש של הרכיב בשינוי שפה - קריטי למיקום */}
       <Toaster 
         key={language}
-        position={isRTL ? 'bottom-left' : 'bottom-right'} 
+        position={isRTL ? 'top-left' : 'top-right'} 
         dir={isRTL ? 'rtl' : 'ltr'} 
         richColors 
         closeButton
-      />
-
-      <ReportReadyNotification /> 
+      /> 
 
       <Sidebar currentPage={currentPageName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
