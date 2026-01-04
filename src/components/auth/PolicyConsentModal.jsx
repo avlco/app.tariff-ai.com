@@ -7,7 +7,7 @@ import PrivacyContent from '../legal/PrivacyContent';
 import TermsContent from '../legal/TermsContent';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
+import { ShieldCheck, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function PolicyConsentModal({ user, onAccept, requiredVersion }) {
   const { language, isRTL } = useLanguage();
@@ -16,15 +16,14 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Step 1: Terms
-  // Step 2: Privacy
-  // Step 3: Confirm
+  // Step 2: Privacy + Submit
 
   const handleNext = () => {
-    if (step < 3) setStep(step + 1);
+    if (step === 1 && accepted.terms) setStep(2);
   };
 
   const handleBack = () => {
-    if (step > 1) setStep(step - 1);
+    if (step === 2) setStep(1);
   };
 
   const handleFinalConfirm = async () => {
@@ -32,18 +31,22 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
     
     setIsProcessing(true);
     try {
-      await base44.functions.invoke('acceptPolicy', { 
+      const { data } = await base44.functions.invoke('acceptPolicy', { 
           version: requiredVersion,
           user_agent: window.navigator.userAgent,
           // IP address handled by backend
       });
       
-      toast.success(language === 'he' ? 'התנאים אושרו בהצלחה' : 'Terms accepted successfully');
-      if (onAccept) onAccept();
+      if (data.success) {
+        toast.success(language === 'he' ? 'התנאים אושרו בהצלחה' : 'Terms accepted successfully');
+        if (onAccept) onAccept();
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
       
     } catch (error) {
       console.error("Policy error:", error);
-      toast.error('Error saving consent.');
+      toast.error('Error saving consent: ' + (error.message || 'Server error'));
     } finally {
       setIsProcessing(false);
     }
@@ -54,26 +57,22 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
       title: 'Legal Consent',
       step1: 'Terms of Use',
       step2: 'Privacy Policy',
-      step3: 'Confirmation',
       confirmTerms: 'I confirm I have read and agree to the Terms of Service.',
       confirmPrivacy: 'I confirm I have read and agree to the Privacy Policy.',
-      finalMsg: `You are accepting Policy Version ${requiredVersion}. This action is legally binding.`,
       next: 'Next',
       back: 'Back',
-      confirm: 'Confirm & Enter',
+      confirm: 'Accept & Finish',
       processing: 'Securing Consent...'
     },
     he: {
       title: 'הסכמה משפטית',
       step1: 'תנאי שימוש',
       step2: 'מדיניות פרטיות',
-      step3: 'אישור סופי',
       confirmTerms: 'אני מאשר שקראתי ומסכים לתנאי השימוש.',
       confirmPrivacy: 'אני מאשר שקראתי ומסכים למדיניות הפרטיות.',
-      finalMsg: `הנך מאשר את גרסת מדיניות ${requiredVersion}. פעולה זו מחייבת משפטית.`,
       next: 'הבא',
       back: 'חזור',
-      confirm: 'אשר וכנס',
+      confirm: 'אשר וסיים',
       processing: 'מאשר הסכמה...'
     }
   }[language];
@@ -108,14 +107,14 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
                     {t.title}
                 </h2>
                 <span className="text-sm font-medium bg-white/20 px-3 py-1 rounded-full">
-                    {step} / 3
+                    {step} / 2
                 </span>
             </div>
             {/* Progress Bar */}
             <div className="h-1.5 w-full bg-black/20 rounded-full overflow-hidden">
                 <div 
                     className="h-full bg-[#42C0B9] transition-all duration-300 ease-out"
-                    style={{ width: `${(step / 3) * 100}%` }}
+                    style={{ width: `${(step / 2) * 100}%` }}
                 />
             </div>
         </div>
@@ -147,21 +146,6 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
                         </div>
                     </motion.div>
                 )}
-                {step === 3 && (
-                    <motion.div key="step3" variants={variants} initial="enter" animate="center" exit="exit" className="flex flex-col items-center justify-center text-center h-full py-10 space-y-6">
-                        <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-2">
-                            <ShieldCheck className="w-8 h-8" />
-                        </div>
-                        <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{t.step3}</h3>
-                        <p className="text-slate-600 dark:text-slate-400 max-w-md">
-                            {t.finalMsg}
-                        </p>
-                        <div className="flex flex-col gap-2 w-full max-w-xs bg-slate-100 dark:bg-slate-800 p-4 rounded-lg text-sm text-left">
-                           <div className="flex justify-between"><span>Terms:</span> <CheckCircle2 className="w-4 h-4 text-green-500"/></div>
-                           <div className="flex justify-between"><span>Privacy:</span> <CheckCircle2 className="w-4 h-4 text-green-500"/></div>
-                        </div>
-                    </motion.div>
-                )}
              </AnimatePresence>
         </div>
 
@@ -174,10 +158,10 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
                 </Button>
             ) : <div/>}
 
-            {step < 3 ? (
+            {step === 1 ? (
                 <Button 
                     onClick={handleNext} 
-                    disabled={step === 1 ? !accepted.terms : !accepted.privacy}
+                    disabled={!accepted.terms}
                     className="bg-[#114B5F] hover:bg-[#0d3a4a] text-white min-w-[100px]"
                 >
                     {t.next}
@@ -186,7 +170,7 @@ export default function PolicyConsentModal({ user, onAccept, requiredVersion }) 
             ) : (
                 <Button 
                     onClick={handleFinalConfirm} 
-                    disabled={isProcessing}
+                    disabled={isProcessing || !accepted.privacy}
                     className="bg-[#42C0B9] hover:bg-[#35A89E] text-white min-w-[140px]"
                 >
                     {isProcessing ? <Loader2 className="w-4 h-4 animate-spin me-2"/> : <ShieldCheck className="w-4 h-4 me-2"/>}
