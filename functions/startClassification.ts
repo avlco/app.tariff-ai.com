@@ -92,6 +92,7 @@ export default Deno.serve(async (req) => {
             // Send Success Email
             try {
                 if (user.email) {
+                    // Fix: Hardcoded app domain for emails
                     const appUrl = 'https://app.tariff-ai.com';
                     const reportLink = `${appUrl}/ReportView?id=${reportId}`;
                     // Attempt to extract HS code from QA result or fetch updated report (simplified here)

@@ -248,6 +248,7 @@ Output JSON Schema:
         // Email logic remains here...
         if (user.email) {
             try {
+                // Fix: Hardcoded app domain for emails
                 const appUrl = 'https://app.tariff-ai.com';
                 const actionLink = `${appUrl}/ClarifyReport?id=${reportId}`;
                 
