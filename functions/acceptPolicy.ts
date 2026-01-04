@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 export default Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
@@ -7,34 +7,32 @@ export default Deno.serve(async (req) => {
         const user = await base44.auth.me();
         if (!user || !user.email) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const { version_number, ip_address, user_agent, accepted_terms, accepted_privacy } = await req.json();
-        
-        if (!version_number) {
-            return Response.json({ error: 'Version number required' }, { status: 400 });
-        }
+        const { version } = await req.json(); // Accept specific version from client
+        if (!version) return Response.json({ error: 'Version required' }, { status: 400 });
 
         const normalizedEmail = user.email.toLowerCase();
         const timestamp = new Date().toISOString();
-        const isFullyAccepted = accepted_terms && accepted_privacy;
 
-        // 1. Find or Create UserMasterData
+        // 1. Search existing record (Service Role bypasses RLS)
         const records = await base44.asServiceRole.entities.UserMasterData.filter({ 
             user_email: normalizedEmail 
         });
         
         if (records.length > 0) {
+            // Update: Set Accepted = true AND save the specific version
             await base44.asServiceRole.entities.UserMasterData.update(records[0].id, {
-                policy_accepted: isFullyAccepted,
+                policy_accepted: true,
                 policy_accepted_date: timestamp,
-                policy_version: version_number,
+                policy_version: version, // Critical for audit trail
                 last_login: timestamp
             });
         } else {
+            // Create New
             await base44.asServiceRole.entities.UserMasterData.create({
                 user_email: normalizedEmail,
-                policy_accepted: isFullyAccepted,
+                policy_accepted: true,
                 policy_accepted_date: timestamp,
-                policy_version: version_number,
+                policy_version: version,
                 full_name: user.user_metadata?.full_name || normalizedEmail.split('@')[0],
                 account_status: 'active',
                 role: 'user',
@@ -42,18 +40,7 @@ export default Deno.serve(async (req) => {
             });
         }
 
-        // 2. Create Consent Log
-        await base44.asServiceRole.entities.UserConsentLog.create({
-            user_id: user.id,
-            version_number: version_number,
-            accepted_terms: !!accepted_terms,
-            accepted_privacy: !!accepted_privacy,
-            accepted_at: timestamp,
-            ip_address: ip_address || 'unknown',
-            user_agent: user_agent || 'unknown'
-        });
-
-        return Response.json({ success: true, version_accepted: version_number });
+        return Response.json({ success: true, version_accepted: version });
 
     } catch (error) {
         console.error('Policy Accept Error:', error);
