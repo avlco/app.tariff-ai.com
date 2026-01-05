@@ -34,7 +34,7 @@ export default Deno.serve(async (req) => {
 
     // Construct Public URL using configured domain
     const baseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
-    const shareUrl = `${baseUrl}/PublicReportView?token=${token}`;
+    const shareUrl = `${baseUrl}/PublicReport?token=${token}`;
 
     // Update report with the new link (for cache/UI display)
     await base44.entities.ClassificationReport.update(reportId, {

@@ -29,7 +29,7 @@ export default Deno.serve(async (req) => {
 
         // 2. Construct the CORRECT public URL using configured domain
         const baseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
-        const targetUrl = `${baseUrl}/PublicReportView?token=${token}&mode=pdf`;
+        const targetUrl = `${baseUrl}/PublicReport?token=${token}&mode=pdf`;
 
         const pdfShiftApiKey = Deno.env.get('PDFSHIFT_API_KEY');
         if (!pdfShiftApiKey) return Response.json({ error: 'PDFShift API Key missing' }, { status: 500 });
