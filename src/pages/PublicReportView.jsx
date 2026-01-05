@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useLanguage } from '../components/providers/LanguageContext';
+import ReportContentWrapper from '@/components/report/ReportContentWrapper';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,6 +16,7 @@ import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 
 export default function PublicReportView() {
+  const { t, setLanguage } = useLanguage();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,29 +27,33 @@ export default function PublicReportView() {
   useEffect(() => {
     const loadReport = async () => {
       if (!token) {
-        setError('קישור לא חוקי');
+        setError('invalidLink');
         setLoading(false);
         return;
       }
       
       try {
         const response = await base44.functions.invoke('getSharedReportData', { token });
-        setReport(response.data.report);
+        const reportData = response.data.report;
+        setReport(reportData);
+        if (reportData && reportData.target_language) {
+             setLanguage(reportData.target_language);
+        }
       } catch (err) {
         console.error('Error loading shared report:', err);
-        setError('הקישור פג תוקף או לא תקין');
+        setError('linkExpired');
       } finally {
         setLoading(false);
       }
     };
     
     loadReport();
-  }, [token]);
+  }, [token, setLanguage]);
   
   const statusConfig = {
-    pending: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: 'בתהליך' },
-    completed: { icon: CheckCircle2, color: 'bg-[#42C0B9]/10 text-[#42C0B9]', label: 'הושלם' },
-    failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600', label: 'נכשל' },
+    pending: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('processing') },
+    completed: { icon: CheckCircle2, color: 'bg-[#42C0B9]/10 text-[#42C0B9]', label: t('completed') },
+    failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600', label: t('failed') },
   };
   
   if (loading) {
@@ -72,10 +79,10 @@ export default function PublicReportView() {
         <div className="text-center">
           <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-            {error || 'הדוח לא נמצא'}
+            {t(error) || t('reportDetails')} 
           </h2>
           <p className="text-slate-500">
-            ייתכן שהקישור פג תוקף או שאינו תקין
+            {t('linkExpired')}
           </p>
         </div>
       </div>
@@ -94,8 +101,8 @@ export default function PublicReportView() {
           className="flex flex-col gap-4"
         >
           <div className="bg-[#114B5F] text-white p-4 rounded-lg">
-            <p className="text-sm opacity-90 mb-1">דוח משותף</p>
-            <p className="text-xs opacity-70">דוח זה שותף באמצעות Tariff AI</p>
+            <p className="text-sm opacity-90 mb-1">{t('publicReport')}</p>
+            <p className="text-xs opacity-70">{t('sharedVia')}</p>
           </div>
           
           <div>
@@ -105,7 +112,7 @@ export default function PublicReportView() {
                 {statusConfig[report.status]?.label}
               </Badge>
               <span className="text-sm text-slate-500">
-                ID: {report.report_id}
+                {t('reportId')}: {report.report_id}
               </span>
             </div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
@@ -130,11 +137,11 @@ export default function PublicReportView() {
                 <CardContent className="p-6 relative">
                   <div className="absolute top-0 end-0 w-40 h-40 bg-[#42C0B9]/10 rounded-full -translate-y-1/2 translate-x-1/2" />
                   <div className="relative">
-                    <p className="text-sm text-white/70 mb-2">קוד HS</p>
+                    <p className="text-sm text-white/70 mb-2">{t('hsCode')}</p>
                     <p className="text-4xl font-bold mb-4">{report.hs_code || '---'}</p>
                     <div className="flex items-center gap-4">
                       <div>
-                        <p className="text-sm text-white/70">רמת ביטחון</p>
+                        <p className="text-sm text-white/70">{t('securityLevel')}</p>
                         <p className="text-2xl font-semibold text-[#42C0B9]">
                           {report.confidence_score || 0}%
                         </p>
@@ -153,12 +160,14 @@ export default function PublicReportView() {
             >
               <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg">נימוק הסיווג</CardTitle>
+                  <CardTitle className="text-lg">{t('classificationReasoning')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {report.classification_reasoning || '---'}
-                  </p>
+                  <ReportContentWrapper languageCode={report.target_language}>
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                        {report.classification_reasoning || '---'}
+                      </p>
+                  </ReportContentWrapper>
                 </CardContent>
               </Card>
             </motion.div>
@@ -171,17 +180,19 @@ export default function PublicReportView() {
             >
               <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg">מאפייני המוצר</CardTitle>
+                  <CardTitle className="text-lg">{t('productCharacteristics')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-2">
-                    {(report.product_characteristics || []).map((char, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#42C0B9] mt-2 flex-shrink-0" />
-                        <span className="text-slate-600 dark:text-slate-300">{char}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <ReportContentWrapper languageCode={report.target_language}>
+                      <ul className="space-y-2">
+                        {(report.product_characteristics || []).map((char, index) => (
+                          <li key={index} className="flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#42C0B9] mt-2 flex-shrink-0" />
+                            <span className="text-slate-600 dark:text-slate-300">{char}</span>
+                          </li>
+                        ))}
+                      </ul>
+                  </ReportContentWrapper>
                 </CardContent>
               </Card>
             </motion.div>
@@ -195,12 +206,14 @@ export default function PublicReportView() {
               >
                 <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-lg">מידע על מכסים</CardTitle>
+                    <CardTitle className="text-lg">{t('tariffInformation')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                      {report.tariff_description}
-                    </p>
+                    <ReportContentWrapper languageCode={report.target_language}>
+                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                          {report.tariff_description}
+                        </p>
+                    </ReportContentWrapper>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -215,21 +228,23 @@ export default function PublicReportView() {
               >
                 <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-lg">דרישות יבוא</CardTitle>
+                    <CardTitle className="text-lg">{t('importRequirements')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      {report.import_requirements.map((req, index) => (
-                        <div key={index} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                          <h4 className="font-medium text-slate-900 dark:text-white mb-1">
-                            {req.title}
-                          </h4>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">
-                            {req.description}
-                          </p>
+                    <ReportContentWrapper languageCode={report.target_language}>
+                        <div className="space-y-4">
+                          {report.import_requirements.map((req, index) => (
+                            <div key={index} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                              <h4 className="font-medium text-slate-900 dark:text-white mb-1">
+                                {req.title}
+                              </h4>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">
+                                {req.description}
+                              </p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                    </ReportContentWrapper>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -244,7 +259,7 @@ export default function PublicReportView() {
               >
                 <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-lg">מקורות רשמיים</CardTitle>
+                    <CardTitle className="text-lg">{t('officialSources')}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
@@ -277,12 +292,12 @@ export default function PublicReportView() {
             >
               <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg">פרטי סחר</CardTitle>
+                  <CardTitle className="text-lg">{t('tradeDetails')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      מדינת ייצור
+                      {t('countryOfManufacture')}
                     </p>
                     <p className="font-medium text-slate-900 dark:text-white">
                       {report.country_of_manufacture || '---'}
@@ -290,7 +305,7 @@ export default function PublicReportView() {
                   </div>
                   <div>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      מדינת מוצא
+                      {t('countryOfOrigin')}
                     </p>
                     <p className="font-medium text-slate-900 dark:text-white">
                       {report.country_of_origin || '---'}
@@ -298,7 +313,7 @@ export default function PublicReportView() {
                   </div>
                   <div>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      מדינת יעד
+                      {t('destinationCountry')}
                     </p>
                     <p className="font-medium text-slate-900 dark:text-white">
                       {report.destination_country || '---'}
@@ -317,21 +332,23 @@ export default function PublicReportView() {
               >
                 <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-lg">סיווגים חלופיים</CardTitle>
+                    <CardTitle className="text-lg">{t('alternativeClassifications')}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      {report.alternative_classifications.map((alt, index) => (
-                        <div key={index} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                          <p className="font-mono font-medium text-[#114B5F] dark:text-[#42C0B9]">
-                            {alt.hs_code}
-                          </p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                            {alt.explanation}
-                          </p>
+                    <ReportContentWrapper languageCode={report.target_language}>
+                        <div className="space-y-3">
+                          {report.alternative_classifications.map((alt, index) => (
+                            <div key={index} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                              <p className="font-mono font-medium text-[#114B5F] dark:text-[#42C0B9]">
+                                {alt.hs_code}
+                              </p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                                {alt.explanation}
+                              </p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                    </ReportContentWrapper>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -347,7 +364,7 @@ export default function PublicReportView() {
           className="text-center py-6 border-t border-slate-200 dark:border-slate-700"
         >
           <p className="text-sm text-slate-400 max-w-2xl mx-auto">
-            דוח זה נוצר באמצעות AI ואינו מהווה ייעוץ משפטי או מכסי רשמי. יש לאמת את המידע מול רשויות המכס הרשמיות.
+            {t('disclaimer')}
           </p>
         </motion.div>
       </div>
