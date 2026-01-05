@@ -1,286 +1,41 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import he from '@/components/locales/he';
+import en from '@/components/locales/en';
+import { LANGUAGES, DEFAULT_SYSTEM_LANGUAGE, DEFAULT_REPORT_LANGUAGE } from '@/components/constants/languages';
 
-const translations = {
-  he: {
-    // Navigation
-    dashboard: 'דשבורד',
-    newReport: 'דוח חדש',
-    reports: 'דוחות',
-    support: 'תמיכה',
-    profile: 'פרופיל',
-    logout: 'התנתק',
-    
-    // Dashboard
-    welcomeBack: 'שלום',
-    reportsThisMonth: 'דוחות החודש',
-    reportsUsed: 'דוחות בשימוש',
-    reportsRemaining: 'דוחות נותרו',
-    recentReports: 'דוחות אחרונים',
-    viewAll: 'הצג הכל',
-    createNewReport: 'צור דוח חדש',
-    upgradeNow: 'שדרג עכשיו',
-    
-    // Report Creation
-    describeProduct: 'תאר את המוצר שלך',
-    uploadFiles: 'העלה קבצים',
-    productName: 'שם המוצר',
-    countryOfManufacture: 'מדינת ייצור',
-    countryOfOrigin: 'מדינת מוצא',
-    destinationCountry: 'מדינת יעד',
-    generateReport: 'צור דוח',
-    generating: 'מייצר דוח...',
-    
-    // Report Details
-    reportDetails: 'פרטי הדוח',
-    hsCode: 'קוד HS',
-    confidenceScore: 'ציון ביטחון',
-    classificationReasoning: 'נימוק הסיווג',
-    productCharacteristics: 'מאפייני המוצר',
-    tariffRate: 'מידע על מכסים',
-    importRequirements: 'דרישות יבוא',
-    officialSources: 'מקורות רשמיים',
-    alternativeClassifications: 'סיווגים חלופיים',
-    tradeDetails: 'פרטי סחר',
-    
-    // Support
-    contactSupport: 'צור קשר',
-    subject: 'נושא',
-    category: 'קטגוריה',
-    message: 'הודעה',
-    submit: 'שלח',
-    billing: 'חיוב',
-    technical: 'טכני',
-    classification: 'סיווג',
-    account: 'חשבון',
-    other: 'אחר',
-    
-    // Profile
-    personalInfo: 'מידע אישי',
-    companyName: 'שם החברה',
-    email: 'אימייל',
-    phone: 'טלפון',
-    subscription: 'מנוי',
-    currentPlan: 'תוכנית נוכחית',
-    preferences: 'העדפות',
-    language: 'שפה',
-    theme: 'ערכת נושא',
-    light: 'בהיר',
-    dark: 'כהה',
-    save: 'שמור',
-    
-    // Plans
-    free: 'חינם',
-    payPerUse: 'לפי שימוש',
-    basic: 'בסיסי',
-    pro: 'מקצועי',
-    agency: 'סוכנות',
-    enterprise: 'ארגוני',
-    reportsPerMonth: 'דוחות בחודש',
-    perReport: 'לדוח',
-    perMonth: 'לחודש',
-    contactUs: 'צור קשר',
-    
-    // Status
-    processing: 'בתהליך',
-    completed: 'הושלם',
-    failed: 'נכשל',
-    open: 'פתוח',
-    inProgress: 'בטיפול',
-    resolved: 'נפתר',
-    closed: 'סגור',
-    
-    // Common
-    loading: 'טוען...',
-    error: 'שגיאה',
-    success: 'הצלחה',
-    cancel: 'ביטול',
-    delete: 'מחק',
-    edit: 'ערוך',
-    view: 'צפה',
-    download: 'הורד',
-    search: 'חיפוש',
-    noResults: 'אין תוצאות',
-    
-    // Disclaimer
-    disclaimer: 'דוח זה נוצר באמצעות AI ואינו מהווה ייעוץ משפטי או מכסי רשמי. יש לאמת את המידע מול רשויות המכס הרשמיות.',
-    
-    // Clarify Page & Notifications
-    waiting_for_user: 'ממתין למשתמש',
-    action_required: 'נדרשת פעולה',
-    missingInformation: 'חסר מידע',
-    caseContext: 'הקשר המקרה',
-    expertRequest: 'בקשת מומחה',
-    provideInfo: 'ספק מידע',
-    originalInput: 'קלט מקורי',
-    forceProceed: 'המשך בכוח (עלול לפגוע בדיוק)',
-    submitUpdate: 'שלח עדכון',
-    back: 'חזרה',
-    classificationReady: 'סיווג מוכן',
-    processFailed: 'תהליך נכשל',
-    resolveNow: 'פתור כעת',
-    viewReport: 'צפה בדוח',
-    product: 'מוצר',
-    destination: 'יעד',
-    reportId: 'מזהה דוח',
-    file: 'קובץ',
-    link: 'קישור',
-    notifications: 'הודעות',
-    markAllAsRead: 'סמן הכל כנקרא',
-    noNotifications: 'אין הודעות חדשות',
-    viewNotification: 'צפה',
-    notificationDismissed: 'ההודעה נדחתה'
-  },
-  en: {
-    // Navigation
-    dashboard: 'Dashboard',
-    newReport: 'New Report',
-    reports: 'Reports',
-    support: 'Support',
-    profile: 'Profile',
-    logout: 'Logout',
-    
-    // Dashboard
-    welcomeBack: 'Welcome back',
-    reportsThisMonth: 'Reports This Month',
-    reportsUsed: 'Reports Used',
-    reportsRemaining: 'Reports Remaining',
-    recentReports: 'Recent Reports',
-    viewAll: 'View All',
-    createNewReport: 'Create New Report',
-    upgradeNow: 'Upgrade Now',
-    
-    // Report Creation
-    describeProduct: 'Describe your product',
-    uploadFiles: 'Upload Files',
-    productName: 'Product Name',
-    countryOfManufacture: 'Country of Manufacture',
-    countryOfOrigin: 'Country of Origin',
-    destinationCountry: 'Destination Country',
-    generateReport: 'Generate Report',
-    generating: 'Generating report...',
-    
-    // Report Details
-    reportDetails: 'Report Details',
-    hsCode: 'HS Code',
-    confidenceScore: 'Confidence Score',
-    classificationReasoning: 'Classification Reasoning',
-    productCharacteristics: 'Product Characteristics',
-    tariffRate: 'Tariff Rate',
-    importRequirements: 'Import Requirements',
-    officialSources: 'Official Sources',
-    alternativeClassifications: 'Alternative Classifications',
-    tradeDetails: 'Trade Details',
-    
-    // Support
-    contactSupport: 'Contact Support',
-    subject: 'Subject',
-    category: 'Category',
-    message: 'Message',
-    submit: 'Submit',
-    billing: 'Billing',
-    technical: 'Technical',
-    classification: 'Classification',
-    account: 'Account',
-    other: 'Other',
-    
-    // Profile
-    personalInfo: 'Personal Information',
-    companyName: 'Company Name',
-    email: 'Email',
-    phone: 'Phone',
-    subscription: 'Subscription',
-    currentPlan: 'Current Plan',
-    preferences: 'Preferences',
-    language: 'Language',
-    theme: 'Theme',
-    light: 'Light',
-    dark: 'Dark',
-    save: 'Save',
-    
-    // Plans
-    free: 'Free',
-    payPerUse: 'Pay Per Use',
-    basic: 'Basic',
-    pro: 'Pro',
-    agency: 'Agency',
-    enterprise: 'Enterprise',
-    reportsPerMonth: 'reports/month',
-    perReport: '/report',
-    perMonth: '/month',
-    contactUs: 'Contact Us',
-    
-    // Status
-    processing: 'Processing',
-    completed: 'Completed',
-    failed: 'Failed',
-    open: 'Open',
-    inProgress: 'In Progress',
-    resolved: 'Resolved',
-    closed: 'Closed',
-    
-    // Common
-    loading: 'Loading...',
-    error: 'Error',
-    success: 'Success',
-    cancel: 'Cancel',
-    delete: 'Delete',
-    edit: 'Edit',
-    view: 'View',
-    download: 'Download',
-    search: 'Search',
-    noResults: 'No results',
-    
-    // Disclaimer
-    disclaimer: 'This report was generated by AI and does not constitute official legal or customs advice. Please verify the information with official customs authorities.',
-    
-    // Clarify Page & Notifications
-    waiting_for_user: 'Waiting for User',
-    action_required: 'Action Required',
-    missingInformation: 'Missing Information',
-    caseContext: 'Case Context',
-    expertRequest: 'Expert Request',
-    provideInfo: 'Provide Info',
-    originalInput: 'Original Input',
-    forceProceed: 'Force Proceed (Risk Low Accuracy)',
-    submitUpdate: 'Submit Update',
-    back: 'Back',
-    classificationReady: 'Classification Ready',
-    processFailed: 'Process Failed',
-    resolveNow: 'Resolve Now',
-    viewReport: 'View Report',
-    product: 'PRODUCT',
-    destination: 'DESTINATION',
-    reportId: 'Report ID',
-    file: 'File',
-    link: 'Link',
-    notifications: 'Notifications',
-    markAllAsRead: 'Mark all as read',
-    noNotifications: 'No notifications',
-    viewNotification: 'View',
-    notificationDismissed: 'Notification dismissed'
-  }
-};
+const translations = { he, en };
 
 const LanguageContext = createContext();
 
 export const LanguageProvider = ({ children }) => {
-  const [language, setLanguage] = useState('he');
+  const [language, setLanguage] = useState(DEFAULT_SYSTEM_LANGUAGE); // System Language
+  const [reportLanguage, setReportLanguage] = useState(DEFAULT_REPORT_LANGUAGE); // Default Report Language
   const [theme, setTheme] = useState('light');
   
   useEffect(() => {
     const loadPreferences = async () => {
       try {
         const user = await base44.auth.me();
-        if (user?.preferred_language) setLanguage(user.preferred_language);
-        if (user?.theme) setTheme(user.theme);
-      } catch (e) {}
+        if (user) {
+          const userData = await base44.entities.UserMasterData.filter({ user_email: user.email });
+          if (userData && userData[0]) {
+             if (userData[0].preferred_language) setLanguage(userData[0].preferred_language);
+             if (userData[0].default_report_language) setReportLanguage(userData[0].default_report_language);
+             if (userData[0].theme) setTheme(userData[0].theme);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load language preferences", e);
+      }
     };
     loadPreferences();
   }, []);
   
+  // Handle System Language & Direction
   useEffect(() => {
-    document.documentElement.dir = language === 'he' ? 'rtl' : 'ltr';
+    const langConfig = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];
+    document.documentElement.dir = langConfig.dir;
     document.documentElement.lang = language;
   }, [language]);
   
@@ -288,11 +43,31 @@ export const LanguageProvider = ({ children }) => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
   
-  const t = (key) => translations[language][key] || key;
+  const t = (key) => {
+    const dict = translations[language] || translations[DEFAULT_SYSTEM_LANGUAGE];
+    return dict[key] || key;
+  };
+
+  // Helper to get direction for specific language code (useful for reports)
+  const getDirForLang = (langCode) => {
+      const langConfig = LANGUAGES.find(l => l.code === langCode);
+      return langConfig ? langConfig.dir : 'ltr';
+  };
+  
   const isRTL = language === 'he';
   
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, theme, setTheme, t, isRTL }}>
+    <LanguageContext.Provider value={{ 
+        language, 
+        setLanguage, 
+        reportLanguage, 
+        setReportLanguage, 
+        theme, 
+        setTheme, 
+        t, 
+        isRTL,
+        getDirForLang
+    }}>
       {children}
     </LanguageContext.Provider>
   );
