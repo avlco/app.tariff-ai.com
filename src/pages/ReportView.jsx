@@ -206,15 +206,64 @@ export default function ReportView() {
           
           <div className="flex items-center gap-2">
              {report.status === 'completed' && (
-                <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
-                  {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
-                  {t('share')}
-                </Button>
+                <>
+                    <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
+                      {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
+                      {t('share')}
+                    </Button>
+                    <Button variant="outline" onClick={async () => {
+                        const toastId = toast.loading(language === 'he' ? 'מייצר PDF...' : 'Generating PDF...');
+                        try {
+                            const response = await base44.functions.invoke('generatePdf', { reportId });
+                            
+                            // Handle Blob response (axios/sdk might wrap it, but invoke returns {data, ...})
+                            // If backend returns binary stream, base44 SDK invoke might treat it as text/json by default unless configured?
+                            // Standard fetch approach in frontend for binary:
+                            
+                            // Re-fetching using standard fetch to handle binary blob correctly if SDK doesn't support stream well
+                            // Or use SDK if it handles arraybuffer. Let's assume standard fetch for binary safety given standard SDK usage limits.
+                            // Actually, let's try the SDK first. If it returns text/json it might corrupt binary.
+                            // Better approach for binary download:
+                            
+                            // Using direct fetch to function endpoint if possible? 
+                            // The SDK `invoke` wraps axios. 
+                            
+                            // Let's use the SDK. If it fails we'll fix. 
+                            // *Correction*: SDK invoke returns `data` parsed. For binary, we might get a buffer or string.
+                            // Let's use a specialized fetch here to be safe and ensure blob type.
+                            
+                            const functionUrl = '/api/functions/generatePdf'; // Standard base44 proxy path
+                            const res = await fetch(functionUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ reportId })
+                            });
+                            
+                            if (!res.ok) throw new Error('PDF Generation failed');
+                            
+                            const blob = await res.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `report-${reportId}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            document.body.removeChild(a);
+                            
+                            toast.dismiss(toastId);
+                            toast.success(language === 'he' ? 'הורדה הושלמה' : 'Download complete');
+                        } catch (e) {
+                            console.error(e);
+                            toast.dismiss(toastId);
+                            toast.error(language === 'he' ? 'שגיאה ביצירת PDF' : 'Error generating PDF');
+                        }
+                    }}>
+                       <FileText className="w-4 h-4 me-2"/>
+                       Export PDF
+                    </Button>
+                </>
              )}
-             <Button variant="outline" onClick={() => window.print()}>
-               <FileText className="w-4 h-4 me-2"/>
-               {t('print')}
-             </Button>
           </div>
         </div>
       </motion.div>
