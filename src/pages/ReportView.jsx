@@ -686,174 +686,19 @@ export default function ReportView() {
                             </TabsList>
                             
                             <TabsContent value="compliance" className="space-y-6">
-                                {/* Taxes & Duties Section */}
-                                <div className="space-y-3">
-                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                                        <Scale className="w-4 h-4 text-[#42C0B9]" />
-                                        {t('taxesDuties')}
-                                        <Badge variant="outline" className="text-xs font-normal ms-auto">
-                                            {t('taxMethod')}: {tradeResource?.tax_method || 'CIF'}
-                                        </Badge>
-                                    </h3>
-                                    <div className="border rounded-lg overflow-hidden">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow className="bg-slate-50">
-                                                    <TableHead>Type</TableHead>
-                                                    <TableHead>Rate/Amount</TableHead>
-                                                    <TableHead>Source</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                <TableRow>
-                                                    <TableCell>Duty Rate</TableCell>
-                                                    <TableCell className="font-medium">{regulatoryPrimary.duty_rate || '0%'}</TableCell>
-                                                    <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
-                                                </TableRow>
-                                                <TableRow>
-                                                    <TableCell>VAT</TableCell>
-                                                    <TableCell>{regulatoryPrimary.vat_rate || '---'}</TableCell>
-                                                    <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
-                                                </TableRow>
-                                                {regulatoryPrimary.excise_tax && (
-                                                    <TableRow>
-                                                        <TableCell>Excise Tax</TableCell>
-                                                        <TableCell>{regulatoryPrimary.excise_tax}</TableCell>
-                                                        <TableCell><Badge variant="secondary" className="text-[10px] bg-purple-50 text-purple-700">Regulation</Badge></TableCell>
-                                                    </TableRow>
-                                                )}
-                                                {regulatoryPrimary.anti_dumping_duty && (
-                                                    <TableRow>
-                                                        <TableCell className="text-red-600">Anti-Dumping</TableCell>
-                                                        <TableCell className="text-red-600 font-medium">{regulatoryPrimary.anti_dumping_duty}</TableCell>
-                                                        <TableCell><Badge variant="secondary" className="text-[10px] bg-red-50 text-red-700">Trade Defense</Badge></TableCell>
-                                                    </TableRow>
-                                                )}
-                                                {regulatoryPrimary.other_fees && (
-                                                    <TableRow>
-                                                        <TableCell>Other Fees</TableCell>
-                                                        <TableCell>{regulatoryPrimary.other_fees}</TableCell>
-                                                        <TableCell><Badge variant="secondary" className="text-[10px]">Port/Levy</Badge></TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </div>
-
-                                {/* Standards & Certification */}
-                                <div className="space-y-3">
-                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                                        <CheckCircle2 className="w-4 h-4 text-[#42C0B9]" />
-                                        {t('standardsCertification')}
-                                    </h3>
-                                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                                        {Array.isArray(regulatoryPrimary.standards_requirements) && regulatoryPrimary.standards_requirements.length > 0 ? (
-                                            <ul className="space-y-3">
-                                                {regulatoryPrimary.standards_requirements.map((item, idx) => (
-                                                    <li key={idx} className="flex flex-col gap-1">
-                                                        <span className="text-slate-900 font-medium">• {item.requirement || item}</span>
-                                                        {item.verification_url && (
-                                                            <a href={item.verification_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline w-fit">
-                                                                <ExternalLink className="w-3 h-3" />
-                                                                {t('verifySource')}
-                                                            </a>
-                                                        )}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        ) : (
-                                            <p className="text-slate-900 whitespace-pre-wrap mb-4">
-                                                {typeof regulatoryPrimary.standards_requirements === 'string' 
-                                                    ? regulatoryPrimary.standards_requirements 
-                                                    : t('noSpecificStandards')}
-                                            </p>
-                                        )}
-                                        
-                                        {tradeResource?.regulation_links?.length > 0 && (
-                                            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/60">
-                                                <span className="text-xs text-slate-400 w-full mb-1">{t('officialResourceLinks')}:</span>
-                                                {tradeResource.regulation_links.map((link, idx) => (
-                                                    <a key={idx} href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-md text-xs text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors">
-                                                        <ExternalLink className="w-3 h-3" />
-                                                        {t('officialSources')} {idx + 1}
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                
-                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                                    <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
-                                        <Lock className="w-4 h-4" />
-                                        {t('importLegality')}
-                                    </h4>
-                                    <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.import_legality || '---'}</p>
-                                </div>
+                                {renderComplianceContent()}
                             </TabsContent>
 
                             <TabsContent value="technical" className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('standardizedName')}</h4>
-                                        <ReportContentWrapper languageCode={report.target_language}>
-                                            <p className="text-slate-900">{spec.standardized_name || '---'}</p>
-                                        </ReportContentWrapper>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('materialComposition')}</h4>
-                                        <ReportContentWrapper languageCode={report.target_language}>
-                                            <p className="text-slate-900">{spec.material_composition || '---'}</p>
-                                        </ReportContentWrapper>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('function')}</h4>
-                                        <ReportContentWrapper languageCode={report.target_language}>
-                                            <p className="text-slate-900">{spec.function || '---'}</p>
-                                        </ReportContentWrapper>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('essentialCharacter')}</h4>
-                                        <ReportContentWrapper languageCode={report.target_language}>
-                                            <p className="text-slate-900">{spec.essential_character || '---'}</p>
-                                        </ReportContentWrapper>
-                                    </div>
-                                </div>
+                                {renderTechnicalContent()}
                             </TabsContent>
                             
                             <TabsContent value="legal">
-                                <div className="prose prose-sm max-w-none p-4 bg-slate-50 rounded-lg">
-                                    <ReportContentWrapper languageCode={report.target_language}>
-                                        <p className="whitespace-pre-wrap">{primaryResult.reasoning}</p>
-                                    </ReportContentWrapper>
-                                </div>
+                                {renderLegalContent()}
                             </TabsContent>
                             
                             <TabsContent value="sources">
-                                <div className="space-y-2">
-                                    {(research.verified_sources || []).map((source, idx) => (
-                                        <a 
-                                            key={idx} 
-                                            href={source.url} 
-                                            target="_blank" 
-                                            rel="noreferrer"
-                                            className="block p-3 bg-white border hover:bg-slate-50 rounded-lg transition-colors group"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="font-medium text-[#114B5F] group-hover:underline">{source.title}</h4>
-                                                <ExternalLink className="w-4 h-4 text-slate-400" />
-                                            </div>
-                                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">{source.snippet}</p>
-                                            <div className="flex gap-2 mt-2">
-                                                <Badge variant="secondary" className="text-[10px] h-5">{new Date(source.date).toLocaleDateString()}</Badge>
-                                            </div>
-                                        </a>
-                                    ))}
-                                    {(!research.verified_sources || research.verified_sources.length === 0) && (
-                                        <p className="text-slate-500 italic">No public sources linked.</p>
-                                    )}
-                                </div>
+                                {renderSourcesContent()}
                             </TabsContent>
                         </Tabs>
                     </CardContent>
