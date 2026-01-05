@@ -53,8 +53,10 @@ Task: Provide a comprehensive customs classification analysis including:
 6. Official sources for verification
 7. Alternative classification options if applicable
 
-Format your response as a JSON object with the following structure:
-{
+CRITICAL: You must generate the report content in ${targetLanguage === 'he' ? 'HEBREW (עברית)' : 'ENGLISH'}.
+
+  Format your response as a JSON object with the following structure:
+  {
   "hs_code": "string",
   "confidence_score": number (0-100),
   "classification_reasoning": "detailed explanation",

@@ -48,6 +48,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
+import ReportContentWrapper from '@/components/report/ReportContentWrapper';
 
 export default function ReportView() {
   const { t, language, isRTL } = useLanguage();
@@ -287,9 +288,11 @@ export default function ReportView() {
                         </div>
                         
                         <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-                            <p className="text-white/90 leading-relaxed italic">
-                                "{primaryResult.reasoning}"
-                            </p>
+                            <ReportContentWrapper languageCode={report.target_language}>
+                                <p className="text-white/90 leading-relaxed italic">
+                                    "{primaryResult.reasoning}"
+                                </p>
+                            </ReportContentWrapper>
                         </div>
                     </CardContent>
                 </Card>
@@ -322,8 +325,10 @@ export default function ReportView() {
                                     <TableCell className="text-sm text-slate-600 max-w-md truncate" title={primaryResult.reasoning}>
                                         <Badge variant="outline" className="text-[#114B5F] border-[#114B5F] mb-1">Primary</Badge>
                                         <br/>
-                                        {primaryResult.reasoning}
-                                    </TableCell>
+                                        <ReportContentWrapper languageCode={report.target_language}>
+                                            {primaryResult.reasoning}
+                                        </ReportContentWrapper>
+                                    </TableCell
                                 </TableRow>
 
                                 {/* Alternatives */}
@@ -336,8 +341,10 @@ export default function ReportView() {
                                             <TableCell>{reg.duty_rate || '---'}</TableCell>
                                             <TableCell className="text-sm text-slate-600 max-w-md">
                                                  <span className="font-semibold text-slate-900 block mb-1">Why rejected:</span>
-                                                 {alt.rejection_reason || alt.reasoning}
-                                            </TableCell>
+                                                 <ReportContentWrapper languageCode={report.target_language}>
+                                                    {alt.rejection_reason || alt.reasoning}
+                                                 </ReportContentWrapper>
+                                            </TableCell
                                         </TableRow>
                                     );
                                 })}
@@ -493,7 +500,9 @@ export default function ReportView() {
                             
                             <TabsContent value="legal">
                                 <div className="prose prose-sm max-w-none p-4 bg-slate-50 rounded-lg">
-                                    <p className="whitespace-pre-wrap">{primaryResult.reasoning}</p>
+                                    <ReportContentWrapper languageCode={report.target_language}>
+                                        <p className="whitespace-pre-wrap">{primaryResult.reasoning}</p>
+                                    </ReportContentWrapper>
                                 </div>
                             </TabsContent>
                             
