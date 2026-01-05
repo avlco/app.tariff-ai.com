@@ -31,7 +31,7 @@ export default Deno.serve(async (req) => {
              
              // We need to construct the full URL usually, but for internal use here just the token is enough
              // Updating DB to ensure the view works
-             await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+             await base44.entities.ClassificationReport.update(reportId, {
                  public_share_url: `https://${req.headers.get("host")}/shared/${token}`,
                  public_share_expires_at: expiry.toISOString()
              });
