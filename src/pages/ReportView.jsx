@@ -366,6 +366,87 @@ export default function ReportView() {
   
   const StatusIcon = statusConfig[report.status]?.icon || Clock;
 
+  // ======== PDF MODE: Simplified stacked layout for print ========
+  if (isPdfMode) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 bg-white">
+        {/* PDF Header */}
+        <div className="border-b pb-4 mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <Badge className={`${statusConfig[report.status]?.color} border-0`}>
+              <StatusIcon className="w-3 h-3 me-1" />
+              {statusConfig[report.status]?.label}
+            </Badge>
+            <span className="text-sm text-slate-500">ID: {report.report_id}</span>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">{report.product_name}</h1>
+          <p className="text-sm text-slate-500 mt-1">{format(new Date(report.created_date), 'dd/MM/yyyy HH:mm')}</p>
+        </div>
+
+        {/* Primary Classification */}
+        <div className="bg-[#114B5F] text-white rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Scale className="w-5 h-5 text-[#42C0B9]" />
+            {t('primaryClassification')}
+          </h2>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p className="text-white/70 text-sm uppercase">HS Code</p>
+              <p className="text-4xl font-mono font-bold">{primaryResult.hs_code || '---'}</p>
+            </div>
+            <div className="flex gap-6">
+              <div><p className="text-white/70 text-sm">Duty Rate</p><p className="text-xl font-semibold text-[#42C0B9]">{regulatoryPrimary.duty_rate || 'N/A'}</p></div>
+              <div><p className="text-white/70 text-sm">VAT</p><p className="text-xl font-semibold text-[#42C0B9]">{regulatoryPrimary.vat_rate || 'N/A'}</p></div>
+            </div>
+          </div>
+          <div className="bg-white/10 rounded-lg p-3">
+            <ReportContentWrapper languageCode={report.target_language}>
+              <p className="text-white/90 italic text-sm">"{primaryResult.reasoning}"</p>
+            </ReportContentWrapper>
+          </div>
+        </div>
+
+        {/* Technical Spec */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('technicalSpec')}</h2>
+          {renderTechnicalContent()}
+        </div>
+
+        {/* Legal Reasoning */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('fullLegalReasoning')}</h2>
+          {renderLegalContent()}
+        </div>
+
+        {/* Compliance */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('complianceRegulation')}</h2>
+          {renderComplianceContent()}
+        </div>
+
+        {/* Sources */}
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('verifiedSources')}</h2>
+          {renderSourcesContent()}
+        </div>
+
+        {/* Trade Details */}
+        <div className="border-t pt-4">
+          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('tradeDetails')}</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div><p className="text-sm text-slate-500">{t('destination')}</p><p className="font-medium">{report.destination_country}</p></div>
+            <div><p className="text-sm text-slate-500">{t('origin')}</p><p className="font-medium">{report.country_of_origin}</p></div>
+          </div>
+        </div>
+
+        <div className="text-center text-xs text-slate-400 mt-8 pt-4 border-t">
+          {t('generatedBy')} • {t('reportId')}: {report.report_id}
+        </div>
+      </div>
+    );
+  }
+
+  // ======== NORMAL MODE: Full interactive view ========
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6">
       {/* Header */}
@@ -374,10 +455,12 @@ export default function ReportView() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-4"
       >
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-          <ChevronLeft className="w-4 h-4 me-2" />
-          {t('backToReports')}
-        </Button>
+        {!token && (
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+            <ChevronLeft className="w-4 h-4 me-2" />
+            {t('backToReports')}
+          </Button>
+        )}
         
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -398,67 +481,51 @@ export default function ReportView() {
             </p>
           </div>
           
-          <div className="flex items-center gap-2">
-             {report.status === 'completed' && (
-                <>
-                    <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
-                      {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
-                      {t('share')}
-                    </Button>
-                    <Button variant="outline" onClick={async () => {
-                        const toastId = toast.loading(language === 'he' ? 'מייצר PDF...' : 'Generating PDF...');
-                        try {
-                            const response = await base44.functions.invoke('generatePdf', { reportId });
-                            
-                            // Handle Blob response (axios/sdk might wrap it, but invoke returns {data, ...})
-                            // If backend returns binary stream, base44 SDK invoke might treat it as text/json by default unless configured?
-                            // Standard fetch approach in frontend for binary:
-                            
-                            // Re-fetching using standard fetch to handle binary blob correctly if SDK doesn't support stream well
-                            // Or use SDK if it handles arraybuffer. Let's assume standard fetch for binary safety given standard SDK usage limits.
-                            // Actually, let's try the SDK first. If it returns text/json it might corrupt binary.
-                            // Better approach for binary download:
-                            
-                            // Using direct fetch to function endpoint if possible? 
-                            // The SDK `invoke` wraps axios. 
-                            
-                            // Let's use the SDK. If it fails we'll fix. 
-                            // *Correction*: SDK invoke returns `data` parsed. For binary, we might get a buffer or string.
-                            // Let's use a specialized fetch here to be safe and ensure blob type.
-                            
-                            const functionUrl = '/api/functions/generatePdf'; // Standard base44 proxy path
-                            const res = await fetch(functionUrl, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ reportId })
-                            });
-                            
-                            if (!res.ok) throw new Error('PDF Generation failed');
-                            
-                            const blob = await res.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `report-${reportId}.pdf`;
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                            document.body.removeChild(a);
-                            
-                            toast.dismiss(toastId);
-                            toast.success(language === 'he' ? 'הורדה הושלמה' : 'Download complete');
-                        } catch (e) {
-                            console.error(e);
-                            toast.dismiss(toastId);
-                            toast.error(language === 'he' ? 'שגיאה ביצירת PDF' : 'Error generating PDF');
-                        }
-                    }}>
-                       <FileText className="w-4 h-4 me-2"/>
-                       Export PDF
-                    </Button>
-                </>
-             )}
-          </div>
+          {!token && (
+            <div className="flex items-center gap-2">
+               {report.status === 'completed' && (
+                  <>
+                      <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
+                        {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
+                        {t('share')}
+                      </Button>
+                      <Button variant="outline" onClick={async () => {
+                          const toastId = toast.loading(language === 'he' ? 'מייצר PDF...' : 'Generating PDF...');
+                          try {
+                              const functionUrl = '/api/functions/generatePdf';
+                              const res = await fetch(functionUrl, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ reportId })
+                              });
+                              
+                              if (!res.ok) throw new Error('PDF Generation failed');
+                              
+                              const blob = await res.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `report-${reportId}.pdf`;
+                              document.body.appendChild(a);
+                              a.click();
+                              window.URL.revokeObjectURL(url);
+                              document.body.removeChild(a);
+                              
+                              toast.dismiss(toastId);
+                              toast.success(language === 'he' ? 'הורדה הושלמה' : 'Download complete');
+                          } catch (e) {
+                              console.error(e);
+                              toast.dismiss(toastId);
+                              toast.error(language === 'he' ? 'שגיאה ביצירת PDF' : 'Error generating PDF');
+                          }
+                      }}>
+                         <FileText className="w-4 h-4 me-2"/>
+                         Export PDF
+                      </Button>
+                  </>
+               )}
+            </div>
+          )}
         </div>
       </motion.div>
 
