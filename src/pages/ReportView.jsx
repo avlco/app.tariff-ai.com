@@ -481,19 +481,27 @@ export default function ReportView() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="p-4 bg-slate-50 rounded-lg">
                                         <h4 className="font-semibold text-sm text-slate-500 mb-1">Standardized Name</h4>
-                                        <p className="text-slate-900">{spec.standardized_name || '---'}</p>
+                                        <ReportContentWrapper languageCode={report.target_language}>
+                                            <p className="text-slate-900">{spec.standardized_name || '---'}</p>
+                                        </ReportContentWrapper>
                                     </div>
                                     <div className="p-4 bg-slate-50 rounded-lg">
                                         <h4 className="font-semibold text-sm text-slate-500 mb-1">Material Composition</h4>
-                                        <p className="text-slate-900">{spec.material_composition || '---'}</p>
+                                        <ReportContentWrapper languageCode={report.target_language}>
+                                            <p className="text-slate-900">{spec.material_composition || '---'}</p>
+                                        </ReportContentWrapper>
                                     </div>
                                     <div className="p-4 bg-slate-50 rounded-lg">
                                         <h4 className="font-semibold text-sm text-slate-500 mb-1">Function</h4>
-                                        <p className="text-slate-900">{spec.function || '---'}</p>
+                                        <ReportContentWrapper languageCode={report.target_language}>
+                                            <p className="text-slate-900">{spec.function || '---'}</p>
+                                        </ReportContentWrapper>
                                     </div>
                                     <div className="p-4 bg-slate-50 rounded-lg">
                                         <h4 className="font-semibold text-sm text-slate-500 mb-1">Essential Character</h4>
-                                        <p className="text-slate-900">{spec.essential_character || '---'}</p>
+                                        <ReportContentWrapper languageCode={report.target_language}>
+                                            <p className="text-slate-900">{spec.essential_character || '---'}</p>
+                                        </ReportContentWrapper>
                                     </div>
                                 </div>
                             </TabsContent>
