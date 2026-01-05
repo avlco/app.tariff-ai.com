@@ -328,7 +328,7 @@ export default function ReportView() {
                                         <ReportContentWrapper languageCode={report.target_language}>
                                             {primaryResult.reasoning}
                                         </ReportContentWrapper>
-                                    </TableCell
+                                    </TableCell>
                                 </TableRow>
 
                                 {/* Alternatives */}
@@ -344,7 +344,7 @@ export default function ReportView() {
                                                  <ReportContentWrapper languageCode={report.target_language}>
                                                     {alt.rejection_reason || alt.reasoning}
                                                  </ReportContentWrapper>
-                                            </TableCell
+                                            </TableCell>
                                         </TableRow>
                                     );
                                 })}
