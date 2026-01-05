@@ -16,7 +16,7 @@ import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 
 export default function PublicReportView() {
-  const { t, setLanguage } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,6 +25,8 @@ export default function PublicReportView() {
   const token = urlParams.get('token');
   
   useEffect(() => {
+    let originalLanguage = language;
+    
     const loadReport = async () => {
       if (!token) {
         setError('invalidLink');
@@ -48,6 +50,10 @@ export default function PublicReportView() {
     };
     
     loadReport();
+
+    return () => {
+        setLanguage(originalLanguage);
+    };
   }, [token, setLanguage]);
   
   const statusConfig = {

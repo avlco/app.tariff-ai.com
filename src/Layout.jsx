@@ -53,12 +53,15 @@ function LayoutContent({ children, currentPageName }) {
   };
   
   return (
-    <div className={`min-h-screen bg-[#FAFBFC] dark:bg-[#0B1120] ${isRTL ? 'font-heebo' : 'font-sans'}`}>
+    <div className={`min-h-screen bg-[#FAFBFC] dark:bg-[#0B1120] ${language === 'ja' ? 'font-japanese' : language === 'zh' ? 'font-chinese' : isRTL ? 'font-heebo' : 'font-sans'}`}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
         :root { --primary-navy: #114B5F; --primary-teal: #42C0B9; --primary-gold: #D89C42; }
         .font-heebo { font-family: 'Heebo', sans-serif; }
         .font-sans { font-family: 'Inter', sans-serif; }
+        .font-japanese { font-family: 'Noto Sans JP', sans-serif; }
+        .font-chinese { font-family: 'Noto Sans SC', sans-serif; }
       `}</style>
       
       {/* key={language} מכריח יצירה מחדש של הרכיב בשינוי שפה - קריטי למיקום */}

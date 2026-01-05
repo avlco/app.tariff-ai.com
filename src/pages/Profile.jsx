@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useLanguage } from '../components/providers/LanguageContext';
+import { LANGUAGES } from '@/components/constants/languages';
 import PricingPlans from '../components/profile/PricingPlans';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -291,8 +292,14 @@ export default function Profile() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="he">עברית</SelectItem>
-                        <SelectItem value="en">English</SelectItem>
+                        {LANGUAGES.map((lang) => (
+                          <SelectItem key={lang.code} value={lang.code}>
+                            <span className="flex items-center gap-2">
+                              <span>{lang.flag}</span>
+                              <span>{lang.nativeName}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -307,8 +314,14 @@ export default function Profile() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="he">עברית</SelectItem>
-                        <SelectItem value="en">English</SelectItem>
+                        {LANGUAGES.map((lang) => (
+                          <SelectItem key={lang.code} value={lang.code}>
+                            <span className="flex items-center gap-2">
+                              <span>{lang.flag}</span>
+                              <span>{lang.nativeName}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
