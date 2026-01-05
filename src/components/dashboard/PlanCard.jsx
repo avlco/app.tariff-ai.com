@@ -16,27 +16,17 @@ const planLimits = {
   enterprise: 999,
 };
 
-const planNames = {
-  he: {
-    free: 'חינם',
-    pay_per_use: 'לפי שימוש',
-    basic: 'בסיסי',
-    pro: 'מקצועי',
-    agency: 'סוכנות',
-    enterprise: 'ארגוני',
-  },
-  en: {
-    free: 'Free',
-    pay_per_use: 'Pay Per Use',
-    basic: 'Basic',
-    pro: 'Pro',
-    agency: 'Agency',
-    enterprise: 'Enterprise',
-  }
+const planKeys = {
+  free: 'free',
+  pay_per_use: 'payPerUse',
+  basic: 'basic',
+  pro: 'pro',
+  agency: 'agency',
+  enterprise: 'enterprise',
 };
 
 export default function PlanCard({ user }) {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   
   const plan = user?.subscription_plan || 'free';
   const used = user?.reports_used_this_month || 0;
@@ -61,7 +51,7 @@ export default function PlanCard({ user }) {
           </div>
           
           <h3 className="text-2xl font-bold mb-4">
-            {planNames[language][plan]}
+            {t(planKeys[plan])}
           </h3>
           
           <div className="space-y-3">

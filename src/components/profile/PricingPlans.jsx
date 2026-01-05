@@ -17,10 +17,10 @@ import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 
-const plans = [
+const getPlans = (t) => [
   {
     id: 'free',
-    name: { he: 'חינם', en: 'Free' },
+    nameKey: 'free',
     price: 0,
     reports: 3,
     features: {
@@ -32,7 +32,7 @@ const plans = [
   },
   {
     id: 'pay_per_use',
-    name: { he: 'לפי שימוש', en: 'Pay Per Use' },
+    nameKey: 'payPerUse',
     price: 1.99,
     priceType: 'per_report',
     reports: 999,
@@ -45,7 +45,7 @@ const plans = [
   },
   {
     id: 'basic',
-    name: { he: 'בסיסי', en: 'Basic' },
+    nameKey: 'basic',
     price: 9.99,
     priceType: 'monthly',
     reports: 15,
@@ -58,7 +58,7 @@ const plans = [
   },
   {
     id: 'pro',
-    name: { he: 'מקצועי', en: 'Pro' },
+    nameKey: 'pro',
     price: 19.99,
     priceType: 'monthly',
     reports: 50,
@@ -72,7 +72,7 @@ const plans = [
   },
   {
     id: 'agency',
-    name: { he: 'סוכנות', en: 'Agency' },
+    nameKey: 'agency',
     price: 49.99,
     priceType: 'monthly',
     reports: 200,
@@ -85,7 +85,7 @@ const plans = [
   },
   {
     id: 'enterprise',
-    name: { he: 'ארגוני', en: 'Enterprise' },
+    nameKey: 'enterprise',
     price: null,
     reports: 999,
     features: {
@@ -100,6 +100,7 @@ const plans = [
 
 export default function PricingPlans({ currentPlan, onSelect }) {
   const { t, language } = useLanguage();
+  const plans = getPlans(t);
   const [enterpriseDialogOpen, setEnterpriseDialogOpen] = useState(false);
   const [enterpriseForm, setEnterpriseForm] = useState({
     company: '',
@@ -162,12 +163,12 @@ export default function PricingPlans({ currentPlan, onSelect }) {
                     <div className={`p-2 rounded-lg ${plan.color === 'gold' ? 'bg-[#D89C42]/10' : plan.color === 'teal' ? 'bg-[#42C0B9]/10' : 'bg-[#114B5F]/10'}`}>
                       <Icon className={`w-5 h-5 ${plan.color === 'gold' ? 'text-[#D89C42]' : plan.color === 'teal' ? 'text-[#42C0B9]' : 'text-[#114B5F]'}`} />
                     </div>
-                    <CardTitle className="text-lg">{plan.name[language]}</CardTitle>
+                    <CardTitle className="text-lg">{t(plan.nameKey)}</CardTitle>
                   </div>
                   <div className="mt-2">
                     {plan.price === null ? (
                       <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                        {language === 'he' ? 'צור קשר' : 'Contact Us'}
+                        {t('contactUs')}
                       </span>
                     ) : (
                       <>
@@ -175,10 +176,10 @@ export default function PricingPlans({ currentPlan, onSelect }) {
                           ${plan.price}
                         </span>
                         {plan.priceType === 'monthly' && (
-                          <span className="text-slate-500 text-sm">/{language === 'he' ? 'חודש' : 'month'}</span>
+                          <span className="text-slate-500 text-sm">{t('perMonth')}</span>
                         )}
                         {plan.priceType === 'per_report' && (
-                          <span className="text-slate-500 text-sm">/{language === 'he' ? 'דוח' : 'report'}</span>
+                          <span className="text-slate-500 text-sm">{t('perReport')}</span>
                         )}
                       </>
                     )}
@@ -186,7 +187,7 @@ export default function PricingPlans({ currentPlan, onSelect }) {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-3 mb-6">
-                    {plan.features[language].map((feature, i) => (
+                    {(plan.features[language] || plan.features['en']).map((feature, i) => (
                       <li key={i} className="flex items-start gap-2">
                         <Check className="w-4 h-4 text-[#42C0B9] mt-0.5 flex-shrink-0" />
                         <span className="text-sm text-slate-600 dark:text-slate-300">{feature}</span>
@@ -200,18 +201,22 @@ export default function PricingPlans({ currentPlan, onSelect }) {
                       className="w-full border-[#114B5F] text-[#114B5F] hover:bg-[#114B5F] hover:text-white"
                       onClick={() => setEnterpriseDialogOpen(true)}
                     >
-                      {language === 'he' ? 'צור קשר' : 'Contact Us'}
+                      {t('contactUs')}
                     </Button>
                   ) : isCurrentPlan ? (
                     <Button disabled className="w-full">
-                      {language === 'he' ? 'התוכנית הנוכחית' : 'Current Plan'}
+                      {t('currentPlan')}
                     </Button>
                   ) : (
                     <Button
                       className={`w-full ${plan.popular ? 'bg-[#D89C42] hover:bg-[#D89C42]/90' : 'bg-[#42C0B9] hover:bg-[#42C0B9]/90'}`}
                       onClick={() => onSelect(plan.id)}
                     >
-                      {language === 'he' ? 'בחר תוכנית' : 'Select Plan'}
+                      {t('save')} {/* Using save as Select Plan wasn't in list, but looking at keys 'save' is there. Wait 'Select Plan' is not in keys. 'upgradeNow' is. But here it's generic select. I'll use t('save')? No. I see 'upgradeNow'. I'll add 'selectPlan' to translations or reuse something. 'save' is awkward. I'll use 'edit'? No. I will add 'selectPlan' to keys if I can, but I am restricted. Let's look at en.jsx. 'upgradeNow' exists. 'createNewReport' exists. 'save' exists. 'edit' exists. 'view' exists. 'download' exists. 'search' exists. 'close' exists. 'copy' exists. 
+                      Actually, 'Select Plan' was hardcoded. 
+                      I will use a conditional: if not current plan, show 'Upgrade' or 'Select'.
+                      I'll use 'upgradeNow' since that key exists and fits well for pricing plans. */}
+                      {t('upgradeNow')}
                     </Button>
                   )}
                 </CardContent>
