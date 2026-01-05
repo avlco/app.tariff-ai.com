@@ -43,6 +43,7 @@ export default {
   
   // New Report Details Keys
   primaryClassification: 'Primary Classification',
+  legalBasis: 'Legal Basis (GRI)',
   alternativesComparison: 'Alternatives Comparison',
   technicalLegalDetails: 'Technical & Legal Details',
   technicalSpec: 'Technical Spec',

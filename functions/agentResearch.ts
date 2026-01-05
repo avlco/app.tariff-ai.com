@@ -100,6 +100,24 @@ export default Deno.serve(async (req) => {
     
     const spec = report.structural_analysis;
     const destCountry = report.destination_country;
+
+    // --- Search Language Logic ---
+    const countryLangMap = {
+        'Israel': 'he',
+        'USA': 'en', 'United States': 'en', 'UK': 'en', 'United Kingdom': 'en', 'Canada': 'en', 'Australia': 'en',
+        'France': 'fr',
+        'Germany': 'de',
+        'Spain': 'es', 'Mexico': 'es', 'Argentina': 'es',
+        'China': 'zh-CN',
+        'Japan': 'ja',
+        'Italy': 'it',
+        'Brazil': 'pt', 'Portugal': 'pt',
+        'Russia': 'ru'
+    };
+    // Default to 'en' if country not in map or strict match fails
+    // A smarter fuzzy match could be added, but this covers major economies
+    const searchLang = countryLangMap[destCountry] || 'en';
+    // -----------------------------
     const tradeResources = await base44.entities.CountryTradeResource.filter({ country_name: destCountry });
     const resource = tradeResources[0];
     
@@ -143,7 +161,11 @@ Links: ${officialLinks.join(', ')}
       Task: Find local regulations, taxes, and legal notes in the local language of ${destCountry}.
       
       Product: ${spec.standardized_name}
-      Language: Perform search in ${targetLanguage === 'he' ? 'Hebrew' : 'the local language'} and English.
+      
+      SEARCH STRATEGY:
+      - Search for import duties, taxes, and restrictions for ${spec.standardized_name} importing into ${destCountry}.
+      - **IMPORTANT:** Perform search queries in **${searchLang}** (Language Code) to find official local government sources (Official Gazettes/Ministries).
+      - Also search in English for international summaries if local sources are sparse.
       
       1. Find "Verified Sources" (Official government URLs) for customs tariffs in ${destCountry}.
       2. Identify any "Legal Notes" or Prohibitions for this type of product.

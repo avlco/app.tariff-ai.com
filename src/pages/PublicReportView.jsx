@@ -145,6 +145,16 @@ export default function PublicReportView() {
                   <div className="relative">
                     <p className="text-sm text-white/70 mb-2">{t('hsCode')}</p>
                     <p className="text-4xl font-bold mb-4">{report.hs_code || '---'}</p>
+                    
+                    {report.classification_results?.primary?.legal_basis && (
+                        <div className="mb-4 inline-flex items-center bg-white/10 px-2 py-1 rounded text-xs text-white/90">
+                            <span className="font-semibold opacity-70 me-1">{t('legalBasis')}:</span>
+                            <ReportContentWrapper languageCode="en" className="font-medium">
+                                {report.classification_results.primary.legal_basis}
+                            </ReportContentWrapper>
+                        </div>
+                    )}
+
                     <div className="flex items-center gap-4">
                       <div>
                         <p className="text-sm text-white/70">{t('securityLevel')}</p>

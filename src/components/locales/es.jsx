@@ -34,6 +34,7 @@ export default {
   alternativeClassifications: 'Clasificaciones alternativas',
   tradeDetails: 'Detalles comerciales',
   primaryClassification: 'Clasificación primaria',
+  legalBasis: 'Base jurídica (GRI)',
   alternativesComparison: 'Comparación de alternativas',
   technicalLegalDetails: 'Detalles técnicos y legales',
   technicalSpec: 'Especificación técnica',

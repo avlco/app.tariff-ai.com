@@ -271,7 +271,15 @@ export default function ReportView() {
                         <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
                             <div>
                                 <p className="text-white/70 text-sm uppercase tracking-wider mb-1">HS Code</p>
-                                <p className="text-5xl font-mono font-bold tracking-tight">{primaryResult.hs_code || '---'}</p>
+                                <p className="text-5xl font-mono font-bold tracking-tight mb-2">{primaryResult.hs_code || '---'}</p>
+                                {primaryResult.legal_basis && (
+                                    <div className="inline-flex items-center bg-white/10 px-2 py-1 rounded text-xs text-white/90">
+                                        <span className="font-semibold opacity-70 me-1">{t('legalBasis')}:</span>
+                                        <ReportContentWrapper languageCode="en" className="font-medium">
+                                            {primaryResult.legal_basis}
+                                        </ReportContentWrapper>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex gap-8">
                                 <div>

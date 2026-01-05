@@ -34,6 +34,7 @@ export default {
   alternativeClassifications: '代替分類',
   tradeDetails: '貿易詳細',
   primaryClassification: '一次分類',
+  legalBasis: '法的根拠 (GRI)',
   alternativesComparison: '代替案の比較',
   technicalLegalDetails: '技術的および法的詳細',
   technicalSpec: '技術仕様',

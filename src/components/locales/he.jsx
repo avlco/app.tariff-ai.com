@@ -43,6 +43,7 @@ export default {
 
   // New Report Details Keys
   primaryClassification: 'סיווג ראשי',
+  legalBasis: 'בסיס חוקי (GRI)',
   alternativesComparison: 'השוואת חלופות',
   technicalLegalDetails: 'פרטים טכניים ומשפטיים',
   technicalSpec: 'מפרט טכני',
