@@ -20,78 +20,60 @@ import { toast } from 'sonner';
 const getPlans = (t) => [
   {
     id: 'free',
-    nameKey: 'free',
+    nameKey: 'pricing.free.title',
     price: 0,
     reports: 3,
-    features: {
-      he: ['עד 3 דוחות בחודש', 'תצוגה מוגבלת של הדוח', 'קוד HS בלבד'],
-      en: ['Up to 3 reports/month', 'Limited report view', 'HS Code only'],
-    },
+    featureKeys: 'pricing.free.features',
     icon: Zap,
     color: 'slate',
   },
   {
     id: 'pay_per_use',
-    nameKey: 'payPerUse',
+    nameKey: 'pricing.payPerUse.title',
     price: 1.99,
     priceType: 'per_report',
     reports: 999,
-    features: {
-      he: ['$1.99 לדוח', 'תצוגה מלאה של הדוח', 'ללא הגבלה'],
-      en: ['$1.99 per report', 'Full report view', 'Unlimited'],
-    },
+    featureKeys: 'pricing.payPerUse.features',
     icon: Zap,
     color: 'teal',
   },
   {
     id: 'basic',
-    nameKey: 'basic',
+    nameKey: 'pricing.basic.title',
     price: 9.99,
     priceType: 'monthly',
     reports: 15,
-    features: {
-      he: ['עד 15 דוחות בחודש', 'תצוגה מלאה של הדוח', 'תמיכה באימייל'],
-      en: ['Up to 15 reports/month', 'Full report view', 'Email support'],
-    },
+    featureKeys: 'pricing.basic.features',
     icon: Zap,
     color: 'teal',
   },
   {
     id: 'pro',
-    nameKey: 'pro',
+    nameKey: 'pricing.pro.title',
     price: 19.99,
     priceType: 'monthly',
     reports: 50,
     popular: true,
-    features: {
-      he: ['עד 50 דוחות בחודש', 'תצוגה מלאה של הדוח', 'תמיכה בעדיפות', 'ייצוא PDF'],
-      en: ['Up to 50 reports/month', 'Full report view', 'Priority support', 'PDF export'],
-    },
+    featureKeys: 'pricing.pro.features',
     icon: Crown,
     color: 'gold',
   },
   {
     id: 'agency',
-    nameKey: 'agency',
+    nameKey: 'pricing.agency.title',
     price: 49.99,
     priceType: 'monthly',
     reports: 200,
-    features: {
-      he: ['עד 200 דוחות בחודש', 'תצוגה מלאה של הדוח', 'תמיכה בעדיפות גבוהה', 'API גישה'],
-      en: ['Up to 200 reports/month', 'Full report view', 'Premium support', 'API access'],
-    },
+    featureKeys: 'pricing.agency.features',
     icon: Building2,
     color: 'navy',
   },
   {
     id: 'enterprise',
-    nameKey: 'enterprise',
+    nameKey: 'pricing.enterprise.title',
     price: null,
     reports: 999,
-    features: {
-      he: ['ללא הגבלת דוחות', 'התאמה אישית', 'מנהל חשבון ייעודי', 'SLA מותאם'],
-      en: ['Unlimited reports', 'Custom solutions', 'Dedicated account manager', 'Custom SLA'],
-    },
+    featureKeys: 'pricing.enterprise.features',
     icon: Building2,
     color: 'navy',
     enterprise: true,
@@ -187,7 +169,7 @@ export default function PricingPlans({ currentPlan, onSelect }) {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-3 mb-6">
-                    {(plan.features[language] || plan.features['en']).map((feature, i) => (
+                    {t(plan.featureKeys).map((feature, i) => (
                       <li key={i} className="flex items-start gap-2">
                         <Check className="w-4 h-4 text-[#42C0B9] mt-0.5 flex-shrink-0" />
                         <span className="text-sm text-slate-600 dark:text-slate-300">{feature}</span>
@@ -212,10 +194,6 @@ export default function PricingPlans({ currentPlan, onSelect }) {
                       className={`w-full ${plan.popular ? 'bg-[#D89C42] hover:bg-[#D89C42]/90' : 'bg-[#42C0B9] hover:bg-[#42C0B9]/90'}`}
                       onClick={() => onSelect(plan.id)}
                     >
-                      {t('save')} {/* Using save as Select Plan wasn't in list, but looking at keys 'save' is there. Wait 'Select Plan' is not in keys. 'upgradeNow' is. But here it's generic select. I'll use t('save')? No. I see 'upgradeNow'. I'll add 'selectPlan' to translations or reuse something. 'save' is awkward. I'll use 'edit'? No. I will add 'selectPlan' to keys if I can, but I am restricted. Let's look at en.jsx. 'upgradeNow' exists. 'createNewReport' exists. 'save' exists. 'edit' exists. 'view' exists. 'download' exists. 'search' exists. 'close' exists. 'copy' exists. 
-                      Actually, 'Select Plan' was hardcoded. 
-                      I will use a conditional: if not current plan, show 'Upgrade' or 'Select'.
-                      I'll use 'upgradeNow' since that key exists and fits well for pricing plans. */}
                       {t('upgradeNow')}
                     </Button>
                   )}

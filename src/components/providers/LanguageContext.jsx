@@ -51,7 +51,8 @@ export const LanguageProvider = ({ children }) => {
   
   const t = (key) => {
     const dict = translations[language] || translations[DEFAULT_SYSTEM_LANGUAGE];
-    return dict[key] || key;
+    const value = key.split('.').reduce((acc, part) => acc && acc[part], dict);
+    return value !== undefined ? value : key;
   };
 
   // Helper to get direction for specific language code (useful for reports)

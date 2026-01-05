@@ -16,13 +16,14 @@ const planLimits = {
   enterprise: 999,
 };
 
+// Map plan IDs to pricing keys
 const planKeys = {
-  free: 'free',
-  pay_per_use: 'payPerUse',
-  basic: 'basic',
-  pro: 'pro',
-  agency: 'agency',
-  enterprise: 'enterprise',
+  free: 'pricing.free.title',
+  pay_per_use: 'pricing.payPerUse.title',
+  basic: 'pricing.basic.title',
+  pro: 'pricing.pro.title',
+  agency: 'pricing.agency.title',
+  enterprise: 'pricing.enterprise.title',
 };
 
 export default function PlanCard({ user }) {
@@ -51,7 +52,7 @@ export default function PlanCard({ user }) {
           </div>
           
           <h3 className="text-2xl font-bold mb-4">
-            {t(planKeys[plan])}
+            {t(planKeys[plan] || planKeys.free)}
           </h3>
           
           <div className="space-y-3">

@@ -109,6 +109,32 @@ export default {
   perReport: '/Bericht',
   perMonth: '/Monat',
   contactUs: 'Kontaktieren Sie uns',
+  pricing: {
+    free: {
+      title: 'Kostenlos',
+      features: ['Bis zu 3 Berichte/Monat', 'Eingeschränkte Berichtsanzeige', 'Nur HS-Code']
+    },
+    payPerUse: {
+      title: 'Pay Per Use',
+      features: ['$1.99 pro Bericht', 'Vollständige Berichtsanzeige', 'Unbegrenzt']
+    },
+    basic: {
+      title: 'Basis',
+      features: ['Bis zu 15 Berichte/Monat', 'Vollständige Berichtsanzeige', 'E-Mail-Support']
+    },
+    pro: {
+      title: 'Pro',
+      features: ['Bis zu 50 Berichte/Monat', 'Vollständige Berichtsanzeige', 'Bevorzugter Support', 'PDF-Export']
+    },
+    agency: {
+      title: 'Agentur',
+      features: ['Bis zu 200 Berichte/Monat', 'Vollständige Berichtsanzeige', 'Premium-Support', 'API-Zugriff']
+    },
+    enterprise: {
+      title: 'Unternehmen',
+      features: ['Unbegrenzte Berichte', 'Individuelle Lösungen', 'Dedizierter Account Manager', 'Individuelles SLA']
+    }
+  },
   processing: 'Verarbeitung',
   completed: 'Abgeschlossen',
   failed: 'Fehlgeschlagen',

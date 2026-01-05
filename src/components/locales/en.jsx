@@ -115,7 +115,7 @@ export default {
   dark: 'Dark',
   save: 'Save',
   
-  // Plans
+  // Plans - Old flat keys kept for backward compat or if used elsewhere, but new structure is below
   free: 'Free',
   payPerUse: 'Pay Per Use',
   basic: 'Basic',
@@ -126,6 +126,34 @@ export default {
   perReport: '/report',
   perMonth: '/month',
   contactUs: 'Contact Us',
+
+  // Pricing Object
+  pricing: {
+    free: {
+      title: 'Free',
+      features: ['Up to 3 reports/month', 'Limited report view', 'HS Code only']
+    },
+    payPerUse: {
+      title: 'Pay Per Use',
+      features: ['$1.99 per report', 'Full report view', 'Unlimited']
+    },
+    basic: {
+      title: 'Basic',
+      features: ['Up to 15 reports/month', 'Full report view', 'Email support']
+    },
+    pro: {
+      title: 'Pro',
+      features: ['Up to 50 reports/month', 'Full report view', 'Priority support', 'PDF export']
+    },
+    agency: {
+      title: 'Agency',
+      features: ['Up to 200 reports/month', 'Full report view', 'Premium support', 'API access']
+    },
+    enterprise: {
+      title: 'Enterprise',
+      features: ['Unlimited reports', 'Custom solutions', 'Dedicated account manager', 'Custom SLA']
+    }
+  },
   
   // Status
   processing: 'Processing',

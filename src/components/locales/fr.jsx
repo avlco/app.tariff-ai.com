@@ -109,6 +109,32 @@ export default {
   perReport: '/rapport',
   perMonth: '/mois',
   contactUs: 'Contactez-nous',
+  pricing: {
+    free: {
+      title: 'Gratuit',
+      features: ['Jusqu\'à 3 rapports/mois', 'Vue limitée du rapport', 'Code SH uniquement']
+    },
+    payPerUse: {
+      title: 'Paiement à l\'utilisation',
+      features: ['1,99 $ par rapport', 'Vue complète du rapport', 'Illimité']
+    },
+    basic: {
+      title: 'Basique',
+      features: ['Jusqu\'à 15 rapports/mois', 'Vue complète du rapport', 'Assistance par e-mail']
+    },
+    pro: {
+      title: 'Pro',
+      features: ['Jusqu\'à 50 rapports/mois', 'Vue complète du rapport', 'Assistance prioritaire', 'Exportation PDF']
+    },
+    agency: {
+      title: 'Agence',
+      features: ['Jusqu\'à 200 rapports/mois', 'Vue complète du rapport', 'Support premium', 'Accès API']
+    },
+    enterprise: {
+      title: 'Entreprise',
+      features: ['Rapports illimités', 'Solutions personnalisées', 'Gestionnaire de compte dédié', 'SLA personnalisé']
+    }
+  },
   processing: 'Traitement',
   completed: 'Terminé',
   failed: 'Échoué',

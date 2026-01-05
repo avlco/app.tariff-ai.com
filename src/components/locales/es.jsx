@@ -109,6 +109,32 @@ export default {
   perReport: '/informe',
   perMonth: '/mes',
   contactUs: 'Contáctenos',
+  pricing: {
+    free: {
+      title: 'Gratis',
+      features: ['Hasta 3 informes/mes', 'Vista limitada del informe', 'Solo código SA']
+    },
+    payPerUse: {
+      title: 'Pago por uso',
+      features: ['$1.99 por informe', 'Vista completa del informe', 'Ilimitado']
+    },
+    basic: {
+      title: 'Básico',
+      features: ['Hasta 15 informes/mes', 'Vista completa del informe', 'Soporte por correo']
+    },
+    pro: {
+      title: 'Pro',
+      features: ['Hasta 50 informes/mes', 'Vista completa del informe', 'Soporte prioritario', 'Exportación PDF']
+    },
+    agency: {
+      title: 'Agencia',
+      features: ['Hasta 200 informes/mes', 'Vista completa del informe', 'Soporte premium', 'Acceso API']
+    },
+    enterprise: {
+      title: 'Empresa',
+      features: ['Informes ilimitados', 'Soluciones personalizadas', 'Gerente de cuenta dedicado', 'SLA personalizado']
+    }
+  },
   processing: 'Procesando',
   completed: 'Completado',
   failed: 'Fallido',

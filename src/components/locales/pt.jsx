@@ -109,6 +109,32 @@ export default {
   perReport: '/relatório',
   perMonth: '/mês',
   contactUs: 'Fale conosco',
+  pricing: {
+    free: {
+      title: 'Grátis',
+      features: ['Até 3 relatórios/mês', 'Visualização limitada', 'Apenas código SH']
+    },
+    payPerUse: {
+      title: 'Pague pelo uso',
+      features: ['$1.99 por relatório', 'Visualização completa', 'Ilimitado']
+    },
+    basic: {
+      title: 'Básico',
+      features: ['Até 15 relatórios/mês', 'Visualização completa', 'Suporte por e-mail']
+    },
+    pro: {
+      title: 'Pro',
+      features: ['Até 50 relatórios/mês', 'Visualização completa', 'Suporte prioritário', 'Exportação PDF']
+    },
+    agency: {
+      title: 'Agência',
+      features: ['Até 200 relatórios/mês', 'Visualização completa', 'Suporte premium', 'Acesso API']
+    },
+    enterprise: {
+      title: 'Empresarial',
+      features: ['Relatórios ilimitados', 'Soluções personalizadas', 'Gerente de conta dedicado', 'SLA personalizado']
+    }
+  },
   processing: 'Processando',
   completed: 'Concluído',
   failed: 'Falhou',

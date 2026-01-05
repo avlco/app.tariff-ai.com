@@ -1,6 +1,4 @@
-
 export default {
-  // Navigation
   dashboard: 'ダッシュボード',
   newReport: '新規レポート',
   reports: 'レポート',
@@ -9,8 +7,6 @@ export default {
   logout: 'ログアウト',
   shipments: '出荷',
   customers: '顧客',
-  
-  // Dashboard
   welcomeBack: 'おかえりなさい',
   reportsThisMonth: '今月のレポート',
   reportsUsed: '使用済みレポート',
@@ -19,8 +15,6 @@ export default {
   viewAll: 'すべて表示',
   createNewReport: '新規レポート作成',
   upgradeNow: '今すぐアップグレード',
-  
-  // Report Creation
   describeProduct: '製品を説明してください',
   uploadFiles: 'ファイルをアップロード',
   productName: '製品名',
@@ -29,8 +23,6 @@ export default {
   destinationCountry: '仕向国',
   generateReport: 'レポート生成',
   generating: 'レポート生成中...',
-  
-  // Report Details
   reportDetails: 'レポート詳細',
   hsCode: 'HSコード',
   confidenceScore: '信頼度スコア',
@@ -41,8 +33,6 @@ export default {
   officialSources: '公式情報源',
   alternativeClassifications: '代替分類',
   tradeDetails: '貿易詳細',
-  
-  // New Report Details Keys
   primaryClassification: '一次分類',
   alternativesComparison: '代替案の比較',
   technicalLegalDetails: '技術的および法的詳細',
@@ -79,16 +69,12 @@ export default {
   verifySource: 'ソースを確認',
   origin: '原産地',
   destination: '仕向地',
-
-  // Public Report
   publicReport: '共有レポート',
   sharedVia: 'このレポートはTariff AI経由で共有されました',
   securityLevel: '信頼レベル',
   invalidLink: '無効なリンク',
   linkExpired: 'リンクの有効期限が切れているか無効です',
   tariffInformation: '関税情報',
-
-  // Support
   contactSupport: 'サポートに連絡',
   subject: '件名',
   category: 'カテゴリ',
@@ -99,8 +85,6 @@ export default {
   classification: '分類',
   account: 'アカウント',
   other: 'その他',
-  
-  // Profile
   personalInfo: '個人情報',
   companyName: '会社名',
   email: 'メール',
@@ -115,8 +99,6 @@ export default {
   light: 'ライト',
   dark: 'ダーク',
   save: '保存',
-  
-  // Plans
   free: '無料',
   payPerUse: '従量課金',
   basic: 'ベーシック',
@@ -127,8 +109,32 @@ export default {
   perReport: '/レポート',
   perMonth: '/月',
   contactUs: 'お問い合わせ',
-  
-  // Status
+  pricing: {
+    free: {
+      title: '無料',
+      features: ['月3レポートまで', '制限付きレポート表示', 'HSコードのみ']
+    },
+    payPerUse: {
+      title: '従量課金',
+      features: ['1レポートあたり$1.99', '完全なレポート表示', '無制限']
+    },
+    basic: {
+      title: 'ベーシック',
+      features: ['月15レポートまで', '完全なレポート表示', 'メールサポート']
+    },
+    pro: {
+      title: 'プロ',
+      features: ['月50レポートまで', '完全なレポート表示', '優先サポート', 'PDFエクスポート']
+    },
+    agency: {
+      title: 'エージェンシー',
+      features: ['月200レポートまで', '完全なレポート表示', 'プレミアムサポート', 'APIアクセス']
+    },
+    enterprise: {
+      title: 'エンタープライズ',
+      features: ['無制限レポート', 'カスタムソリューション', '専用アカウントマネージャー', 'カスタムSLA']
+    }
+  },
   processing: '処理中',
   completed: '完了',
   failed: '失敗',
@@ -136,8 +142,6 @@ export default {
   inProgress: '進行中',
   resolved: '解決済み',
   closed: 'クローズ',
-  
-  // Common
   loading: '読み込み中...',
   error: 'エラー',
   success: '成功',
@@ -150,11 +154,7 @@ export default {
   noResults: '結果なし',
   close: '閉じる',
   copy: 'コピー',
-  
-  // Disclaimer
   disclaimer: 'このレポートはAIによって生成されたものであり、公式の法的または税関の助言を構成するものではありません。公式の税関当局に情報を確認してください。',
-  
-  // Clarify Page & Notifications
   waiting_for_user: 'ユーザー待機中',
   action_required: 'アクションが必要',
   missingInformation: '不足情報',

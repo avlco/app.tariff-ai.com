@@ -109,6 +109,32 @@ export default {
   perReport: '/rapporto',
   perMonth: '/mese',
   contactUs: 'Contattaci',
+  pricing: {
+    free: {
+      title: 'Gratuito',
+      features: ['Fino a 3 rapporti/mese', 'Visualizzazione limitata', 'Solo codice SA']
+    },
+    payPerUse: {
+      title: 'Paga per uso',
+      features: ['$1.99 per rapporto', 'Visualizzazione completa', 'Illimitato']
+    },
+    basic: {
+      title: 'Base',
+      features: ['Fino a 15 rapporti/mese', 'Visualizzazione completa', 'Supporto email']
+    },
+    pro: {
+      title: 'Pro',
+      features: ['Fino a 50 rapporti/mese', 'Visualizzazione completa', 'Supporto prioritario', 'Esportazione PDF']
+    },
+    agency: {
+      title: 'Agenzia',
+      features: ['Fino a 200 rapporti/mese', 'Visualizzazione completa', 'Supporto premium', 'Accesso API']
+    },
+    enterprise: {
+      title: 'Enterprise',
+      features: ['Rapporti illimitati', 'Soluzioni personalizzate', 'Account manager dedicato', 'SLA personalizzato']
+    }
+  },
   processing: 'Elaborazione',
   completed: 'Completato',
   failed: 'Fallito',
