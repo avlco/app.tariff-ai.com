@@ -4,47 +4,33 @@ export default Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         
-        // Authenticate user
         const user = await base44.auth.me();
         if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
         const { reportId } = await req.json();
         if (!reportId) return Response.json({ error: 'Report ID required' }, { status: 400 });
 
-        // Retrieve Report (User role)
         const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
         const report = reports[0];
         if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
-        let token;
-        const now = new Date();
-        const expiresAt = report.public_share_expires_at ? new Date(report.public_share_expires_at) : null;
+        // Generate Token
+        const token = crypto.randomUUID();
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + 7); // 7 days validity
+        
+        // 1. Create ShareableReport record (Critical for PublicReportView to work)
+        await base44.asServiceRole.entities.ShareableReport.create({
+            token: token,
+            report_id: reportId,
+            expiry_date: expiry.toISOString()
+        });
 
-        // Smart Token Logic: Check if valid token exists
-        if (report.public_share_url && expiresAt && expiresAt > now) {
-            const urlParts = report.public_share_url.split('/shared/');
-            if (urlParts.length > 1) {
-                token = urlParts[1];
-            }
-        }
-
+        // 2. Construct the CORRECT internal URL
         const host = req.headers.get("host");
-
-        // If no valid token, generate new one
-        if (!token) {
-             token = crypto.randomUUID();
-             const expiry = new Date();
-             expiry.setDate(expiry.getDate() + 7); // 7 days validity
-             
-             // Update DB (Admin) - Using asServiceRole as requested
-             await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
-                 public_share_url: `https://${host}/shared/${token}`,
-                 public_share_expires_at: expiry.toISOString()
-             });
-        }
-
         const protocol = host.includes('localhost') ? 'http' : 'https';
-        const targetUrl = `${protocol}://${host}/shared/${token}?mode=pdf`;
+        // Fix: Point to PublicReportView with query param, not /shared/ path
+        const targetUrl = `${protocol}://${host}/PublicReportView?token=${token}&mode=pdf`;
 
         const pdfShiftApiKey = Deno.env.get('PDFSHIFT_API_KEY');
         if (!pdfShiftApiKey) return Response.json({ error: 'PDFShift API Key missing' }, { status: 500 });
@@ -72,7 +58,6 @@ export default Deno.serve(async (req) => {
             throw new Error(`PDF Generation failed: ${response.statusText}`);
         }
 
-        // Stream back the PDF
         return new Response(response.body, {
             headers: {
                 'Content-Type': 'application/pdf',
