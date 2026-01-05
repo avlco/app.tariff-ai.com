@@ -2,9 +2,15 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import he from '@/components/locales/he';
 import en from '@/components/locales/en';
+import fr from '@/components/locales/fr';
+import de from '@/components/locales/de';
+import es from '@/components/locales/es';
+import it from '@/components/locales/it';
+import pt from '@/components/locales/pt';
+import ja from '@/components/locales/ja';
 import { LANGUAGES, DEFAULT_SYSTEM_LANGUAGE, DEFAULT_REPORT_LANGUAGE } from '@/components/constants/languages';
 
-const translations = { he, en };
+const translations = { he, en, fr, de, es, it, pt, ja };
 
 const LanguageContext = createContext();
 
