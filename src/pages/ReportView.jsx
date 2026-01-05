@@ -65,31 +65,51 @@ export default function ReportView() {
   
   const urlParams = new URLSearchParams(window.location.search);
   const reportId = urlParams.get('id');
+  const token = urlParams.get('token');
+  const isPdfMode = urlParams.get('mode') === 'pdf';
   
   useEffect(() => {
     const loadData = async () => {
       try {
-        const reportRes = await base44.entities.ClassificationReport.filter({ id: reportId });
-        const reportData = reportRes[0];
+        let reportData = null;
+        
+        // Dual mode: Token-based (for PDF/guest) or authenticated user
+        if (token) {
+          // Token-based access - use backend function
+          const { data } = await base44.functions.invoke('getSharedReportData', { token });
+          if (data.success && data.report) {
+            reportData = data.report;
+          } else {
+            throw new Error(data.error || 'Invalid token');
+          }
+        } else {
+          // Regular authenticated access
+          const reportRes = await base44.entities.ClassificationReport.filter({ id: reportId });
+          reportData = reportRes[0];
+          
+          const userData = await base44.auth.me();
+          setUser(userData);
+        }
+        
         setReport(reportData);
         
-        let resourceData = null;
+        // Load trade resource if destination country exists
         if (reportData?.destination_country) {
-             const resources = await base44.entities.CountryTradeResource.filter({ country_name: reportData.destination_country });
-             resourceData = resources[0];
-             setTradeResource(resourceData);
+          try {
+            const resources = await base44.entities.CountryTradeResource.filter({ country_name: reportData.destination_country });
+            setTradeResource(resources[0]);
+          } catch (e) {
+            console.warn('Could not load trade resource:', e);
+          }
         }
-
-        const userData = await base44.auth.me();
-        setUser(userData);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
         setLoading(false);
       }
     };
-    if (reportId) loadData();
-  }, [reportId]);
+    if (reportId || token) loadData();
+  }, [reportId, token]);
   
   const isPremium = user?.subscription_plan && ['pay_per_use', 'basic', 'pro', 'agency', 'enterprise'].includes(user.subscription_plan);
 

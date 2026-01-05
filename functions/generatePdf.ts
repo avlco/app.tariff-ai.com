@@ -27,9 +27,9 @@ export default Deno.serve(async (req) => {
             created_by: user.email
         });
 
-        // 2. Construct the CORRECT public URL using configured domain
+        // 2. Construct the URL for ReportView with token (allows bot access)
         const baseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
-        const targetUrl = `${baseUrl}/PublicReport?token=${token}&mode=pdf`;
+        const targetUrl = `${baseUrl}/ReportView?id=${reportId}&token=${token}&mode=pdf`;
 
         const pdfShiftApiKey = Deno.env.get('PDFSHIFT_API_KEY');
         if (!pdfShiftApiKey) return Response.json({ error: 'PDFShift API Key missing' }, { status: 500 });
