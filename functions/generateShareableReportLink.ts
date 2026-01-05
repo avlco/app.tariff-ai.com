@@ -28,13 +28,13 @@ export default Deno.serve(async (req) => {
     await base44.asServiceRole.entities.ShareableReport.create({
         token: token,
         report_id: reportId,
-        expiry_date: expiryDate.toISOString()
+        expiry_date: expiryDate.toISOString(),
+        created_by: user.email
     });
 
-    // Construct Local URL
-    const host = req.headers.get("host");
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const shareUrl = `${protocol}://${host}/PublicReportView?token=${token}`;
+    // Construct Public URL using configured domain
+    const baseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
+    const shareUrl = `${baseUrl}/PublicReportView?token=${token}`;
 
     // Update report with the new link (for cache/UI display)
     await base44.entities.ClassificationReport.update(reportId, {

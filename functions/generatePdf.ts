@@ -23,14 +23,13 @@ export default Deno.serve(async (req) => {
         await base44.asServiceRole.entities.ShareableReport.create({
             token: token,
             report_id: reportId,
-            expiry_date: expiry.toISOString()
+            expiry_date: expiry.toISOString(),
+            created_by: user.email
         });
 
-        // 2. Construct the CORRECT internal URL
-        const host = req.headers.get("host");
-        const protocol = host.includes('localhost') ? 'http' : 'https';
-        // Fix: Point to PublicReportView with query param, not /shared/ path
-        const targetUrl = `${protocol}://${host}/PublicReportView?token=${token}&mode=pdf`;
+        // 2. Construct the CORRECT public URL using configured domain
+        const baseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
+        const targetUrl = `${baseUrl}/PublicReportView?token=${token}&mode=pdf`;
 
         const pdfShiftApiKey = Deno.env.get('PDFSHIFT_API_KEY');
         if (!pdfShiftApiKey) return Response.json({ error: 'PDFShift API Key missing' }, { status: 500 });
