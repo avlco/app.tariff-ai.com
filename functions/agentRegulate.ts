@@ -31,7 +31,7 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
     const genAI = new GoogleGenerativeAI(geminiKey);
     // Raw string model ID, NO config objects
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-3-flash-preview"
+        model: "gemini-2.0-flash-exp"
     });
     
     const result = await model.generateContent(fullPrompt);
@@ -82,6 +82,7 @@ Destination Country: ${report.destination_country}
 HS Codes to check: ${codesToCheck.join(', ')}
 Intended Use: ${intendedUse || 'General purpose'}
 Product: ${report.product_name}
+Current Year: ${new Date().getFullYear()}
 `;
 
     const systemPrompt = `
@@ -98,17 +99,17 @@ ${tradeResources[0]?.customs_links?.join('\n') || ''}
 ${tradeResources[0]?.regulation_links?.join('\n') || ''}
 
 Requirements:
-1. **Tax Calculation (Method: ${resource?.tax_method || 'CIF'}):**
+1. **DATA FRESHNESS (CRITICAL):**
+   - You MUST look for the **latest available Tariff Schedule** (e.g., "${report.destination_country} Customs Tariff 2025/2026").
+   - If the data found is older than 2 years (pre-2024), you MUST set the "data_warning" field.
+
+2. **Tax Calculation (Method: ${resource?.tax_method || 'CIF'}):**
    - If CIF: Formula = (Value + Insurance + Freight) * Rate.
    - If FOB: Formula = (Value) * Rate.
    - You must strictly apply this method in your reasoning.
 
-2. **HS Structure Validation:**
-   - Verify the HS Code structure. Input MUST be a clean string of digits (no dots/spaces).
-   - If the code provided is shorter than required (e.g., 8 digits needed, 6 provided), you MUST complete it based on local customs books.
-
 3. **Detailed Tax Breakdown (Obligatory Fields):**
-   - **Duty Rate:** Exact % for 2025.
+   - **Duty Rate:** Exact % for ${new Date().getFullYear()}.
    - **VAT:** Specify General VAT vs Import VAT.
    - **Excise Tax:** Check for Purchase Tax/Excise.
    - **Anti-Dumping:** Check for specific duties.
@@ -119,7 +120,7 @@ Requirements:
    - **Legality:** Is an Import License required?
    - **Verification URL:** Every requirement MUST have a 'verification_url' pointing to an official source.
 
-3. **Citations:**
+5. **Citations:**
    - Every tax rate or regulation MUST be supported by a citation from the extracted links.
 
 Output JSON Schema:
@@ -128,14 +129,15 @@ Output JSON Schema:
     "primary": {
       "duty_rate": "string",
       "vat_rate": "string",
-      "excise_taxes": "string (e.g. 'Purchase Tax: 15%')",
+      "excise_taxes": "string",
       "standards_requirements": [
          { "requirement": "string", "verification_url": "string" }
       ],
-      "import_legality": "string (e.g. 'Free Import' or 'Requires License')",
+      "import_legality": "string",
       "import_requirements": [
          { "requirement": "string", "verification_url": "string" }
-      ]
+      ],
+      "data_warning": "string (Optional: 'Warning: Data from [Year] may be outdated' if older than 2024)"
     },
     "alternatives": [
       {
@@ -168,7 +170,7 @@ Output JSON Schema:
                             properties: {
                                 duty_rate: { type: "string" },
                                 vat_rate: { type: "string" },
-                                excise_tax: { type: "string" },
+                                excise_taxes: { type: "string" },
                                 anti_dumping_duty: { type: "string" },
                                 other_fees: { type: "string" },
                                 standards_requirements: { 
@@ -191,7 +193,8 @@ Output JSON Schema:
                                             verification_url: { type: "string" }
                                         }
                                     }
-                                }
+                                },
+                                data_warning: { type: "string" }
                             }
                         },
                         alternatives: {

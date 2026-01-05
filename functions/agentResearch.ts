@@ -1,5 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import OpenAI from 'npm:openai@^4.28.0';
 
 // --- INLINED GATEWAY LOGIC (RESEARCHER SPECIFIC) ---
 
@@ -17,7 +16,7 @@ function cleanJson(text) {
   }
 }
 
-async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
+async function invokeSpecializedLLM({ prompt, response_schema, base44_client }) {
   console.log(`[LLM Gateway - Researcher] Using Sonar Deep Research`);
   const jsonInstruction = response_schema 
     ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
@@ -28,7 +27,6 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
     const apiKey = Deno.env.get('PERPLEXITY_API_KEY');
     if (!apiKey) throw new Error("PERPLEXITY_API_KEY missing");
 
-    // Using raw fetch to access advanced fields (citations, search_results) not always exposed in OpenAI SDK wrapper
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
         headers: {
@@ -38,7 +36,6 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
         body: JSON.stringify({
             model: "sonar-deep-research",
             messages: [{ role: "user", content: fullPrompt }],
-            // Request citations
             return_citations: true
         })
     });
@@ -51,24 +48,17 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
     const content = data.choices[0].message.content;
     const citations = data.citations || [];
     
-    // Parse the JSON content
     let parsedContent = response_schema ? cleanJson(content) : content;
     
-    // Inject citations into verified_sources if it's an object and has the field
+    // Auto-inject citations if verifying sources
     if (typeof parsedContent === 'object' && parsedContent.verified_sources && citations.length > 0) {
-        // Map citations to the verified_sources structure if strictly strings
         const citationSources = citations.map((url, idx) => ({
             title: `Source ${idx + 1}`,
             url: url,
             date: new Date().toISOString(),
             snippet: "Direct citation from deep research"
         }));
-        
-        // Merge or replace based on what the model returned
-        // We'll append them to ensure we don't lose model-generated context, 
-        // but prefer model's structure if it used the URLs.
-        // For simplicity/robustness, we'll append if the model didn't return many.
-        if (parsedContent.verified_sources.length === 0) {
+        if (!parsedContent.verified_sources.length) {
             parsedContent.verified_sources = citationSources;
         }
     }
@@ -110,8 +100,6 @@ export default Deno.serve(async (req) => {
     
     const spec = report.structural_analysis;
     const destCountry = report.destination_country;
-
-    // Fetch Official Trade Resources
     const tradeResources = await base44.entities.CountryTradeResource.filter({ country_name: destCountry });
     const resource = tradeResources[0];
     
@@ -122,113 +110,95 @@ export default Deno.serve(async (req) => {
         ...(resource.government_links || [])
     ] : [];
 
-    const context = `
-Destination Country: ${destCountry}
-Current Date: ${new Date().toISOString().split('T')[0]}
-
-COUNTRY TRADE PROFILE (Baseline only - Web Research trumps this):
-- Baseline HS Structure: ${resource?.hs_structure || 'Unknown'}
-- Regional Agreements: ${resource?.regional_agreements || 'None specified'}
-- Tax Method: ${resource?.tax_method || 'CIF (Default)'}
-
-OFFICIAL SOURCE LINKS (PRIORITY 1 - MANDATORY CRAWL):
-${officialLinks.length > 0 ? officialLinks.join('\n') : 'No specific official links found in DB.'}
-
-Technical Specification:
-- Name: ${spec.standardized_name}
-- Material: ${spec.material_composition}
-- Function: ${spec.function}
-- State: ${spec.state}
-- Essential Character: ${spec.essential_character}
+    const technicalContext = `
+Product: ${spec.standardized_name}
+Material: ${spec.material_composition}
+Function: ${spec.function}
+Links: ${officialLinks.join(', ')}
 `;
 
-    const systemPrompt = `
-      You are a Customs Researcher. 
-      Task: Intelligence gathering for HS Classification (No final decision).
-      Reasoning Effort: HIGH.
+    // 1. Technical Query (English) - Structure & WCO
+    const technicalPrompt = `
+      You are a Customs Technical Researcher.
+      Task: Determine the HS Code Structure and Technical Classification possibilities for: ${spec.standardized_name}.
+      
+      Destination: ${destCountry}
+      
+      1. Find the current 2024/2025 HS Code Structure for [${destCountry}] (e.g., 8, 10, or 12 digits).
+      2. Identify 3-5 Potential WCO Chapters/Headings based on the material: ${spec.material_composition}.
+      3. Look for "Explanatory Notes" relevant to this product function: ${spec.function}.
+      
+      Output JSON Schema:
+      {
+        "confirmed_hs_structure": "string",
+        "candidate_headings": [
+            { "code_4_digit": "string", "description": "string" }
+        ]
+      }
+    `;
 
-      LANGUAGE STRATEGY:
-      Target Language: ${targetLanguage === 'he' ? 'HEBREW (עברית)' : 'ENGLISH'}.
-      - Perform searches in BOTH English (for international technical data) AND ${targetLanguage === 'he' ? 'Hebrew/Local Language of destination' : 'Local Language of destination'} (for local regulations).
-      - Output 'verified_sources' snippets and descriptions in ${targetLanguage === 'he' ? 'HEBREW' : 'ENGLISH'}.
-      - Output 'candidate_headings' descriptions in ${targetLanguage === 'he' ? 'HEBREW' : 'ENGLISH'}.
+    // 2. Regulatory Query (Target Language/Local) - Taxes & Prohibitions
+    const regulatoryPrompt = `
+      You are a Local Customs Researcher.
+      Task: Find local regulations, taxes, and legal notes in the local language of ${destCountry}.
+      
+      Product: ${spec.standardized_name}
+      Language: Perform search in ${targetLanguage === 'he' ? 'Hebrew' : 'the local language'} and English.
+      
+      1. Find "Verified Sources" (Official government URLs) for customs tariffs in ${destCountry}.
+      2. Identify any "Legal Notes" or Prohibitions for this type of product.
+      
+      Output JSON Schema:
+      {
+        "verified_sources": [
+            { "title": "string", "url": "string", "date": "string", "snippet": "string" }
+        ],
+        "legal_notes_found": ["string"]
+      }
+    `;
 
-      PROTOCOL - 3-LAYER SEARCH (STRICT ORDER):
-1. **Priority 1 (Mandatory Crawl):** ACTIVELY CRAWL the provided "OFFICIAL SOURCE LINKS". You MUST attempt to extract data directly from these URLs first.
-2. **Priority 2 (Secondary Search - Regional):** If Priority 1 fails, search specifically for the "Regional Agreements" listed in the profile (e.g., "${resource?.regional_agreements || 'Trade Agreements'}") combined with the product description in Global Trade Databases.
-3. **Priority 3 (Fallback):** Open web search is ONLY allowed if Priority 1 & 2 yield zero specific results for the HS Code.
+    // EXECUTE PARALLEL SEARCH
+    console.log('[Agent B] Starting Hybrid Search Strategy...');
+    
+    const [technicalResult, regulatoryResult] = await Promise.all([
+        invokeSpecializedLLM({
+            prompt: technicalPrompt + `\n\nContext:\n${technicalContext}`,
+            response_schema: {
+                type: "object",
+                properties: {
+                    confirmed_hs_structure: { type: "string" },
+                    candidate_headings: { type: "array", items: { type: "object", properties: { code_4_digit: { type: "string" }, description: { type: "string" } } } }
+                }
+            },
+            base44_client: base44
+        }),
+        invokeSpecializedLLM({
+            prompt: regulatoryPrompt + `\n\nContext:\n${technicalContext}`,
+            response_schema: {
+                type: "object",
+                properties: {
+                    verified_sources: { type: "array", items: { type: "object", properties: { title: { type: "string" }, url: { type: "string" }, date: { type: "string" }, snippet: { type: "string" } } } },
+                    legal_notes_found: { type: "array", items: { type: "string" } }
+                }
+            },
+            base44_client: base44
+        })
+    ]);
 
-FRESHNESS CONSTRAINT:
-- Compare identified rates against today's date (2025).
-- **Golden Rule:** If a conflict exists between your training data and the source URL text, the **source URL wins**.
-- Explicitly check for recent tax changes (even 1% differences).
-
-Objectives:
-1. **Dynamic HS Structure Discovery:** Explicitly research "What is the current HS code structure for import declarations in [${destCountry}] in 2025?". Verify the required digit count (e.g. 8, 10, or 12 digits). If it differs from the Baseline, your finding is the Truth.
-2. Find the **2025 Customs Tariff** for [${destCountry}].
-3. Search for **Explanatory Notes** and legal exclusions relevant to: ${spec.standardized_name} (${spec.material_composition}).
-4. Search for previous rulings or precedents for similar items in ${destCountry} or WCO.
-5. Find 3-5 potential HS Headings (4-digit) that might fit.
-
-Output JSON Schema:
-{
-  "confirmed_hs_structure": "string (e.g., '10 digits' or '8 digits + 3 statistical suffixes')",
-  "verified_sources": [
-    { "title": "string", "url": "string", "date": "string", "snippet": "string" }
-  ],
-  "candidate_headings": [
-    { "code_4_digit": "string", "description": "string" }
-  ],
-  "legal_notes_found": ["string"]
-}
-`;
-
-    const fullPrompt = `${systemPrompt}\n\nDATA TO RESEARCH:\n${context}`;
-
-    const result = await invokeSpecializedLLM({
-        prompt: fullPrompt,
-        task_type: 'research',
-        response_schema: {
-            type: "object",
-            properties: {
-                verified_sources: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            title: { type: "string" },
-                            url: { type: "string" },
-                            date: { type: "string" },
-                            snippet: { type: "string" }
-                        }
-                    }
-                },
-                candidate_headings: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            code_4_digit: { type: "string" },
-                            description: { type: "string" }
-                        }
-                    }
-                },
-                legal_notes_found: {
-                    type: "array",
-                    items: { type: "string" }
-                },
-                confirmed_hs_structure: { type: "string" }
-            }
-        },
-        base44_client: base44
-    });
+    // Merge Results
+    const mergedResults = {
+        confirmed_hs_structure: technicalResult.confirmed_hs_structure,
+        candidate_headings: technicalResult.candidate_headings,
+        verified_sources: regulatoryResult.verified_sources,
+        legal_notes_found: regulatoryResult.legal_notes_found
+    };
 
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         processing_status: 'research_completed',
-        research_findings: result
+        research_findings: mergedResults
     });
     
-    return Response.json({ success: true, status: 'research_completed', findings: result });
+    return Response.json({ success: true, status: 'research_completed', findings: mergedResults });
 
   } catch (error) {
     console.error('Agent B (Researcher) Error:', error);

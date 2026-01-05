@@ -100,42 +100,45 @@ Destination Country: ${report.destination_country}
       Task: Apply GRI 1-6 rules to determine the classification based on the provided technical spec and research.
 
       LANGUAGE INSTRUCTION:
-      - The user wants the report in: ${targetLanguage === 'he' ? 'HEBREW (עברית)' : 'ENGLISH'}.
-      - Write the 'reasoning' and 'rejection_reason' in ${targetLanguage === 'he' ? 'HEBREW' : 'ENGLISH'}.
-      - Maintain international technical terms (e.g., chemical names) in English within parentheses if helpful.
+      - **ANALYSIS PHASE:** Think and analyze in **ENGLISH** to ensure maximum accuracy with WCO standards.
+      - **OUTPUT PHASE:** Write the final 'reasoning' and 'rejection_reason' in **${targetLanguage === 'he' ? 'HEBREW (עברית)' : 'ENGLISH'}**.
+      - Maintain international technical terms (e.g., chemical names) in English within parentheses.
+
+      METHODOLOGY - GRI APPLICATION (STRICT):
+      1. **GRI 1 (Terms of Headings):** Start here. Classification is determined according to the terms of the headings and any relative Section or Chapter Notes.
+      2. **GRI 2(a) (Incomplete/Unfinished):** If the product is disassembled or incomplete but has the essential character of the finished article, classify as finished.
+      3. **GRI 3(b) (Mixtures/Sets):** If a set or mixture, classify by the component giving the "Essential Character".
+      4. **GRI 6:** Apply the same logic to subheadings.
+
+      VERTICAL SPECIFICS:
+      - **Chemicals:** If the product is a chemical, you MUST reference the CAS Number if available. If missing, note it.
+      - **Parts & Accessories:** Check Section Note 2 to Section XVI. Is it a "part of general use" (e.g., screw, spring)? If so, classify by material. Is it a specialized part? Classify with the machine.
 
       Requirements:
-1. **Strict HS Code Format:** 
-   - MUST be a String.
-   - Digits ONLY (No dots '.', no spaces ' ').
-   - MUST preserve leading zeros.
-   - **Precision:** You MUST output the full digit count required by the "Confirmed HS Structure" (e.g. if 10 digits required, do NOT output 6).
-2. Determine the Primary Classification (Best legal fit).
-3. Determine 2 Viable Alternatives (Legally defensible but less likely).
-4. Provide a detailed legal_reasoning citing the provided Research Sources.
-5. **Use Deep Chain of Thought**: Internally compare chapters/headings before deciding.
+      1. **Strict HS Code Format:** Digits ONLY (No dots/spaces). Leading zeros allowed. Precision: ${research.confirmed_hs_structure || 'Match Destination Country Standard'}.
+      2. **Legal Basis:** You MUST explicitly state which GRI or Section Note was the deciding factor (e.g., "Determined per GRI 3(b) due to essential character...").
+      3. **Primary + 2 Alternatives:** Best legal fit + 2 defensible alternatives.
 
-Reasoning Effort: HIGH.
-
-Output JSON Schema:
-{
-  "classification_results": {
-    "primary": {
-      "hs_code": "string (digits only, full length)",
-      "confidence_score": "number (0-100)",
-      "reasoning": "string"
-    },
-    "alternatives": [
+      Output JSON Schema:
       {
-        "hs_code": "string",
-        "confidence_score": "number",
-        "reasoning": "string",
-        "rejection_reason": "string"
+        "classification_results": {
+          "primary": {
+            "hs_code": "string",
+            "confidence_score": "number (0-100)",
+            "reasoning": "string (in ${targetLanguage})",
+            "legal_basis": "string (e.g. 'GRI 1', 'GRI 3(b)', 'Note 2(b) to Section XVI')"
+          },
+          "alternatives": [
+            {
+              "hs_code": "string",
+              "confidence_score": "number",
+              "reasoning": "string (in ${targetLanguage})",
+              "rejection_reason": "string (in ${targetLanguage})"
+            }
+          ]
+        }
       }
-    ]
-  }
-}
-`;
+      `;
 
     let fullPrompt = `${systemPrompt}\n\nCASE EVIDENCE:\n${context}`;
     
@@ -157,7 +160,8 @@ Output JSON Schema:
                             properties: {
                                 hs_code: { type: "string" },
                                 confidence_score: { type: "number" },
-                                reasoning: { type: "string" }
+                                reasoning: { type: "string" },
+                                legal_basis: { type: "string" }
                             }
                         },
                         alternatives: {
@@ -183,7 +187,8 @@ Output JSON Schema:
         classification_results: result.classification_results,
         hs_code: result.classification_results.primary.hs_code,
         confidence_score: result.classification_results.primary.confidence_score,
-        classification_reasoning: result.classification_results.primary.reasoning
+        classification_reasoning: result.classification_results.primary.reasoning,
+        ai_analysis_summary: result.classification_results.primary.legal_basis // Storing legal basis in a relevant field or metadata
     });
     
     return Response.json({ success: true, status: 'classification_completed', results: result.classification_results });
