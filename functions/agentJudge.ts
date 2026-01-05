@@ -71,7 +71,7 @@ export default Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, intendedUse, feedback } = await req.json();
+    const { reportId, intendedUse, feedback, targetLanguage = 'en' } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
@@ -96,10 +96,15 @@ Destination Country: ${report.destination_country}
 `;
 
     const systemPrompt = `
-You are a Senior Customs Judge.
-Task: Apply GRI 1-6 rules to determine the classification based on the provided technical spec and research.
+      You are a Senior Customs Judge.
+      Task: Apply GRI 1-6 rules to determine the classification based on the provided technical spec and research.
 
-Requirements:
+      LANGUAGE INSTRUCTION:
+      - The user wants the report in: ${targetLanguage === 'he' ? 'HEBREW (עברית)' : 'ENGLISH'}.
+      - Write the 'reasoning' and 'rejection_reason' in ${targetLanguage === 'he' ? 'HEBREW' : 'ENGLISH'}.
+      - Maintain international technical terms (e.g., chemical names) in English within parentheses if helpful.
+
+      Requirements:
 1. **Strict HS Code Format:** 
    - MUST be a String.
    - Digits ONLY (No dots '.', no spaces ' ').

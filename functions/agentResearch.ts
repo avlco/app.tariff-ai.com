@@ -93,7 +93,7 @@ export default Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId } = await req.json();
+    const { reportId, targetLanguage = 'en' } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
@@ -143,11 +143,17 @@ Technical Specification:
 `;
 
     const systemPrompt = `
-You are a Customs Researcher. 
-Task: Intelligence gathering for HS Classification (No final decision).
-Reasoning Effort: HIGH.
+      You are a Customs Researcher. 
+      Task: Intelligence gathering for HS Classification (No final decision).
+      Reasoning Effort: HIGH.
 
-PROTOCOL - 3-LAYER SEARCH (STRICT ORDER):
+      LANGUAGE STRATEGY:
+      Target Language: ${targetLanguage === 'he' ? 'HEBREW (עברית)' : 'ENGLISH'}.
+      - Perform searches in BOTH English (for international technical data) AND ${targetLanguage === 'he' ? 'Hebrew/Local Language of destination' : 'Local Language of destination'} (for local regulations).
+      - Output 'verified_sources' snippets and descriptions in ${targetLanguage === 'he' ? 'HEBREW' : 'ENGLISH'}.
+      - Output 'candidate_headings' descriptions in ${targetLanguage === 'he' ? 'HEBREW' : 'ENGLISH'}.
+
+      PROTOCOL - 3-LAYER SEARCH (STRICT ORDER):
 1. **Priority 1 (Mandatory Crawl):** ACTIVELY CRAWL the provided "OFFICIAL SOURCE LINKS". You MUST attempt to extract data directly from these URLs first.
 2. **Priority 2 (Secondary Search - Regional):** If Priority 1 fails, search specifically for the "Regional Agreements" listed in the profile (e.g., "${resource?.regional_agreements || 'Trade Agreements'}") combined with the product description in Global Trade Databases.
 3. **Priority 3 (Fallback):** Open web search is ONLY allowed if Priority 1 & 2 yield zero specific results for the HS Code.

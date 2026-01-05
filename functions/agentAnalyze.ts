@@ -55,7 +55,7 @@ export default Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
     // EXTRACT FORCE PROCEED
-    const { reportId, forceProceed } = await req.json();
+    const { reportId, forceProceed, targetLanguage = 'en' } = await req.json();
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
@@ -140,10 +140,15 @@ ${report.user_input_text || ''}
     const context = aggregatedContext;
 
     const systemPrompt = `
-You are a Forensic Customs Expert. 
-Your goal: Extract precise attributes for HS Classification.
+      You are a Forensic Customs Expert. 
+      Your goal: Extract precise attributes for HS Classification.
 
-CRITICAL INSTRUCTION FOR MISSING INFO:
+      LANGUAGE INSTRUCTION:
+      The user wants the report in: ${targetLanguage === 'he' ? 'HEBREW (עברית)' : 'ENGLISH'}.
+      - Output the 'technical_spec' fields (standardized_name, material_composition, etc) in ${targetLanguage === 'he' ? 'HEBREW' : 'ENGLISH'}.
+      - Output the 'missing_info_question' in ${targetLanguage === 'he' ? 'HEBREW' : 'ENGLISH'}.
+
+      CRITICAL INSTRUCTION FOR MISSING INFO:
 If Readiness Score < 80, you must ask a SPECIFIC question.
 - ❌ FORBIDDEN: "Please provide a technical spec/datasheet." (Too generic)
 - ❌ FORBIDDEN: "Provide a product link."
