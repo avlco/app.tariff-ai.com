@@ -71,29 +71,40 @@ export default Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, intendedUse, feedback, targetLanguage = 'en' } = await req.json();
+    const { reportId, intendedUse, feedback, targetLanguage = 'en', skipResearch = false } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
-    
+
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
-    
-    if (!report.structural_analysis || !report.research_findings) {
+
+    if (!report.structural_analysis || (!report.research_findings && !skipResearch)) {
         return Response.json({ error: 'Prerequisites missing. Run Agent A & B first.' }, { status: 400 });
     }
-    
+
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'classifying_hs'
     });
-    
+
     const research = report.research_findings || {};
-    const context = `
-Product Spec: ${JSON.stringify(report.structural_analysis)}
-Research Findings: ${JSON.stringify(research)}
-Confirmed HS Structure: ${research.confirmed_hs_structure || 'Standard (Follow Country Rules)'}
-Intended Use: ${intendedUse || 'General purpose'}
-Destination Country: ${report.destination_country}
-`;
+
+    let context = `
+    Product Spec: ${JSON.stringify(report.structural_analysis)}
+    Intended Use: ${intendedUse || 'General purpose'}
+    Destination Country: ${report.destination_country}
+    `;
+
+    if (skipResearch) {
+        context += `
+    Research Context: Standard consumer good. Use internal knowledge base for classification.
+    Confirmed HS Structure: Standard (Follow Country Rules)
+    `;
+    } else {
+        context += `
+    Research Findings: ${JSON.stringify(research)}
+    Confirmed HS Structure: ${research.confirmed_hs_structure || 'Standard (Follow Country Rules)'}
+    `;
+    }
 
     const systemPrompt = `
       You are a Senior Customs Judge.
@@ -113,6 +124,7 @@ Destination Country: ${report.destination_country}
       VERTICAL SPECIFICS:
       - **Chemicals:** If the product is a chemical, you MUST reference the CAS Number if available. If missing, note it.
       - **Parts & Accessories:** Check Section Note 2 to Section XVI. Is it a "part of general use" (e.g., screw, spring)? If so, classify by material. Is it a specialized part? Classify with the machine.
+      ${skipResearch ? '- **Simple Goods:** For low complexity items, rely on your internal knowledge base and standard headings.' : ''}
 
       Requirements:
       1. **Strict HS Code Format:** Digits ONLY (No dots/spaces). Leading zeros allowed. Precision: ${research.confirmed_hs_structure || 'Match Destination Country Standard'}.

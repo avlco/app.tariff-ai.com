@@ -51,13 +51,34 @@ export default Deno.serve(async (req) => {
         }
         await logProgress(reportId, 'analyst', 'Structural analysis completed');
 
-        // Step 2: Researcher
-        await logProgress(reportId, 'researcher', 'Starting research (Agent B)');
-        await base44.functions.invoke('agentResearch', { reportId, targetLanguage });
+        // Step 1.5: Triage (Cost Optimization)
+        await logProgress(reportId, 'triage', 'Assessing complexity (Triage Agent)');
+        const triageRes = await base44.functions.invoke('agentTriage', { reportId });
+        const { complexity, category, reasoning } = triageRes.data;
+        
+        // Log triage result
+        await logProgress(reportId, 'triage', `Complexity: ${complexity} (${category}) - ${reasoning}`);
+        
+        let skipResearch = false;
+        
+        // Step 2: Researcher (Conditional)
+        if (complexity === 'low') {
+            skipResearch = true;
+            await logProgress(reportId, 'researcher', 'Skipping Deep Research (Low Complexity - Cost Saving)');
+        } else {
+            await logProgress(reportId, 'researcher', 'Starting research (Agent B)');
+            await base44.functions.invoke('agentResearch', { reportId, targetLanguage });
+        }
 
         // Step 3: Judge
         await logProgress(reportId, 'judge', 'Starting classification (Agent C)');
-        await base44.functions.invoke('agentJudge', { reportId, intendedUse, targetLanguage });
+        // Pass extra context for High Complexity if needed, currently implied by presence of research findings
+        await base44.functions.invoke('agentJudge', { 
+            reportId, 
+            intendedUse, 
+            targetLanguage,
+            skipResearch 
+        });
 
         // Step 4: Regulator
         await logProgress(reportId, 'regulator', 'Calculating duties (Agent D)');
