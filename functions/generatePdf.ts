@@ -4,13 +4,20 @@ export default Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         
-        const user = await base44.auth.me();
-        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        // Try to get user for logging, but don't require authentication
+        let userEmail = null;
+        try {
+            const user = await base44.auth.me();
+            userEmail = user?.email;
+        } catch (e) {
+            // No authenticated user - OK for service role operations
+        }
 
         const { reportId } = await req.json();
         if (!reportId) return Response.json({ error: 'Report ID required' }, { status: 400 });
 
-        const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
+        // Use asServiceRole for all entity operations (bypasses user auth requirement)
+        const reports = await base44.asServiceRole.entities.ClassificationReport.filter({ id: reportId });
         const report = reports[0];
         if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
@@ -19,12 +26,11 @@ export default Deno.serve(async (req) => {
         const expiry = new Date();
         expiry.setDate(expiry.getDate() + 7); // 7 days validity
         
-        // 1. Create ShareableReport record (Critical for PublicReportView to work)
+        // Create ShareableReport record using asServiceRole
         await base44.asServiceRole.entities.ShareableReport.create({
             token: token,
             report_id: reportId,
-            expiry_date: expiry.toISOString(),
-            created_by: user.email
+            expiry_date: expiry.toISOString()
         });
 
         // 2. Construct the URL for ReportView with token (allows bot access)
