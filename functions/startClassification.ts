@@ -23,14 +23,20 @@ export default Deno.serve(async (req) => {
 
         if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
 
-        await logProgress(reportId, 'initialization', 'Starting classification workflow');
+        // Fetch report to get target_language
+        const reportList = await base44.asServiceRole.entities.ClassificationReport.filter({ id: reportId });
+        const report = reportList[0];
+        const targetLanguage = report?.target_language || 'en';
+
+        await logProgress(reportId, 'initialization', `Starting classification workflow (Target Language: ${targetLanguage})`);
 
         // Step 1: The Analyst (With Force Proceed override)
         await logProgress(reportId, 'analyst', 'Starting structural analysis (Agent A)');
         
         const analystRes = await base44.functions.invoke('agentAnalyze', { 
             reportId,
-            forceProceed: forceProceed === true
+            forceProceed: forceProceed === true,
+            targetLanguage
         });
         
         // STOP only if clarification needed AND NOT forced
@@ -47,19 +53,19 @@ export default Deno.serve(async (req) => {
 
         // Step 2: Researcher
         await logProgress(reportId, 'researcher', 'Starting research (Agent B)');
-        await base44.functions.invoke('agentResearch', { reportId });
+        await base44.functions.invoke('agentResearch', { reportId, targetLanguage });
 
         // Step 3: Judge
         await logProgress(reportId, 'judge', 'Starting classification (Agent C)');
-        await base44.functions.invoke('agentJudge', { reportId, intendedUse });
+        await base44.functions.invoke('agentJudge', { reportId, intendedUse, targetLanguage });
 
         // Step 4: Regulator
         await logProgress(reportId, 'regulator', 'Calculating duties (Agent D)');
-        await base44.functions.invoke('agentRegulate', { reportId });
+        await base44.functions.invoke('agentRegulate', { reportId, targetLanguage });
 
         // Step 5: QA
         await logProgress(reportId, 'qa', 'Starting QA Audit (Agent E)');
-        const qaRes = await base44.functions.invoke('agentQA', { reportId });
+        const qaRes = await base44.functions.invoke('agentQA', { reportId, targetLanguage });
         
         // --- FINALIZATION & NOTIFICATION ---
 

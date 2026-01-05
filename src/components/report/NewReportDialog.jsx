@@ -5,8 +5,12 @@ import { motion } from 'framer-motion';
 import ProductDetailsForm from './ProductDetailsForm';
 import ChatInterface from './ChatInterface';
 
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 export default function NewReportDialog({ onReportCreated, onCancel }) {
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, reportLanguage } = useLanguage();
+  const [targetLanguage, setTargetLanguage] = useState(reportLanguage || 'en');
   const [productDetails, setProductDetails] = useState({
     product_name: '',
     country_of_manufacture: '',
@@ -24,6 +28,7 @@ export default function NewReportDialog({ onReportCreated, onCancel }) {
       country_of_origin: productDetails.country_of_origin,
       destination_country: productDetails.destination_country,
       status: 'pending',
+      target_language: targetLanguage,
       user_input_text: userMessage
     };
 
@@ -158,6 +163,19 @@ Format your response as a JSON object with the following structure:
         productDetails={productDetails}
         onChange={setProductDetails}
       />
+      
+      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+        <Label className="mb-2 block text-sm font-medium">{t('language')}</Label>
+        <Select value={targetLanguage} onValueChange={setTargetLanguage}>
+          <SelectTrigger className="w-full bg-white">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="he">עברית (Hebrew)</SelectItem>
+            <SelectItem value="en">English</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       <ChatInterface onSubmit={handleSubmit} />
     </div>

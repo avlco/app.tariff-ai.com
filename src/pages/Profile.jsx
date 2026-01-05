@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import PolicyViewerModal from '../components/legal/PolicyViewerModal';
 
 export default function Profile() {
-  const { t, language, setLanguage, theme, setTheme, isRTL } = useLanguage();
+  const { t, language, setLanguage, reportLanguage, setReportLanguage, theme, setTheme, isRTL } = useLanguage();
   const [user, setUser] = useState(null);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [activePolicyTab, setActivePolicyTab] = useState('terms');
@@ -96,6 +96,7 @@ export default function Profile() {
     try {
       await base44.auth.updateMe({ [key]: value });
       if (key === 'preferred_language') setLanguage(value);
+      if (key === 'default_report_language') setReportLanguage(value);
       if (key === 'theme') setTheme(value);
 
       // Update UserMasterData
@@ -281,10 +282,26 @@ export default function Profile() {
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <Label>{t('language')}</Label>
+                    <Label>{t('systemLanguage')}</Label>
                     <Select
                       value={language}
                       onValueChange={(value) => handlePreferenceSave('preferred_language', value)}
+                    >
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="he">עברית</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>{t('defaultReportLanguage')}</Label>
+                    <Select
+                      value={reportLanguage}
+                      onValueChange={(value) => handlePreferenceSave('default_report_language', value)}
                     >
                       <SelectTrigger className="mt-1.5">
                         <SelectValue />
