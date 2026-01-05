@@ -55,9 +55,9 @@ export default Deno.serve(async (req) => {
             body: JSON.stringify({
                 source: targetUrl,
                 format: 'A4',
-                margin: '15mm',
-                print_background: true,
-                wait_for: 'networkidle0'
+                margin: '10mm',
+                wait_for_network: true,
+                disable_backgrounds: false
             })
         });
 
