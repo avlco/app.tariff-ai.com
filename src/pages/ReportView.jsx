@@ -163,11 +163,11 @@ export default function ReportView() {
   };
 
   const statusConfig = {
-    pending: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('pending') },
+    pending: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('processing') },
     processing: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('processing') },
     completed: { icon: CheckCircle2, color: 'bg-[#42C0B9]/10 text-[#42C0B9]', label: t('completed') },
     failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600', label: t('failed') },
-    waiting_for_user: { icon: AlertTriangle, color: 'bg-yellow-100 text-yellow-600', label: language === 'he' ? 'ממתין למשתמש' : 'Waiting for User' }
+    waiting_for_user: { icon: AlertTriangle, color: 'bg-yellow-100 text-yellow-600', label: t('waiting_for_user') }
   };
   
   const StatusIcon = statusConfig[report.status]?.icon || Clock;
@@ -182,7 +182,7 @@ export default function ReportView() {
       >
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ChevronLeft className="w-4 h-4 me-2" />
-          {language === 'he' ? 'חזור לדוחות' : 'Back to Reports'}
+          {t('backToReports')}
         </Button>
         
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -208,12 +208,12 @@ export default function ReportView() {
              {report.status === 'completed' && (
                 <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
                   {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
-                  {language === 'he' ? 'שתף' : 'Share'}
+                  {t('share')}
                 </Button>
              )}
              <Button variant="outline" onClick={() => window.print()}>
                <FileText className="w-4 h-4 me-2"/>
-               {language === 'he' ? 'הדפס' : 'Print'}
+               {t('print')}
              </Button>
           </div>
         </div>
@@ -232,7 +232,7 @@ export default function ReportView() {
                         <div className={`h-2 ${qa.score >= 80 ? 'bg-[#42C0B9]' : qa.score >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} />
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold">{language === 'he' ? 'ציון איכות (QA)' : 'Holistic Quality Score'}</h3>
+                                <h3 className="text-lg font-semibold">{t('qaScore')}</h3>
                                 <Badge variant="outline" className="text-lg px-3 py-1">
                                     {qa.score}/100
                                 </Badge>
@@ -241,7 +241,7 @@ export default function ReportView() {
                             {qa.score < 80 && qa.user_explanation && (
                                 <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900">
                                     <AlertCircle className="h-4 w-4" />
-                                    <AlertTitle>{language === 'he' ? 'שים לב' : 'Attention Needed'}</AlertTitle>
+                                    <AlertTitle>{t('attentionNeeded')}</AlertTitle>
                                     <AlertDescription>
                                         {qa.user_explanation}
                                     </AlertDescription>
@@ -250,9 +250,7 @@ export default function ReportView() {
                             
                             {qa.score >= 80 && (
                                 <p className="text-slate-600 dark:text-slate-300">
-                                    {language === 'he' 
-                                        ? 'הדוח עבר את בדיקות האיכות בהצלחה. סיווג זה נחשב אמין.' 
-                                        : 'This report has passed quality assurance checks. This classification is considered reliable.'}
+                                    {t('qaPassed')}
                                 </p>
                             )}
                         </CardContent>
@@ -266,7 +264,7 @@ export default function ReportView() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Scale className="w-5 h-5 text-[#42C0B9]" />
-                            {language === 'he' ? 'סיווג ראשי' : 'Primary Classification'}
+                            {t('primaryClassification')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -302,16 +300,16 @@ export default function ReportView() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                 <Card className="border-0 shadow-sm">
                     <CardHeader>
-                        <CardTitle>{language === 'he' ? 'השוואת חלופות' : 'Alternatives Comparison'}</CardTitle>
+                        <CardTitle>{t('alternativesComparison')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>HS Code</TableHead>
-                                    <TableHead>Confidence</TableHead>
-                                    <TableHead>Duty</TableHead>
-                                    <TableHead>Reasoning / Rejection</TableHead>
+                                    <TableHead>{t('hsCode')}</TableHead>
+                                    <TableHead>{t('confidenceScore')}</TableHead>
+                                    <TableHead>{t('tariffRate')}</TableHead>
+                                    <TableHead>{t('classificationReasoning')}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -340,7 +338,7 @@ export default function ReportView() {
                                             <TableCell>{alt.confidence_score}%</TableCell>
                                             <TableCell>{reg.duty_rate || '---'}</TableCell>
                                             <TableCell className="text-sm text-slate-600 max-w-md">
-                                                 <span className="font-semibold text-slate-900 block mb-1">Why rejected:</span>
+                                                 <span className="font-semibold text-slate-900 block mb-1">{t('whyRejected')}:</span>
                                                  <ReportContentWrapper languageCode={report.target_language}>
                                                     {alt.rejection_reason || alt.reasoning}
                                                  </ReportContentWrapper>
@@ -358,15 +356,15 @@ export default function ReportView() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                 <Card className="border-0 shadow-sm">
                     <CardHeader>
-                        <CardTitle>{language === 'he' ? 'פרטים טכניים ומשפטיים' : 'Technical & Legal Details'}</CardTitle>
+                        <CardTitle>{t('technicalLegalDetails')}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Tabs defaultValue="technical">
                             <TabsList className="w-full justify-start mb-4">
-                                <TabsTrigger value="technical">{language === 'he' ? 'מפרט טכני' : 'Technical Spec'}</TabsTrigger>
-                                <TabsTrigger value="legal">{language === 'he' ? 'נימוק משפטי מלא' : 'Full Legal Reasoning'}</TabsTrigger>
-                                <TabsTrigger value="compliance">{language === 'he' ? 'תאימות ורגולציה' : 'Compliance & Regulation'}</TabsTrigger>
-                                <TabsTrigger value="sources">{language === 'he' ? 'מקורות' : 'Verified Sources'}</TabsTrigger>
+                                <TabsTrigger value="technical">{t('technicalSpec')}</TabsTrigger>
+                                <TabsTrigger value="legal">{t('fullLegalReasoning')}</TabsTrigger>
+                                <TabsTrigger value="compliance">{t('complianceRegulation')}</TabsTrigger>
+                                <TabsTrigger value="sources">{t('verifiedSources')}</TabsTrigger>
                             </TabsList>
                             
                             <TabsContent value="compliance" className="space-y-6">
@@ -374,9 +372,9 @@ export default function ReportView() {
                                 <div className="space-y-3">
                                     <h3 className="font-semibold text-slate-900 flex items-center gap-2">
                                         <Scale className="w-4 h-4 text-[#42C0B9]" />
-                                        {language === 'he' ? 'מיסים ועלויות' : 'Taxes & Duties'}
+                                        {t('taxesDuties')}
                                         <Badge variant="outline" className="text-xs font-normal ms-auto">
-                                            Method: {tradeResource?.tax_method || 'CIF'}
+                                            {t('taxMethod')}: {tradeResource?.tax_method || 'CIF'}
                                         </Badge>
                                     </h3>
                                     <div className="border rounded-lg overflow-hidden">
@@ -429,7 +427,7 @@ export default function ReportView() {
                                 <div className="space-y-3">
                                     <h3 className="font-semibold text-slate-900 flex items-center gap-2">
                                         <CheckCircle2 className="w-4 h-4 text-[#42C0B9]" />
-                                        {language === 'he' ? 'תקינה ואישורים' : 'Standards & Certification'}
+                                        {t('standardsCertification')}
                                     </h3>
                                     <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                                         {Array.isArray(regulatoryPrimary.standards_requirements) && regulatoryPrimary.standards_requirements.length > 0 ? (
@@ -440,7 +438,7 @@ export default function ReportView() {
                                                         {item.verification_url && (
                                                             <a href={item.verification_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline w-fit">
                                                                 <ExternalLink className="w-3 h-3" />
-                                                                Verify Source
+                                                                {t('verifySource')}
                                                             </a>
                                                         )}
                                                     </li>
@@ -450,17 +448,17 @@ export default function ReportView() {
                                             <p className="text-slate-900 whitespace-pre-wrap mb-4">
                                                 {typeof regulatoryPrimary.standards_requirements === 'string' 
                                                     ? regulatoryPrimary.standards_requirements 
-                                                    : 'No specific standards found.'}
+                                                    : t('noSpecificStandards')}
                                             </p>
                                         )}
                                         
                                         {tradeResource?.regulation_links?.length > 0 && (
                                             <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/60">
-                                                <span className="text-xs text-slate-400 w-full mb-1">Official Resource Links:</span>
+                                                <span className="text-xs text-slate-400 w-full mb-1">{t('officialResourceLinks')}:</span>
                                                 {tradeResource.regulation_links.map((link, idx) => (
                                                     <a key={idx} href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-md text-xs text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors">
                                                         <ExternalLink className="w-3 h-3" />
-                                                        Source {idx + 1}
+                                                        {t('officialSources')} {idx + 1}
                                                     </a>
                                                 ))}
                                             </div>
@@ -471,7 +469,7 @@ export default function ReportView() {
                                 <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
                                     <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
                                         <Lock className="w-4 h-4" />
-                                        {language === 'he' ? 'חוקיות יבוא' : 'Import Legality'}
+                                        {t('importLegality')}
                                     </h4>
                                     <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.import_legality || '---'}</p>
                                 </div>
@@ -480,25 +478,25 @@ export default function ReportView() {
                             <TabsContent value="technical" className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">Standardized Name</h4>
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('standardizedName')}</h4>
                                         <ReportContentWrapper languageCode={report.target_language}>
                                             <p className="text-slate-900">{spec.standardized_name || '---'}</p>
                                         </ReportContentWrapper>
                                     </div>
                                     <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">Material Composition</h4>
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('materialComposition')}</h4>
                                         <ReportContentWrapper languageCode={report.target_language}>
                                             <p className="text-slate-900">{spec.material_composition || '---'}</p>
                                         </ReportContentWrapper>
                                     </div>
                                     <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">Function</h4>
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('function')}</h4>
                                         <ReportContentWrapper languageCode={report.target_language}>
                                             <p className="text-slate-900">{spec.function || '---'}</p>
                                         </ReportContentWrapper>
                                     </div>
                                     <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">Essential Character</h4>
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('essentialCharacter')}</h4>
                                         <ReportContentWrapper languageCode={report.target_language}>
                                             <p className="text-slate-900">{spec.essential_character || '---'}</p>
                                         </ReportContentWrapper>
@@ -549,35 +547,35 @@ export default function ReportView() {
         <div className="space-y-6">
             <Card className="border-0 shadow-sm">
                 <CardHeader>
-                    <CardTitle>{language === 'he' ? 'פרטי סחר' : 'Trade Details'}</CardTitle>
+                    <CardTitle>{t('tradeDetails')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div>
-                        <h4 className="text-sm font-medium text-slate-500">Destination</h4>
+                        <h4 className="text-sm font-medium text-slate-500">{t('destination')}</h4>
                         <p className="text-lg font-medium">{report.destination_country}</p>
                      </div>
                      <div>
-                        <h4 className="text-sm font-medium text-slate-500">Origin</h4>
+                        <h4 className="text-sm font-medium text-slate-500">{t('origin')}</h4>
                         <p className="text-lg font-medium">{report.country_of_origin}</p>
                      </div>
                      
                      {/* Regulatory Context Panel */}
                      {tradeResource && (
                         <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100">
-                            <h4 className="text-xs font-semibold text-blue-800 uppercase tracking-wider mb-2">Regulatory Context</h4>
+                            <h4 className="text-xs font-semibold text-blue-800 uppercase tracking-wider mb-2">{t('regulatoryContext')}</h4>
                             
                             <div className="mb-2">
-                                <span className="text-xs text-slate-500 block">Regional Agreements:</span>
+                                <span className="text-xs text-slate-500 block">{t('regionalAgreements')}:</span>
                                 <span className="text-sm font-medium text-slate-700">{tradeResource.regional_agreements || 'None'}</span>
                             </div>
                             
                             <div className="mb-2">
-                                <span className="text-xs text-slate-500 block">HS Structure:</span>
+                                <span className="text-xs text-slate-500 block">{t('hsStructure')}:</span>
                                 <span className="text-sm font-mono text-slate-700">{tradeResource.hs_structure || 'Standard'}</span>
                             </div>
 
                             <div>
-                                <span className="text-xs text-slate-500 block">Tax Method:</span>
+                                <span className="text-xs text-slate-500 block">{t('taxMethod')}:</span>
                                 <Badge variant="outline" className="bg-white text-xs font-normal mt-1">
                                     {tradeResource.tax_method || 'CIF'}
                                 </Badge>
@@ -586,7 +584,7 @@ export default function ReportView() {
                      )}
 
                      <div className="pt-4 border-t">
-                        <h4 className="text-sm font-medium text-slate-500">Import Requirements</h4>
+                        <h4 className="text-sm font-medium text-slate-500">{t('importRequirements')}</h4>
                         <ul className="mt-2 space-y-3">
                             {(regulatoryPrimary.import_requirements || []).map((req, idx) => {
                                 const text = typeof req === 'object' ? req.requirement : req;
@@ -599,14 +597,14 @@ export default function ReportView() {
                                         </div>
                                         {url && (
                                             <a href={url} target="_blank" rel="noreferrer" className="ml-6 text-xs text-blue-500 hover:underline flex items-center gap-1">
-                                                <ExternalLink className="w-3 h-3" /> Verify
+                                                <ExternalLink className="w-3 h-3" /> {t('verifySource')}
                                             </a>
                                         )}
                                     </li>
                                 );
                             })}
                             {(!regulatoryPrimary.import_requirements || regulatoryPrimary.import_requirements.length === 0) && (
-                                <li className="text-sm text-slate-500 italic">None specified</li>
+                                <li className="text-sm text-slate-500 italic">{t('noneSpecified')}</li>
                             )}
                         </ul>
                      </div>
@@ -616,13 +614,11 @@ export default function ReportView() {
             <Card className="bg-[#FAFBFC] border-dashed">
                 <CardContent className="p-6 text-center">
                     <p className="text-xs text-slate-400 mb-2">
-                        {language === 'he' ? 'מזהה דוח' : 'Report ID'}
+                        {t('reportId')}
                     </p>
                     <code className="bg-slate-200 px-2 py-1 rounded text-xs block mb-4">{report.report_id}</code>
                     <p className="text-xs text-slate-500">
-                        {language === 'he' 
-                            ? 'נוצר ע"י מערכת ACE' 
-                            : 'Generated by ACE System'}
+                        {t('generatedBy')}
                     </p>
                 </CardContent>
             </Card>
@@ -633,9 +629,9 @@ export default function ReportView() {
     <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{language === 'he' ? 'שתף דוח' : 'Share Report'}</DialogTitle>
+          <DialogTitle>{t('shareReport')}</DialogTitle>
           <DialogDescription>
-            {language === 'he' ? 'העתק את הקישור הציבורי לדוח זה.' : 'Copy the public link to this report.'}
+            {t('shareReportDesc')}
           </DialogDescription>
         </DialogHeader>
         <div className="flex items-center space-x-2">
@@ -646,13 +642,13 @@ export default function ReportView() {
         </div>
         {shareExpiry && (
           <p className="text-xs text-slate-500 mt-2">
-            {language === 'he' ? 'תוקף קישור: ' : 'Link valid until: '}
+            {t('linkValidUntil')}
             {format(new Date(shareExpiry), 'dd/MM/yyyy HH:mm')}
-            {language === 'he' ? ' (7 ימים)' : ' (7 days)'}
+             (7 {t('days')})
           </p>
         )}
         <DialogFooter>
-          <Button onClick={() => setShowShareDialog(false)}>{language === 'he' ? 'סגור' : 'Close'}</Button>
+          <Button onClick={() => setShowShareDialog(false)}>{t('close')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
