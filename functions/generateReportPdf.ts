@@ -17,22 +17,23 @@ export default Deno.serve(async (req) => {
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
     // 3. Create Temporary Access Token on the Public Site
-    // משתמשים ב-URL של האתר הציבורי כפי שמוגדר ב-ENV או ברירת מחדל
     const siteBaseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
     const siteApiUrl = `${siteBaseUrl.replace(/\/$/, '')}/functions/createPublicReport`;
     
-    // שליחת כל המידע הנחוץ ליצירת הדוח, כולל דגל isPdf
+    // הכנת המידע לשליחה לאתר
     const sitePayload = {
       ...report,
       created_by_email: user.email,
-      expiryMinutes: 15, // תוקף קצר ל-15 דקות בלבד (מספיק זמן ל-PDFShift לעבד)
-      isPdf: true // דגל המאותת לאתר להחזיר קישור לדף ה-PdfReport המעוצב
+      expiryMinutes: 15, // תוקף קצר ל-15 דקות
+      isPdf: true // דגל חשוב: מבקש את דף ה-PDF הנקי
     };
 
+    // שליחת הבקשה לאתר עם ה-API KEY המתאים לאפליקציה
     const siteRes = await fetch(siteApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // שינוי: שימוש מפורש בשם המשתנה שהגדרת באפליקציה
         'X-API-KEY': Deno.env.get('TARIFFAI_API_KEY') || ''
       },
       body: JSON.stringify(sitePayload)
@@ -44,11 +45,11 @@ export default Deno.serve(async (req) => {
     }
     
     const siteData = await siteRes.json();
-    const tempPublicUrl = siteData.shareUrl; // זה ה-URL ש-PDFShift ייגש אליו
+    const tempPublicUrl = siteData.shareUrl; // ה-URL הזמני שנוצר
 
     // 4. Generate PDF via PDFShift
     const pdfShiftKey = Deno.env.get('PDFSHIFT_API_KEY');
-    if (!pdfShiftKey) throw new Error("PDFSHIFT_API_KEY not set in environment variables");
+    if (!pdfShiftKey) throw new Error("PDFSHIFT_API_KEY not set");
 
     const pdfRes = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
         method: 'POST',
@@ -61,10 +62,10 @@ export default Deno.serve(async (req) => {
             landscape: false,
             format: 'A4',
             margin: '10mm',
-            wait_for: 'report-ready', // מחכה ל-ID שהגדרנו בדף ה-React כדי לוודא שהתוכן נטען
-            wait_for_network: true, // מחכה שכל בקשות הרשת יסתיימו
+            wait_for: 'report-ready', // מחכה לטעינת הדף (ה-ID שהוספנו ב-PdfReport.jsx)
+            wait_for_network: true,
             filename: `tariff-ai-report-${report.report_id || reportId}.pdf`,
-            sandbox: false // שנה ל-true אם אתה רוצה לבדוק ללא חיוב קרדיטים
+            sandbox: false
         })
     });
 
