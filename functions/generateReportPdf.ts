@@ -61,7 +61,8 @@ export default Deno.serve(async (req) => {
             landscape: false,
             format: 'A4',
             margin: '10mm',
-            wait_for: 'report-ready', // מחכה ל-ID שהגדרנו בדף ה-React כדי לוודא שהתוכן נטען
+            // --- TIKUN: קריאה לפונקציית ה-JS הגלובלית שהגדרנו ---
+            wait_for: 'checkReportReady', 
             wait_for_network: true, // מחכה שכל בקשות הרשת יסתיימו
             filename: `tariff-ai-report-${report.report_id || reportId}.pdf`,
             sandbox: false // שנה ל-true אם אתה רוצה לבדוק ללא חיוב קרדיטים
