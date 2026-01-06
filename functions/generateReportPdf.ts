@@ -16,17 +16,17 @@ export default Deno.serve(async (req) => {
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
-    // 3. Create Data Token on Public Site
-    // שנה את ה-URL הזה לכתובת האמיתית של האתר הציבורי שלך
-    const siteBaseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://tariff.ai-your-hs-expert.base44.app'; 
+    // 3. Create Temporary Access Token on the Public Site
+    // משתמשים ב-URL של האתר הציבורי כפי שמוגדר ב-ENV או ברירת מחדל
+    const siteBaseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
     const siteApiUrl = `${siteBaseUrl.replace(/\/$/, '')}/functions/createPublicReport`;
     
+    // שליחת כל המידע הנחוץ ליצירת הדוח, כולל דגל isPdf
     const sitePayload = {
       ...report,
       created_by_email: user.email,
-      expiryMinutes: 60, // שעה אחת מספיקה ליצירת PDF
-      isPdf: true, // דגל שמסמן לאתר: תשמור את זה עבור דף PDF
-      mode: 'full_details' // מציין שאנחנו רוצים את כל הפרטים
+      expiryMinutes: 15, // תוקף קצר ל-15 דקות בלבד (מספיק זמן ל-PDFShift לעבד)
+      isPdf: true // דגל המאותת לאתר להחזיר קישור לדף ה-PdfReport המעוצב
     };
 
     const siteRes = await fetch(siteApiUrl, {
@@ -44,14 +44,11 @@ export default Deno.serve(async (req) => {
     }
     
     const siteData = await siteRes.json();
-    // האתר יחזיר לנו URL שמיועד ספציפית ל-PDF
-    const targetUrl = siteData.pdfUrl;
-
-    if (!targetUrl) throw new Error("Site did not return a PDF URL");
+    const tempPublicUrl = siteData.shareUrl; // זה ה-URL ש-PDFShift ייגש אליו
 
     // 4. Generate PDF via PDFShift
     const pdfShiftKey = Deno.env.get('PDFSHIFT_API_KEY');
-    if (!pdfShiftKey) throw new Error("PDFSHIFT_API_KEY not set");
+    if (!pdfShiftKey) throw new Error("PDFSHIFT_API_KEY not set in environment variables");
 
     const pdfRes = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
         method: 'POST',
@@ -60,15 +57,14 @@ export default Deno.serve(async (req) => {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            source: targetUrl,
+            source: tempPublicUrl,
             landscape: false,
             format: 'A4',
             margin: '10mm',
-            // === התיקון הקריטי ===
-            // אנחנו מחכים לאלמנט שיופיע בדף ה-React רק כשהדאטה סיים להיטען
-            wait_for: '#pdf-ready', 
-            filename: `tariff-ai-report-${report.report_id}.pdf`,
-            sandbox: false
+            wait_for: 'report-ready', // מחכה ל-ID שהגדרנו בדף ה-React כדי לוודא שהתוכן נטען
+            wait_for_network: true, // מחכה שכל בקשות הרשת יסתיימו
+            filename: `tariff-ai-report-${report.report_id || reportId}.pdf`,
+            sandbox: false // שנה ל-true אם אתה רוצה לבדוק ללא חיוב קרדיטים
         })
     });
 
@@ -79,13 +75,15 @@ export default Deno.serve(async (req) => {
 
     const pdfData = await pdfRes.json();
 
+    // 5. Return the PDF URL
     return Response.json({ 
         success: true, 
-        pdfUrl: pdfData.url
+        pdfUrl: pdfData.url,
+        message: 'PDF generated successfully'
     });
 
   } catch (error) {
-    console.error('PDF Gen Error:', error);
+    console.error('PDF Generation Error:', error);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });
