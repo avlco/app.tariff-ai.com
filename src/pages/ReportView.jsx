@@ -32,7 +32,8 @@ import {
   Share2, Copy, Loader2,
   ChevronLeft,
   AlertTriangle,
-  Scale
+  Scale,
+  Download // <--- Added Download icon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -62,6 +63,9 @@ export default function ReportView() {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareLink, setShareLink] = useState('');
   const [shareExpiry, setShareExpiry] = useState('');
+
+  // --- New State for Export ---
+  const [isExporting, setIsExporting] = useState(false);
   
   const urlParams = new URLSearchParams(window.location.search);
   const reportId = urlParams.get('id');
@@ -112,6 +116,26 @@ export default function ReportView() {
     } finally {
       setIsSharing(false);
     }
+  };
+
+  // --- New Export Function ---
+  const handleExportPdf = async () => {
+      setIsExporting(true);
+      try {
+          const { data } = await base44.functions.invoke('generateReportPdf', { reportId });
+          
+          if (data.success && data.pdfUrl) {
+              window.open(data.pdfUrl, '_blank');
+              toast.success(language === 'he' ? 'הדוח יוצא בהצלחה!' : 'Report exported successfully!');
+          } else {
+              throw new Error(data.error || 'Export failed');
+          }
+      } catch (error) {
+          console.error(error);
+          toast.error(language === 'he' ? 'שגיאה ביצוא הדוח' : 'Failed to export report: ' + error.message);
+      } finally {
+          setIsExporting(false);
+      }
   };
 
   const copyToClipboard = () => {
@@ -205,6 +229,12 @@ export default function ReportView() {
           </div>
           
           <div className="flex items-center gap-2">
+             {/* --- New Export Button --- */}
+             <Button variant="outline" onClick={handleExportPdf} disabled={isExporting}>
+                {isExporting ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Download className="w-4 h-4 me-2" />}
+                {language === 'he' ? 'ייצוא PDF' : 'Export PDF'}
+             </Button>
+
              {report.status === 'completed' && (
                 <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
                   {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
