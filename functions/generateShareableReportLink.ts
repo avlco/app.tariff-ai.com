@@ -4,6 +4,7 @@ export default Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
+    // כאן חובה משתמש מחובר
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
@@ -14,17 +15,15 @@ export default Deno.serve(async (req) => {
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
     
-    // Check ownership
     if (report.created_by !== user.email && user.role !== 'admin') {
       return Response.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Generate Local Token
     const token = crypto.randomUUID();
     const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + 7); // Valid for 7 days
+    expiryDate.setDate(expiryDate.getDate() + 7); 
     
-    // Create ShareableReport record locally
+    // יצירת מפתח כניסה למשתמש החיצוני
     await base44.asServiceRole.entities.ShareableReport.create({
         token: token,
         report_id: reportId,
@@ -32,11 +31,11 @@ export default Deno.serve(async (req) => {
         created_by: user.email
     });
 
-    // Construct Public URL using configured domain
+    // בניית ה-URL - התיקון הקריטי!
     const baseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
+    // מפנה ל-PublicReportView (הדף הציבורי)
     const shareUrl = `${baseUrl}/PublicReportView?token=${token}`;
 
-    // Update report with the new link (for cache/UI display)
     await base44.entities.ClassificationReport.update(reportId, {
       public_share_url: shareUrl,
       public_share_expires_at: expiryDate.toISOString()
