@@ -4,43 +4,42 @@ export default Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         
-        // Try to get user for logging, but don't require authentication
-        let userEmail = null;
+        // 1. זיהוי משתמש (לא חובה, רק לתיעוד)
+        let userEmail = 'system_pdf_generator';
         try {
             const user = await base44.auth.me();
-            userEmail = user?.email;
-        } catch (e) {
-            // No authenticated user - OK for service role operations
-        }
+            if (user) userEmail = user.email;
+        } catch (e) {}
 
         const { reportId } = await req.json();
         if (!reportId) return Response.json({ error: 'Report ID required' }, { status: 400 });
 
-        // Use asServiceRole for all entity operations (bypasses user auth requirement)
+        // 2. בדיקת קיום הדוח (Service Role עוקף הרשאות רגילות)
         const reports = await base44.asServiceRole.entities.ClassificationReport.filter({ id: reportId });
         const report = reports[0];
         if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
-        // Generate Token
+        // 3. יצירת מפתח כניסה (Token) לבוט
         const token = crypto.randomUUID();
         const expiry = new Date();
-        expiry.setDate(expiry.getDate() + 7); // 7 days validity
+        expiry.setDate(expiry.getDate() + 1); // תוקף קצר ל-PDF
         
-        // Create ShareableReport record using asServiceRole
         await base44.asServiceRole.entities.ShareableReport.create({
             token: token,
             report_id: reportId,
-            expiry_date: expiry.toISOString()
+            expiry_date: expiry.toISOString(),
+            created_by: userEmail
         });
 
-        // 2. Construct the URL for ReportView with token (allows bot access)
+        // 4. בניית ה-URL - התיקון הקריטי!
         const baseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
+        // מפנה ל-ReportView (הדף המלא) עם mode=pdf
         const targetUrl = `${baseUrl}/ReportView?id=${reportId}&token=${token}&mode=pdf`;
+
+        console.log(`Generating PDF for: ${targetUrl}`);
 
         const pdfShiftApiKey = Deno.env.get('PDFSHIFT_API_KEY');
         if (!pdfShiftApiKey) return Response.json({ error: 'PDFShift API Key missing' }, { status: 500 });
-
-        console.log(`Generating PDF for: ${targetUrl}`);
 
         const response = await fetch('https://api.pdfshift.io/v3/convert/pdf', {
             method: 'POST',
