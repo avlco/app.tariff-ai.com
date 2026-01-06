@@ -17,15 +17,18 @@ export default Deno.serve(async (req) => {
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
     // 3. Create Temporary Access Token on the Public Site
-    const siteBaseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
+    const siteBaseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://tariff.ai-your-hs-expert.base44.app'; // וודא שזה ה-URL הנכון של האתר שלך
     const siteApiUrl = `${siteBaseUrl.replace(/\/$/, '')}/functions/createPublicReport`;
     
     const sitePayload = {
       ...report,
       created_by_email: user.email,
-      expiryMinutes: 15, // תוקף קצר ל-15 דקות
-      isPdf: true 
+      expiryMinutes: 15, 
+      isPdf: true, // דגל חשוב!
+      mode: 'full_export' // אותת לאתר שאנחנו רוצים את הדוח המלא
     };
+
+    console.log('Sending payload to site:', siteApiUrl);
 
     const siteRes = await fetch(siteApiUrl, {
       method: 'POST',
@@ -42,7 +45,10 @@ export default Deno.serve(async (req) => {
     }
     
     const siteData = await siteRes.json();
-    const tempPublicUrl = siteData.shareUrl;
+    // כאן התיקון הקריטי: אנחנו מצפים שהאתר יחזיר URL שמצביע ל- /pdf-report
+    const tempPublicUrl = siteData.pdfUrl || siteData.shareUrl; 
+
+    console.log('Target URL for PDF:', tempPublicUrl);
 
     // 4. Generate PDF via PDFShift
     const pdfShiftKey = Deno.env.get('PDFSHIFT_API_KEY');
@@ -59,9 +65,7 @@ export default Deno.serve(async (req) => {
             landscape: false,
             format: 'A4',
             margin: '10mm',
-            // שורה זו הוסרה כי גרמה לשגיאה:
-            // wait_for: 'report-ready', 
-            wait_for_network: true, // זה יבטיח שהנתונים ייטענו לפני הצילום
+            wait_for_network: true,
             filename: `tariff-ai-report-${report.report_id || reportId}.pdf`,
             sandbox: false
         })
@@ -74,7 +78,6 @@ export default Deno.serve(async (req) => {
 
     const pdfData = await pdfRes.json();
 
-    // 5. Return the PDF URL
     return Response.json({ 
         success: true, 
         pdfUrl: pdfData.url,
