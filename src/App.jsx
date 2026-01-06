@@ -3,7 +3,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import VisualEditAgent from '@/lib/VisualEditAgent'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom'; // <--- שים לב לתוספת useLocation
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -18,17 +18,9 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
-  
-  // --- תוספת קריטית לזיהוי הבוט ---
-  const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const hasToken = searchParams.has('token'); 
-  const isPublicRoute = location.pathname.includes('PublicReportView');
-  // --------------------------------
 
-  // Show loading spinner
-  // לא חוסמים טעינה אם זה נתיב ציבורי או שיש טוקן
-  if ((isLoadingPublicSettings || isLoadingAuth) && !isPublicRoute && !hasToken) {
+  // Show loading spinner while checking app public settings or auth
+  if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
@@ -37,12 +29,11 @@ const AuthenticatedApp = () => {
   }
 
   // Handle authentication errors
-  // עוקפים את בדיקת ההתחברות אם יש טוקן ב-URL!
-  if (authError && !isPublicRoute && !hasToken) {
+  if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically ONLY if no token is present
+      // Redirect to login automatically
       navigateToLogin();
       return null;
     }
@@ -74,6 +65,7 @@ const AuthenticatedApp = () => {
 
 
 function App() {
+
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
@@ -81,6 +73,7 @@ function App() {
           <NavigationTracker />
           <AuthenticatedApp />
         </Router>
+        {/* Toaster removed from here - it is now in Layout.jsx */}
         <VisualEditAgent />
       </QueryClientProvider>
     </AuthProvider>

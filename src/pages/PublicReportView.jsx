@@ -23,7 +23,6 @@ export default function PublicReportView() {
   
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
-  const mode = urlParams.get('mode'); // 'pdf' or undefined
   
   useEffect(() => {
     let originalLanguage = language;
@@ -97,118 +96,6 @@ export default function PublicReportView() {
   }
   
   const StatusIcon = statusConfig[report.status]?.icon || Clock;
-
-  if (mode === 'pdf') {
-    return (
-      <div className="max-w-[210mm] mx-auto bg-white p-8 text-black space-y-8" dir={report.target_language === 'he' ? 'rtl' : 'ltr'}>
-        <div className="border-b pb-4 mb-4">
-            <h1 className="text-3xl font-bold mb-2">{report.product_name}</h1>
-            <div className="flex justify-between text-sm text-gray-500">
-                <span>{t('reportId')}: {report.report_id}</span>
-                <span>{format(new Date(report.created_date), 'dd/MM/yyyy')}</span>
-            </div>
-        </div>
-
-        {/* Primary Classification */}
-        <section>
-            <h2 className="text-xl font-bold mb-4 pb-2 border-b text-[#114B5F]">{t('primaryClassification')}</h2>
-            <div className="bg-slate-50 p-4 rounded-lg mb-4 border">
-                <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <span className="text-sm text-gray-500 uppercase">{t('hsCode')}</span>
-                        <div className="text-4xl font-mono font-bold">{report.hs_code}</div>
-                    </div>
-                    <div>
-                        <span className="text-sm text-gray-500 uppercase">{t('confidenceScore')}</span>
-                        <div className="text-2xl font-bold text-[#42C0B9]">{report.confidence_score}%</div>
-                    </div>
-                </div>
-                {report.classification_results?.primary?.legal_basis && (
-                    <div className="mb-4 inline-flex items-center bg-gray-100 px-2 py-1 rounded text-xs text-gray-700">
-                        <span className="font-semibold me-1">{t('legalBasis')}:</span>
-                        <ReportContentWrapper languageCode="en" className="font-medium">
-                            {report.classification_results.primary.legal_basis}
-                        </ReportContentWrapper>
-                    </div>
-                )}
-                <div>
-                    <span className="text-sm text-gray-500 uppercase block mb-1">{t('classificationReasoning')}</span>
-                    <ReportContentWrapper languageCode={report.target_language}>
-                        <p className="text-gray-800 leading-relaxed">{report.classification_reasoning}</p>
-                    </ReportContentWrapper>
-                </div>
-            </div>
-        </section>
-
-        {/* Product Characteristics */}
-        <section>
-            <h2 className="text-xl font-bold mb-4 pb-2 border-b text-[#114B5F]">{t('productCharacteristics')}</h2>
-            <ReportContentWrapper languageCode={report.target_language}>
-                <ul className="list-disc pl-5 space-y-2">
-                    {(report.product_characteristics || []).map((char, index) => (
-                        <li key={index} className="text-gray-700">{char}</li>
-                    ))}
-                </ul>
-            </ReportContentWrapper>
-        </section>
-
-        {/* Tariff Info & Import Requirements */}
-        <section>
-            <h2 className="text-xl font-bold mb-4 pb-2 border-b text-[#114B5F]">{t('technicalLegalDetails')}</h2>
-            
-            {report.tariff_description && (
-                <div className="mb-6">
-                    <h3 className="font-semibold mb-2 text-gray-700">{t('tariffInformation')}</h3>
-                    <ReportContentWrapper languageCode={report.target_language}>
-                        <p className="text-gray-700">{report.tariff_description}</p>
-                    </ReportContentWrapper>
-                </div>
-            )}
-
-            {report.import_requirements && report.import_requirements.length > 0 && (
-                <div>
-                    <h3 className="font-semibold mb-2 text-gray-700">{t('importRequirements')}</h3>
-                    <ReportContentWrapper languageCode={report.target_language}>
-                        <div className="space-y-4">
-                            {report.import_requirements.map((req, index) => (
-                                <div key={index} className="p-3 bg-gray-50 border rounded">
-                                    <h4 className="font-medium text-gray-900">{req.title}</h4>
-                                    <p className="text-sm text-gray-600">{req.description}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </ReportContentWrapper>
-                </div>
-            )}
-        </section>
-
-        {/* Trade Details */}
-        <section>
-             <h2 className="text-xl font-bold mb-4 pb-2 border-b text-[#114B5F]">{t('tradeDetails')}</h2>
-             <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <span className="text-sm text-gray-500 block">{t('countryOfManufacture')}</span>
-                    <span className="font-medium">{report.country_of_manufacture || '---'}</span>
-                </div>
-                <div>
-                    <span className="text-sm text-gray-500 block">{t('destinationCountry')}</span>
-                    <span className="font-medium">{report.destination_country || '---'}</span>
-                </div>
-                <div>
-                    <span className="text-sm text-gray-500 block">{t('countryOfOrigin')}</span>
-                    <span className="font-medium">{report.country_of_origin || '---'}</span>
-                </div>
-             </div>
-        </section>
-
-        {/* Disclaimer Footer */}
-        <div className="pt-8 mt-8 border-t text-center text-xs text-gray-400">
-            <p>{t('disclaimer')}</p>
-            <p className="mt-1">Generated by Tariff AI</p>
-        </div>
-      </div>
-    );
-  }
   
   return (
     <div className="min-h-screen bg-[#FAFBFC] dark:bg-[#0B1120] p-6">

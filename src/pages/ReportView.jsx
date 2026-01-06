@@ -65,227 +65,33 @@ export default function ReportView() {
   
   const urlParams = new URLSearchParams(window.location.search);
   const reportId = urlParams.get('id');
-  const token = urlParams.get('token');
-  const isPdfMode = urlParams.get('mode') === 'pdf';
   
   useEffect(() => {
     const loadData = async () => {
       try {
-        let reportData = null;
-        
-        // Dual mode: Token-based (for PDF/guest) or authenticated user
-        if (token) {
-          // Token-based access - use backend function
-          const { data } = await base44.functions.invoke('getSharedReportData', { token });
-          if (data.success && data.report) {
-            reportData = data.report;
-          } else {
-            throw new Error(data.error || 'Invalid token');
-          }
-        } else {
-          // Regular authenticated access
-          const reportRes = await base44.entities.ClassificationReport.filter({ id: reportId });
-          reportData = reportRes[0];
-          
-          const userData = await base44.auth.me();
-          setUser(userData);
-        }
-        
+        const reportRes = await base44.entities.ClassificationReport.filter({ id: reportId });
+        const reportData = reportRes[0];
         setReport(reportData);
         
-        // Load trade resource if destination country exists
+        let resourceData = null;
         if (reportData?.destination_country) {
-          try {
-            const resources = await base44.entities.CountryTradeResource.filter({ country_name: reportData.destination_country });
-            setTradeResource(resources[0]);
-          } catch (e) {
-            console.warn('Could not load trade resource:', e);
-          }
+             const resources = await base44.entities.CountryTradeResource.filter({ country_name: reportData.destination_country });
+             resourceData = resources[0];
+             setTradeResource(resourceData);
         }
+
+        const userData = await base44.auth.me();
+        setUser(userData);
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
         setLoading(false);
       }
     };
-    if (reportId || token) loadData();
-  }, [reportId, token]);
+    if (reportId) loadData();
+  }, [reportId]);
   
   const isPremium = user?.subscription_plan && ['pay_per_use', 'basic', 'pro', 'agency', 'enterprise'].includes(user.subscription_plan);
-
-  // ======== Tab Content Render Functions (reusable for both tabs and PDF stack) ========
-  const renderTechnicalContent = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="p-4 bg-slate-50 rounded-lg">
-        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('standardizedName')}</h4>
-        <ReportContentWrapper languageCode={report?.target_language}>
-          <p className="text-slate-900">{spec.standardized_name || '---'}</p>
-        </ReportContentWrapper>
-      </div>
-      <div className="p-4 bg-slate-50 rounded-lg">
-        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('materialComposition')}</h4>
-        <ReportContentWrapper languageCode={report?.target_language}>
-          <p className="text-slate-900">{spec.material_composition || '---'}</p>
-        </ReportContentWrapper>
-      </div>
-      <div className="p-4 bg-slate-50 rounded-lg">
-        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('function')}</h4>
-        <ReportContentWrapper languageCode={report?.target_language}>
-          <p className="text-slate-900">{spec.function || '---'}</p>
-        </ReportContentWrapper>
-      </div>
-      <div className="p-4 bg-slate-50 rounded-lg">
-        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('essentialCharacter')}</h4>
-        <ReportContentWrapper languageCode={report?.target_language}>
-          <p className="text-slate-900">{spec.essential_character || '---'}</p>
-        </ReportContentWrapper>
-      </div>
-    </div>
-  );
-
-  const renderLegalContent = () => (
-    <div className="prose prose-sm max-w-none p-4 bg-slate-50 rounded-lg">
-      <ReportContentWrapper languageCode={report?.target_language}>
-        <p className="whitespace-pre-wrap">{primaryResult.reasoning}</p>
-      </ReportContentWrapper>
-    </div>
-  );
-
-  const renderComplianceContent = () => (
-    <div className="space-y-6">
-      {/* Taxes & Duties Section */}
-      <div className="space-y-3">
-        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-          <Scale className="w-4 h-4 text-[#42C0B9]" />
-          {t('taxesDuties')}
-          <Badge variant="outline" className="text-xs font-normal ms-auto">
-            {t('taxMethod')}: {tradeResource?.tax_method || 'CIF'}
-          </Badge>
-        </h3>
-        <div className="border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50">
-                <TableHead>Type</TableHead>
-                <TableHead>Rate/Amount</TableHead>
-                <TableHead>Source</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell>Duty Rate</TableCell>
-                <TableCell className="font-medium">{regulatoryPrimary.duty_rate || '0%'}</TableCell>
-                <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>VAT</TableCell>
-                <TableCell>{regulatoryPrimary.vat_rate || '---'}</TableCell>
-                <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
-              </TableRow>
-              {regulatoryPrimary.excise_tax && (
-                <TableRow>
-                  <TableCell>Excise Tax</TableCell>
-                  <TableCell>{regulatoryPrimary.excise_tax}</TableCell>
-                  <TableCell><Badge variant="secondary" className="text-[10px] bg-purple-50 text-purple-700">Regulation</Badge></TableCell>
-                </TableRow>
-              )}
-              {regulatoryPrimary.anti_dumping_duty && (
-                <TableRow>
-                  <TableCell className="text-red-600">Anti-Dumping</TableCell>
-                  <TableCell className="text-red-600 font-medium">{regulatoryPrimary.anti_dumping_duty}</TableCell>
-                  <TableCell><Badge variant="secondary" className="text-[10px] bg-red-50 text-red-700">Trade Defense</Badge></TableCell>
-                </TableRow>
-              )}
-              {regulatoryPrimary.other_fees && (
-                <TableRow>
-                  <TableCell>Other Fees</TableCell>
-                  <TableCell>{regulatoryPrimary.other_fees}</TableCell>
-                  <TableCell><Badge variant="secondary" className="text-[10px]">Port/Levy</Badge></TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      {/* Standards & Certification */}
-      <div className="space-y-3">
-        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-[#42C0B9]" />
-          {t('standardsCertification')}
-        </h3>
-        <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-          {Array.isArray(regulatoryPrimary.standards_requirements) && regulatoryPrimary.standards_requirements.length > 0 ? (
-            <ul className="space-y-3">
-              {regulatoryPrimary.standards_requirements.map((item, idx) => (
-                <li key={idx} className="flex flex-col gap-1">
-                  <span className="text-slate-900 font-medium">• {item.requirement || item}</span>
-                  {item.verification_url && (
-                    <a href={item.verification_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline w-fit">
-                      <ExternalLink className="w-3 h-3" />
-                      {t('verifySource')}
-                    </a>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-slate-900 whitespace-pre-wrap mb-4">
-              {typeof regulatoryPrimary.standards_requirements === 'string' 
-                ? regulatoryPrimary.standards_requirements 
-                : t('noSpecificStandards')}
-            </p>
-          )}
-          
-          {tradeResource?.regulation_links?.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/60">
-              <span className="text-xs text-slate-400 w-full mb-1">{t('officialResourceLinks')}:</span>
-              {tradeResource.regulation_links.map((link, idx) => (
-                <a key={idx} href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-md text-xs text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors">
-                  <ExternalLink className="w-3 h-3" />
-                  {t('officialSources')} {idx + 1}
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-        <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
-          <Lock className="w-4 h-4" />
-          {t('importLegality')}
-        </h4>
-        <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.import_legality || '---'}</p>
-      </div>
-    </div>
-  );
-
-  const renderSourcesContent = () => (
-    <div className="space-y-2">
-      {(research.verified_sources || []).map((source, idx) => (
-        <a 
-          key={idx} 
-          href={source.url} 
-          target="_blank" 
-          rel="noreferrer"
-          className="block p-3 bg-white border hover:bg-slate-50 rounded-lg transition-colors group"
-        >
-          <div className="flex items-center justify-between">
-            <h4 className="font-medium text-[#114B5F] group-hover:underline">{source.title}</h4>
-            <ExternalLink className="w-4 h-4 text-slate-400" />
-          </div>
-          <p className="text-xs text-slate-500 mt-1 line-clamp-2">{source.snippet}</p>
-          <div className="flex gap-2 mt-2">
-            <Badge variant="secondary" className="text-[10px] h-5">{new Date(source.date).toLocaleDateString()}</Badge>
-          </div>
-        </a>
-      ))}
-      {(!research.verified_sources || research.verified_sources.length === 0) && (
-        <p className="text-slate-500 italic">No public sources linked.</p>
-      )}
-    </div>
-  );
 
   const handleShareReport = async () => {
     if (!reportId) return;
@@ -366,87 +172,6 @@ export default function ReportView() {
   
   const StatusIcon = statusConfig[report.status]?.icon || Clock;
 
-  // ======== PDF MODE: Simplified stacked layout for print ========
-  if (isPdfMode) {
-    return (
-      <div className="max-w-4xl mx-auto p-6 bg-white">
-        {/* PDF Header */}
-        <div className="border-b pb-4 mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <Badge className={`${statusConfig[report.status]?.color} border-0`}>
-              <StatusIcon className="w-3 h-3 me-1" />
-              {statusConfig[report.status]?.label}
-            </Badge>
-            <span className="text-sm text-slate-500">ID: {report.report_id}</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">{report.product_name}</h1>
-          <p className="text-sm text-slate-500 mt-1">{format(new Date(report.created_date), 'dd/MM/yyyy HH:mm')}</p>
-        </div>
-
-        {/* Primary Classification */}
-        <div className="bg-[#114B5F] text-white rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Scale className="w-5 h-5 text-[#42C0B9]" />
-            {t('primaryClassification')}
-          </h2>
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-white/70 text-sm uppercase">HS Code</p>
-              <p className="text-4xl font-mono font-bold">{primaryResult.hs_code || '---'}</p>
-            </div>
-            <div className="flex gap-6">
-              <div><p className="text-white/70 text-sm">Duty Rate</p><p className="text-xl font-semibold text-[#42C0B9]">{regulatoryPrimary.duty_rate || 'N/A'}</p></div>
-              <div><p className="text-white/70 text-sm">VAT</p><p className="text-xl font-semibold text-[#42C0B9]">{regulatoryPrimary.vat_rate || 'N/A'}</p></div>
-            </div>
-          </div>
-          <div className="bg-white/10 rounded-lg p-3">
-            <ReportContentWrapper languageCode={report.target_language}>
-              <p className="text-white/90 italic text-sm">"{primaryResult.reasoning}"</p>
-            </ReportContentWrapper>
-          </div>
-        </div>
-
-        {/* Technical Spec */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('technicalSpec')}</h2>
-          {renderTechnicalContent()}
-        </div>
-
-        {/* Legal Reasoning */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('fullLegalReasoning')}</h2>
-          {renderLegalContent()}
-        </div>
-
-        {/* Compliance */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('complianceRegulation')}</h2>
-          {renderComplianceContent()}
-        </div>
-
-        {/* Sources */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('verifiedSources')}</h2>
-          {renderSourcesContent()}
-        </div>
-
-        {/* Trade Details */}
-        <div className="border-t pt-4">
-          <h2 className="text-lg font-semibold mb-3 text-slate-900">{t('tradeDetails')}</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div><p className="text-sm text-slate-500">{t('destination')}</p><p className="font-medium">{report.destination_country}</p></div>
-            <div><p className="text-sm text-slate-500">{t('origin')}</p><p className="font-medium">{report.country_of_origin}</p></div>
-          </div>
-        </div>
-
-        <div className="text-center text-xs text-slate-400 mt-8 pt-4 border-t">
-          {t('generatedBy')} • {t('reportId')}: {report.report_id}
-        </div>
-      </div>
-    );
-  }
-
-  // ======== NORMAL MODE: Full interactive view ========
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6">
       {/* Header */}
@@ -455,12 +180,10 @@ export default function ReportView() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-4"
       >
-        {!token && (
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-            <ChevronLeft className="w-4 h-4 me-2" />
-            {t('backToReports')}
-          </Button>
-        )}
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <ChevronLeft className="w-4 h-4 me-2" />
+          {t('backToReports')}
+        </Button>
         
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -481,51 +204,18 @@ export default function ReportView() {
             </p>
           </div>
           
-          {!token && (
-            <div className="flex items-center gap-2">
-               {report.status === 'completed' && (
-                  <>
-                      <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
-                        {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
-                        {t('share')}
-                      </Button>
-                      <Button variant="outline" onClick={async () => {
-                          const toastId = toast.loading(language === 'he' ? 'מייצר PDF...' : 'Generating PDF...');
-                          try {
-                              const functionUrl = '/api/functions/generatePdf';
-                              const res = await fetch(functionUrl, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ reportId })
-                              });
-                              
-                              if (!res.ok) throw new Error('PDF Generation failed');
-                              
-                              const blob = await res.blob();
-                              const url = window.URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = `report-${reportId}.pdf`;
-                              document.body.appendChild(a);
-                              a.click();
-                              window.URL.revokeObjectURL(url);
-                              document.body.removeChild(a);
-                              
-                              toast.dismiss(toastId);
-                              toast.success(language === 'he' ? 'הורדה הושלמה' : 'Download complete');
-                          } catch (e) {
-                              console.error(e);
-                              toast.dismiss(toastId);
-                              toast.error(language === 'he' ? 'שגיאה ביצירת PDF' : 'Error generating PDF');
-                          }
-                      }}>
-                         <FileText className="w-4 h-4 me-2"/>
-                         Export PDF
-                      </Button>
-                  </>
-               )}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+             {report.status === 'completed' && (
+                <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
+                  {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
+                  {t('share')}
+                </Button>
+             )}
+             <Button variant="outline" onClick={() => window.print()}>
+               <FileText className="w-4 h-4 me-2"/>
+               {t('print')}
+             </Button>
+          </div>
         </div>
       </motion.div>
 
@@ -686,19 +376,174 @@ export default function ReportView() {
                             </TabsList>
                             
                             <TabsContent value="compliance" className="space-y-6">
-                                {renderComplianceContent()}
+                                {/* Taxes & Duties Section */}
+                                <div className="space-y-3">
+                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                        <Scale className="w-4 h-4 text-[#42C0B9]" />
+                                        {t('taxesDuties')}
+                                        <Badge variant="outline" className="text-xs font-normal ms-auto">
+                                            {t('taxMethod')}: {tradeResource?.tax_method || 'CIF'}
+                                        </Badge>
+                                    </h3>
+                                    <div className="border rounded-lg overflow-hidden">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="bg-slate-50">
+                                                    <TableHead>Type</TableHead>
+                                                    <TableHead>Rate/Amount</TableHead>
+                                                    <TableHead>Source</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                <TableRow>
+                                                    <TableCell>Duty Rate</TableCell>
+                                                    <TableCell className="font-medium">{regulatoryPrimary.duty_rate || '0%'}</TableCell>
+                                                    <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
+                                                </TableRow>
+                                                <TableRow>
+                                                    <TableCell>VAT</TableCell>
+                                                    <TableCell>{regulatoryPrimary.vat_rate || '---'}</TableCell>
+                                                    <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
+                                                </TableRow>
+                                                {regulatoryPrimary.excise_tax && (
+                                                    <TableRow>
+                                                        <TableCell>Excise Tax</TableCell>
+                                                        <TableCell>{regulatoryPrimary.excise_tax}</TableCell>
+                                                        <TableCell><Badge variant="secondary" className="text-[10px] bg-purple-50 text-purple-700">Regulation</Badge></TableCell>
+                                                    </TableRow>
+                                                )}
+                                                {regulatoryPrimary.anti_dumping_duty && (
+                                                    <TableRow>
+                                                        <TableCell className="text-red-600">Anti-Dumping</TableCell>
+                                                        <TableCell className="text-red-600 font-medium">{regulatoryPrimary.anti_dumping_duty}</TableCell>
+                                                        <TableCell><Badge variant="secondary" className="text-[10px] bg-red-50 text-red-700">Trade Defense</Badge></TableCell>
+                                                    </TableRow>
+                                                )}
+                                                {regulatoryPrimary.other_fees && (
+                                                    <TableRow>
+                                                        <TableCell>Other Fees</TableCell>
+                                                        <TableCell>{regulatoryPrimary.other_fees}</TableCell>
+                                                        <TableCell><Badge variant="secondary" className="text-[10px]">Port/Levy</Badge></TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+
+                                {/* Standards & Certification */}
+                                <div className="space-y-3">
+                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-[#42C0B9]" />
+                                        {t('standardsCertification')}
+                                    </h3>
+                                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                                        {Array.isArray(regulatoryPrimary.standards_requirements) && regulatoryPrimary.standards_requirements.length > 0 ? (
+                                            <ul className="space-y-3">
+                                                {regulatoryPrimary.standards_requirements.map((item, idx) => (
+                                                    <li key={idx} className="flex flex-col gap-1">
+                                                        <span className="text-slate-900 font-medium">• {item.requirement || item}</span>
+                                                        {item.verification_url && (
+                                                            <a href={item.verification_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline w-fit">
+                                                                <ExternalLink className="w-3 h-3" />
+                                                                {t('verifySource')}
+                                                            </a>
+                                                        )}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-slate-900 whitespace-pre-wrap mb-4">
+                                                {typeof regulatoryPrimary.standards_requirements === 'string' 
+                                                    ? regulatoryPrimary.standards_requirements 
+                                                    : t('noSpecificStandards')}
+                                            </p>
+                                        )}
+                                        
+                                        {tradeResource?.regulation_links?.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/60">
+                                                <span className="text-xs text-slate-400 w-full mb-1">{t('officialResourceLinks')}:</span>
+                                                {tradeResource.regulation_links.map((link, idx) => (
+                                                    <a key={idx} href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-md text-xs text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors">
+                                                        <ExternalLink className="w-3 h-3" />
+                                                        {t('officialSources')} {idx + 1}
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                    <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
+                                        <Lock className="w-4 h-4" />
+                                        {t('importLegality')}
+                                    </h4>
+                                    <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.import_legality || '---'}</p>
+                                </div>
                             </TabsContent>
 
                             <TabsContent value="technical" className="space-y-4">
-                                {renderTechnicalContent()}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('standardizedName')}</h4>
+                                        <ReportContentWrapper languageCode={report.target_language}>
+                                            <p className="text-slate-900">{spec.standardized_name || '---'}</p>
+                                        </ReportContentWrapper>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('materialComposition')}</h4>
+                                        <ReportContentWrapper languageCode={report.target_language}>
+                                            <p className="text-slate-900">{spec.material_composition || '---'}</p>
+                                        </ReportContentWrapper>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('function')}</h4>
+                                        <ReportContentWrapper languageCode={report.target_language}>
+                                            <p className="text-slate-900">{spec.function || '---'}</p>
+                                        </ReportContentWrapper>
+                                    </div>
+                                    <div className="p-4 bg-slate-50 rounded-lg">
+                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('essentialCharacter')}</h4>
+                                        <ReportContentWrapper languageCode={report.target_language}>
+                                            <p className="text-slate-900">{spec.essential_character || '---'}</p>
+                                        </ReportContentWrapper>
+                                    </div>
+                                </div>
                             </TabsContent>
                             
                             <TabsContent value="legal">
-                                {renderLegalContent()}
+                                <div className="prose prose-sm max-w-none p-4 bg-slate-50 rounded-lg">
+                                    <ReportContentWrapper languageCode={report.target_language}>
+                                        <p className="whitespace-pre-wrap">{primaryResult.reasoning}</p>
+                                    </ReportContentWrapper>
+                                </div>
                             </TabsContent>
                             
                             <TabsContent value="sources">
-                                {renderSourcesContent()}
+                                <div className="space-y-2">
+                                    {(research.verified_sources || []).map((source, idx) => (
+                                        <a 
+                                            key={idx} 
+                                            href={source.url} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                            className="block p-3 bg-white border hover:bg-slate-50 rounded-lg transition-colors group"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="font-medium text-[#114B5F] group-hover:underline">{source.title}</h4>
+                                                <ExternalLink className="w-4 h-4 text-slate-400" />
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">{source.snippet}</p>
+                                            <div className="flex gap-2 mt-2">
+                                                <Badge variant="secondary" className="text-[10px] h-5">{new Date(source.date).toLocaleDateString()}</Badge>
+                                            </div>
+                                        </a>
+                                    ))}
+                                    {(!research.verified_sources || research.verified_sources.length === 0) && (
+                                        <p className="text-slate-500 italic">No public sources linked.</p>
+                                    )}
+                                </div>
                             </TabsContent>
                         </Tabs>
                     </CardContent>
