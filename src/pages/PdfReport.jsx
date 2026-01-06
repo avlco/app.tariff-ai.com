@@ -4,7 +4,7 @@ import { CheckCircle, Scale, BookOpen, Globe, FileText, Box } from 'lucide-react
 
 // Global function for PDFShift wait_for - returns true when report is loaded
 if (typeof window !== 'undefined') {
-    window.checkReportReady = () => {
+    window.reportReady = () => {
         return window._reportDataLoaded === true;
     };
     window._reportDataLoaded = false;
