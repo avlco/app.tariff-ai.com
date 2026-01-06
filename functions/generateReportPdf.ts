@@ -21,12 +21,42 @@ export default Deno.serve(async (req) => {
     const siteBaseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
     const siteApiUrl = `${siteBaseUrl.replace(/\/$/, '')}/functions/createPublicReport`;
     
-    // שליחת כל המידע הנחוץ ליצירת הדוח, כולל דגל isPdf
+    // שליחת כל המידע הנחוץ ליצירת הדוח באופן מפורש
     const sitePayload = {
-      ...report,
+      // Basic Info
+      product_name: report.product_name,
+      report_id: report.report_id || report.id,
+      destination_country: report.destination_country,
+      country_of_origin: report.country_of_origin,
+      country_of_manufacture: report.country_of_manufacture,
+      status: report.status,
+      created_date: report.created_date,
+      target_language: report.target_language,
+      
+      // User Input Data
+      user_input_text: report.user_input_text,
+      uploaded_image_urls: report.uploaded_image_urls,
+      uploaded_file_urls: report.uploaded_file_urls,
+      external_link_urls: report.external_link_urls,
+      chat_history: report.chat_history,
+      
+      // Agent Results - All nested objects
+      structural_analysis: report.structural_analysis,
+      research_findings: report.research_findings,
+      classification_results: report.classification_results,
+      regulatory_data: report.regulatory_data,
+      qa_audit: report.qa_audit,
+      
+      // Legacy/Flat fields for backwards compatibility
+      hs_code: report.hs_code,
+      confidence_score: report.confidence_score,
+      classification_reasoning: report.classification_reasoning,
+      tariff_description: report.tariff_description,
+      
+      // Metadata
       created_by_email: user.email,
-      expiryMinutes: 15, // תוקף קצר ל-15 דקות בלבד (מספיק זמן ל-PDFShift לעבד)
-      isPdf: true // דגל המאותת לאתר להחזיר קישור לדף ה-PdfReport המעוצב
+      expiryMinutes: 15,
+      isPdf: true
     };
 
     const siteRes = await fetch(siteApiUrl, {
