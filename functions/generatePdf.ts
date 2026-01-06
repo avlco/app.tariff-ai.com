@@ -31,10 +31,9 @@ export default Deno.serve(async (req) => {
             created_by: userEmail
         });
 
-        // 4. בניית ה-URL - התיקון הקריטי!
+        // 4. בניית ה-URL - מפנה לדף הציבורי PublicReport
         const baseUrl = Deno.env.get('PUBLIC_SITE_BASE_URL') || 'https://test.tariff-ai.com';
-        // מפנה ל-ReportView (הדף המלא) עם mode=pdf
-        const targetUrl = `${baseUrl}/ReportView?id=${reportId}&token=${token}&mode=pdf`;
+        const targetUrl = `${baseUrl}/PublicReport?token=${token}&mode=pdf`;
 
         console.log(`Generating PDF for: ${targetUrl}`);
 
