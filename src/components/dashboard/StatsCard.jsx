@@ -9,12 +9,12 @@ export default function StatsCard({ title, value, subtitle, icon: Icon, color = 
       glow: 'hover:shadow-[0_0_20px_rgba(66,192,185,0.15)]'
     },
     navy: {
-      icon: 'bg-[#0F172A]/10 dark:bg-white/10 text-[#0F172A] dark:text-white',
-      glow: 'hover:shadow-[0_0_20px_rgba(15,23,42,0.15)]'
+      icon: 'bg-[#114B5F]/10 dark:bg-[hsl(222,40%,20%)] text-[#114B5F] dark:text-white',
+      glow: 'hover:shadow-[0_0_20px_rgba(17,75,95,0.15)]'
     },
     gold: {
-      icon: 'bg-[#E5A840]/15 text-[#E5A840]',
-      glow: 'hover:shadow-[0_0_20px_rgba(229,168,64,0.15)]'
+      icon: 'bg-[#D89C42]/15 text-[#D89C42]',
+      glow: 'hover:shadow-[0_0_20px_rgba(216,156,66,0.15)]'
     },
   };
   
@@ -33,17 +33,17 @@ export default function StatsCard({ title, value, subtitle, icon: Icon, color = 
           </div>
         </div>
         <div>
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">{title}</p>
-          <p className="text-3xl font-bold font-heading text-slate-900 dark:text-white mb-1 font-mono">{value}</p>
+          <p className="text-xs font-medium text-[#5A8A99] dark:text-[hsl(200,15%,60%)] mb-1.5 uppercase tracking-wide">{title}</p>
+          <p className="text-3xl font-bold font-heading text-[#114B5F] dark:text-[hsl(0,0%,98%)] mb-1 font-mono">{value}</p>
           {subtitle && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+            <p className="text-xs text-[#5A8A99] dark:text-[hsl(200,15%,60%)]">{subtitle}</p>
           )}
           {trend && (
             <div className="flex items-center gap-1.5 text-xs mt-2">
               <span className={`font-semibold ${trend > 0 ? 'text-[#42C0B9]' : 'text-red-500'}`}>
                 {trend > 0 ? '+' : ''}{trend}%
               </span>
-              <span className="text-slate-400">vs last month</span>
+              <span className="text-[hsl(200,15%,60%)]">vs last month</span>
             </div>
           )}
         </div>

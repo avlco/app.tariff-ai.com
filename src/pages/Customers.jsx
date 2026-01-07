@@ -163,11 +163,11 @@ export default function Customers() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#0F172A] dark:text-[#F8FAFC] flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-[#114B5F] dark:text-[hsl(0,0%,98%)] flex items-center gap-2">
             <Users className="w-7 h-7 text-[#42C0B9]" />
             {isRTL ? 'לקוחות' : 'Customers'}
           </h1>
-          <p className="text-sm text-[#64748B] dark:text-[#94A3B8] mt-1">
+          <p className="text-sm text-[#5A8A99] dark:text-[hsl(200,15%,60%)] mt-1">
             {isRTL ? 'ניהול רשימת לקוחות ונמענים' : 'Manage your customer and recipient list'}
           </p>
         </div>
@@ -220,7 +220,7 @@ export default function Customers() {
       {/* Search */}
       <Card className="p-4">
         <div className="relative">
-          <Search className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B] ${isRTL ? 'right-3' : 'left-3'}`} />
+          <Search className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 text-[#5A8A99] ${isRTL ? 'right-3' : 'left-3'}`} />
           <Input
             placeholder={isRTL ? 'חיפוש לקוחות...' : 'Search customers...'}
             value={searchQuery}
@@ -235,19 +235,19 @@ export default function Customers() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="p-6 animate-pulse">
-              <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-4"></div>
-              <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mb-2"></div>
-              <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
+              <div className="h-4 bg-slate-200 dark:bg-[hsl(222,35%,12%)] rounded w-3/4 mb-4"></div>
+              <div className="h-3 bg-slate-200 dark:bg-[hsl(222,35%,12%)] rounded w-1/2 mb-2"></div>
+              <div className="h-3 bg-slate-200 dark:bg-[hsl(222,35%,12%)] rounded w-2/3"></div>
             </Card>
           ))}
         </div>
       ) : filteredCustomers.length === 0 ? (
         <Card className="p-12 text-center">
-          <Users className="w-12 h-12 text-[#CBD5E1] mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-[#475569] dark:text-[#CBD5E1] mb-2">
+          <Users className="w-12 h-12 text-[#5A8A99] dark:text-[hsl(200,15%,60%)] mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-[#114B5F] dark:text-[hsl(200,15%,75%)] mb-2">
             {isRTL ? 'אין לקוחות' : 'No customers yet'}
           </h3>
-          <p className="text-sm text-[#64748B] dark:text-[#94A3B8]">
+          <p className="text-sm text-[#5A8A99] dark:text-[hsl(200,15%,60%)]">
             {isRTL ? 'התחל בהוספת לקוח ראשון' : 'Start by adding your first customer'}
           </p>
         </Card>
@@ -262,19 +262,19 @@ export default function Customers() {
               <Card className="p-6 hover:shadow-lg transition-shadow">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#114B5F] to-[#42C0B9] flex items-center justify-center">
-                      <Building2 className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
-                        {customer.customer_name}
-                      </h3>
-                      {customer.contact_person && (
-                        <p className="text-xs text-[#64748B] dark:text-[#94A3B8]">
-                          {customer.contact_person}
-                        </p>
-                      )}
-                    </div>
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#114B5F] to-[#42C0B9] flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-[#114B5F] dark:text-[hsl(0,0%,98%)]">
+                      {customer.customer_name}
+                    </h3>
+                    {customer.contact_person && (
+                      <p className="text-xs text-[#5A8A99] dark:text-[hsl(200,15%,60%)]">
+                        {customer.contact_person}
+                      </p>
+                    )}
+                  </div>
                   </div>
                   <div className="flex gap-1">
                     <Button
@@ -297,18 +297,18 @@ export default function Customers() {
                 </div>
 
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-[#475569] dark:text-[#CBD5E1]">
+                  <div className="flex items-center gap-2 text-[#1E6B7F] dark:text-[hsl(200,15%,75%)]">
                     <Mail className="w-4 h-4 text-[#42C0B9]" />
                     <span className="truncate">{customer.email}</span>
                   </div>
                   {customer.phone && (
-                    <div className="flex items-center gap-2 text-[#475569] dark:text-[#CBD5E1]">
+                    <div className="flex items-center gap-2 text-[#1E6B7F] dark:text-[hsl(200,15%,75%)]">
                       <Phone className="w-4 h-4 text-[#42C0B9]" />
                       <span>{customer.phone}</span>
                     </div>
                   )}
                   {customer.shipping_address?.country && (
-                    <div className="flex items-center gap-2 text-[#475569] dark:text-[#CBD5E1]">
+                    <div className="flex items-center gap-2 text-[#1E6B7F] dark:text-[hsl(200,15%,75%)]">
                       <MapPin className="w-4 h-4 text-[#42C0B9]" />
                       <span>{customer.shipping_address.country}</span>
                     </div>

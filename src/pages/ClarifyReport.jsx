@@ -133,16 +133,16 @@ export default function ClarifyReport() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left: Context (Read Only) */}
-        <Card className="bg-slate-50/80 dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl h-full">
+        <Card className="bg-slate-50/80 dark:bg-[hsl(222,40%,8%)] border border-slate-200/80 dark:border-[hsl(222,30%,15%)] rounded-2xl h-full">
             <CardHeader><CardTitle className="text-lg font-heading flex items-center gap-2"><FileText className="w-5 h-5 text-[#42C0B9]"/> {t('caseContext')}</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white dark:bg-white/[0.04] p-3 rounded-xl border border-slate-200/80 dark:border-white/[0.08]"><span className="text-xs text-slate-400 block uppercase tracking-wide">{t('product')}</span><span className="font-medium text-slate-900 dark:text-white">{report.product_name}</span></div>
-                    <div className="bg-white dark:bg-white/[0.04] p-3 rounded-xl border border-slate-200/80 dark:border-white/[0.08]"><span className="text-xs text-slate-400 block uppercase tracking-wide">{t('destination')}</span><span className="font-medium text-slate-900 dark:text-white">{report.destination_country}</span></div>
+                    <div className="bg-white dark:bg-[hsl(222,35%,12%)] p-3 rounded-xl border border-slate-200/80 dark:border-[hsl(222,30%,15%)]"><span className="text-xs text-[hsl(200,15%,60%)] block uppercase tracking-wide">{t('product')}</span><span className="font-medium text-[#114B5F] dark:text-[hsl(0,0%,98%)]">{report.product_name}</span></div>
+                    <div className="bg-white dark:bg-[hsl(222,35%,12%)] p-3 rounded-xl border border-slate-200/80 dark:border-[hsl(222,30%,15%)]"><span className="text-xs text-[hsl(200,15%,60%)] block uppercase tracking-wide">{t('destination')}</span><span className="font-medium text-[#114B5F] dark:text-[hsl(0,0%,98%)]">{report.destination_country}</span></div>
                 </div>
                 <div>
                     <span className="text-xs text-slate-400 block mb-2 uppercase tracking-wide">{t('originalInput')}</span>
-                    <div className="bg-white dark:bg-white/[0.04] p-4 rounded-xl border border-slate-200/80 dark:border-white/[0.08] text-sm max-h-60 overflow-y-auto whitespace-pre-wrap text-slate-700 dark:text-slate-300">{report.user_input_text || 'None'}</div>
+                    <div className="bg-white dark:bg-[hsl(222,35%,12%)] p-4 rounded-xl border border-slate-200/80 dark:border-[hsl(222,30%,15%)] text-sm max-h-60 overflow-y-auto whitespace-pre-wrap text-[#1E6B7F] dark:text-[hsl(200,15%,75%)]">{report.user_input_text || 'None'}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     {(report.uploaded_file_urls || []).map((_, i) => <Badge key={i} variant="secondary" className="rounded-full">{t('file')} {i+1}</Badge>)}
@@ -159,11 +159,11 @@ export default function ClarifyReport() {
                 <AlertDescription className="text-slate-700 dark:text-slate-300">{report.missing_info_question || t('provideInfo')}</AlertDescription>
             </Alert>
 
-            <Card className="border border-slate-200/80 dark:border-white/[0.08] rounded-2xl overflow-hidden">
+            <Card className="border border-slate-200/80 dark:border-[hsl(222,30%,15%)] rounded-2xl overflow-hidden">
                 <div className="h-1 bg-gradient-to-r from-[#42C0B9] to-[#E5A840]" />
                 <CardHeader><CardTitle className="font-heading">{t('provideInfo')}</CardTitle></CardHeader>
                 <CardContent className="space-y-5">
-                    <Textarea value={responseText} onChange={e => setResponseText(e.target.value)} placeholder="Type your answer..." className="min-h-[100px] rounded-xl border-slate-200 dark:border-white/[0.1] dark:bg-white/[0.04] focus:border-[#42C0B9] focus:ring-[#42C0B9]/20"/>
+                    <Textarea value={responseText} onChange={e => setResponseText(e.target.value)} placeholder="Type your answer..." className="min-h-[100px] rounded-xl border-slate-200 dark:border-[hsl(222,30%,15%)] dark:bg-[hsl(222,35%,12%)] focus:border-[#42C0B9] focus:ring-[#42C0B9]/20"/>
                     
                     <div className="flex gap-2 items-center">
                         <Button variant="outline" disabled={uploading} className="relative w-full">
@@ -179,7 +179,7 @@ export default function ClarifyReport() {
                     </div>
                     {links.map((l, i) => <Badge key={i} variant="outline">{l}</Badge>)}
 
-                    <div className="pt-6 border-t border-slate-200/80 dark:border-white/[0.08] flex justify-between items-center">
+                    <div className="pt-6 border-t border-slate-200/80 dark:border-[hsl(222,30%,15%)] flex justify-between items-center">
                         <Button variant="ghost" onClick={handleProceedAnyway} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 text-xs rounded-full">{t('forceProceed')}</Button>
                         <Button onClick={handleUpdate} disabled={submitting} className="bg-gradient-to-r from-[#42C0B9] to-[#2DA39D] hover:from-[#4DD4CC] hover:to-[#42C0B9] text-white rounded-full px-6 shadow-lg hover:shadow-[0_0_25px_rgba(66,192,185,0.4)] transition-all duration-300 font-semibold">
                             {submitting && <Loader2 className="w-4 h-4 me-2 animate-spin"/>} {t('submitUpdate')}
