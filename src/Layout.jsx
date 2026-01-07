@@ -61,16 +61,33 @@ function LayoutContent({ children, currentPageName }) {
                     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
 
                     :root {
+                      /* Brand Colors */
                       --brand-navy: #0F172A;
                       --brand-navy-light: #1E293B;
                       --brand-teal: #42C0B9;
                       --brand-teal-dark: #2DA39D;
                       --brand-gold: #E5A840;
                       --brand-gold-light: #F5C463;
+                      
+                      /* Surfaces */
                       --brand-surface: #1E293B;
                       --brand-surface-glass: rgba(30, 41, 59, 0.7);
+                      --card-bg: rgba(30, 41, 59, 0.5);
+                      
+                      /* Borders */
                       --border-subtle: rgba(255, 255, 255, 0.08);
+                      --border-navy: rgba(30, 41, 59, 0.3);
+                      
+                      /* Effects */
                       --glow-teal: 0 0 20px rgba(66, 192, 185, 0.25);
+                      --glow-gold: 0 0 20px rgba(229, 168, 64, 0.25);
+                    }
+
+                    .dark {
+                      --background: 11 17 32;
+                      --card: 30 41 59;
+                      --card-foreground: 248 250 252;
+                      --border: 30 41 59;
                     }
 
                     .font-heading { font-family: 'Space Grotesk', system-ui, sans-serif; }
@@ -87,9 +104,44 @@ function LayoutContent({ children, currentPageName }) {
                       border: 1px solid var(--border-subtle);
                     }
 
+                    .glass-card {
+                      background: rgba(30, 41, 59, 0.5);
+                      backdrop-filter: blur(12px);
+                      -webkit-backdrop-filter: blur(12px);
+                      border: 1px solid var(--border-subtle);
+                      transition: all 0.3s ease;
+                    }
+
+                    .glass-card:hover {
+                      border-color: rgba(66, 192, 185, 0.3);
+                    }
+
                     .btn-glow:hover {
                       box-shadow: var(--glow-teal);
                       transform: translateY(-1px);
+                    }
+
+                    /* Fintech Table Styles */
+                    .fintech-table {
+                      background: transparent;
+                    }
+
+                    .fintech-table th {
+                      font-family: 'Inter', system-ui, sans-serif;
+                      font-weight: 500;
+                      font-size: 0.75rem;
+                      text-transform: uppercase;
+                      letter-spacing: 0.05em;
+                      color: #64748b;
+                    }
+
+                    .fintech-table td {
+                      border-bottom: 1px solid var(--border-navy);
+                    }
+
+                    .fintech-table .mono-value {
+                      font-family: 'IBM Plex Mono', monospace;
+                      color: var(--brand-teal);
                     }
                   `}</style>
       
