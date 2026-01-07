@@ -53,16 +53,43 @@ function LayoutContent({ children, currentPageName }) {
   };
   
   return (
-    <div className={`min-h-screen bg-[#FAFBFC] dark:bg-[#0B1120] ${language === 'ja' ? 'font-japanese' : language === 'zh' ? 'font-chinese' : isRTL ? 'font-heebo' : 'font-sans'}`}>
+    <div className={`min-h-screen bg-slate-50 dark:bg-[#0B1120] ${language === 'ja' ? 'font-japanese' : language === 'zh' ? 'font-chinese' : isRTL ? 'font-heebo' : 'font-sans'}`}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
-        :root { --primary-navy: #114B5F; --primary-teal: #42C0B9; --primary-gold: #D89C42; }
-        .font-heebo { font-family: 'Heebo', sans-serif; }
-        .font-sans { font-family: 'Inter', sans-serif; }
-        .font-japanese { font-family: 'Noto Sans JP', sans-serif; }
-        .font-chinese { font-family: 'Noto Sans SC', sans-serif; }
-      `}</style>
+                    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Heebo:wght@300;400;500;600;700&display=swap');
+                    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
+
+                    :root {
+                      --brand-navy: #0F172A;
+                      --brand-navy-light: #1E293B;
+                      --brand-teal: #42C0B9;
+                      --brand-teal-dark: #2DA39D;
+                      --brand-gold: #E5A840;
+                      --brand-gold-light: #F5C463;
+                      --brand-surface: #1E293B;
+                      --brand-surface-glass: rgba(30, 41, 59, 0.7);
+                      --border-subtle: rgba(255, 255, 255, 0.08);
+                      --glow-teal: 0 0 20px rgba(66, 192, 185, 0.25);
+                    }
+
+                    .font-heading { font-family: 'Space Grotesk', system-ui, sans-serif; }
+                    .font-heebo { font-family: 'Heebo', sans-serif; }
+                    .font-sans { font-family: 'Inter', system-ui, sans-serif; }
+                    .font-mono { font-family: 'IBM Plex Mono', monospace; }
+                    .font-japanese { font-family: 'Noto Sans JP', sans-serif; }
+                    .font-chinese { font-family: 'Noto Sans SC', sans-serif; }
+
+                    .glass-panel {
+                      background: var(--brand-surface-glass);
+                      backdrop-filter: blur(20px);
+                      -webkit-backdrop-filter: blur(20px);
+                      border: 1px solid var(--border-subtle);
+                    }
+
+                    .btn-glow:hover {
+                      box-shadow: var(--glow-teal);
+                      transform: translateY(-1px);
+                    }
+                  `}</style>
       
       {/* key={language} מכריח יצירה מחדש של הרכיב בשינוי שפה - קריטי למיקום */}
       <Toaster 
