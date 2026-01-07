@@ -1,108 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { LanguageProvider, useLanguage } from './components/providers/LanguageContext';
-import { NotificationProvider } from './components/providers/NotificationContext';
-import NotificationBell from './components/layout/NotificationBell';
-import Sidebar from './components/layout/Sidebar';
-import Header from './components/layout/Header';
-import PolicyConsentModal from './components/auth/PolicyConsentModal';
-import { Toaster } from "@/components/ui/sonner";
-import { base44 } from '@/api/base44Client';
-import { AnimatePresence } from 'framer-motion';
-import { LEGAL_VERSION } from '@/components/legalConfig';
+import React, { useState } from 'react';
+import { Outlet } from 'react-router-dom';
+import Sidebar from '@/components/layout/Sidebar';
+import { Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ThemeProvider } from "@/components/ui/ThemeProvider";
+import { Toaster } from "@/components/ui/toaster";
+import { LanguageProvider } from '@/components/LanguageContext';
 
-function LayoutContent({ children, currentPageName }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user, setUser] = useState(null);
-  const [showConsentModal, setShowConsentModal] = useState(false);
-  const { isRTL, language } = useLanguage();
+const Layout = () => {
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const loadUser = async () => {
-    try {
-      const userData = await base44.auth.me();
-      setUser(userData);
-
-      if (userData && userData.email) {
-        const normalizedEmail = userData.email.toLowerCase();
-        const records = await base44.entities.UserMasterData.filter({ user_email: normalizedEmail });
-        const userRecord = records[0];
-
-        // Consent Check Logic:
-        // 1. No record exists (New User)
-        // 2. Policy flag is false
-        // 3. Versions do not match
-        const needsConsent = 
-            !userRecord || 
-            !userRecord.policy_accepted || 
-            String(userRecord.policy_version_accepted || userRecord.policy_version || '') !== String(LEGAL_VERSION);
-
-        if (needsConsent) {
-            setShowConsentModal(true);
-        }
-      }
-    } catch (e) {
-      console.error("Auth check failed", e);
-    }
-  };
-
-  useEffect(() => {
-    loadUser();
-  }, []);
-  
-  const handlePolicyAccepted = () => {
-      setShowConsentModal(false);
-  };
-  
-  return (
-    <div className={`min-h-screen bg-[#FAFBFC] dark:bg-[#0B1120] ${language === 'ja' ? 'font-japanese' : language === 'zh' ? 'font-chinese' : isRTL ? 'font-heebo' : 'font-sans'}`}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
-        :root { --primary-navy: #114B5F; --primary-teal: #42C0B9; --primary-gold: #D89C42; }
-        .font-heebo { font-family: 'Heebo', sans-serif; }
-        .font-sans { font-family: 'Inter', sans-serif; }
-        .font-japanese { font-family: 'Noto Sans JP', sans-serif; }
-        .font-chinese { font-family: 'Noto Sans SC', sans-serif; }
-      `}</style>
-      
-      {/* key={language} מכריח יצירה מחדש של הרכיב בשינוי שפה - קריטי למיקום */}
-      <Toaster 
-        key={language}
-        position={isRTL ? 'top-left' : 'top-right'} 
-        dir={isRTL ? 'rtl' : 'ltr'} 
-        richColors 
-        closeButton
-      /> 
-
-      <Sidebar currentPage={currentPageName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      
-      <div className={`${isRTL ? 'lg:mr-64' : 'lg:ml-64'} min-h-screen flex flex-col transition-all duration-300`}>
-        <Header user={user} onMenuClick={() => setSidebarOpen(true)} notificationBell={<NotificationBell />} />
-        <main className="flex-1 p-4 lg:p-6">
-          {children}
-        </main>
-      </div>
-
-      <AnimatePresence>
-        {showConsentModal && user && (
-            <PolicyConsentModal 
-                user={user} 
-                onAccept={handlePolicyAccepted} 
-                requiredVersion={LEGAL_VERSION} 
-            />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-export default function Layout({ children, currentPageName }) {
   return (
     <LanguageProvider>
-      <NotificationProvider>
-        <LayoutContent currentPageName={currentPageName}>
-          {children}
-        </LayoutContent>
-      </NotificationProvider>
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
+          
+          {/* Desktop Sidebar - Hidden on Mobile */}
+          <aside className="hidden md:flex w-64 flex-col z-20">
+            <Sidebar className="h-full w-full" />
+          </aside>
+
+          {/* Main Content Area */}
+          <div className="flex flex-col flex-1 h-full overflow-hidden relative">
+            
+            {/* Mobile Header - Visible only on Mobile */}
+            <header className="md:hidden h-16 border-b border-border bg-card/80 backdrop-blur-md flex items-center px-4 justify-between z-30 sticky top-0">
+              <div className="flex items-center gap-2">
+                 <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#42C0B9] to-[#114B5F] flex items-center justify-center">
+                    <span className="font-heading font-bold text-white text-lg">T</span>
+                 </div>
+                 <span className="font-heading font-bold text-lg">Tariff.ai</span>
+              </div>
+
+              {/* Mobile Sidebar Trigger (Hamburger) */}
+              <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="md:hidden">
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Toggle Menu</span>
+                  </Button>
+                </SheetTrigger>
+                {/* התפריט הנשלף - side="start" מבטיח פתיחה מהצד הנכון ב-RTL/LTR */}
+                <SheetContent side="left" className="p-0 w-72 border-e border-border">
+                  <Sidebar className="h-full border-none" />
+                </SheetContent>
+              </Sheet>
+            </header>
+
+            {/* Page Content */}
+            <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background/50 p-4 md:p-8 scroll-smooth">
+              <div className="max-w-7xl mx-auto w-full">
+                <Outlet />
+              </div>
+            </main>
+          </div>
+          
+          <Toaster />
+        </div>
+      </ThemeProvider>
     </LanguageProvider>
   );
-}
+};
+
+export default Layout;
