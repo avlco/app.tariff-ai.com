@@ -51,7 +51,7 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
           relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm
           ${isActive 
             ? 'bg-gradient-to-r from-[#42C0B9]/15 to-[#42C0B9]/5 text-[#42C0B9] font-semibold' 
-            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] font-medium'
+            : 'text-slate-300 hover:bg-white/[0.06] font-medium'
           }
           ${isCollapsed && !isOpen ? 'justify-center px-2' : ''}
         `}
