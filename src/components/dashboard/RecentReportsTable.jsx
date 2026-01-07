@@ -19,16 +19,16 @@ export default function RecentReportsTable({ reports, loading }) {
   
   if (loading) {
     return (
-      <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
+      <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
+          <CardTitle className="text-lg font-semibold font-heading text-slate-900 dark:text-white">
             {t('recentReports')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
+              <div key={i} className="h-16 bg-slate-100 dark:bg-white/[0.04] rounded-xl animate-pulse" />
             ))}
           </div>
         </CardContent>
@@ -37,13 +37,13 @@ export default function RecentReportsTable({ reports, loading }) {
   }
   
   return (
-    <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
+    <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
       <CardHeader className="flex flex-row items-center justify-between pb-4">
-        <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
+        <CardTitle className="text-lg font-semibold font-heading text-slate-900 dark:text-white">
           {t('recentReports')}
         </CardTitle>
         <Link to={createPageUrl('Reports')}>
-          <Button variant="ghost" size="sm" className="text-[#42C0B9] hover:text-[#42C0B9]/80">
+          <Button variant="ghost" size="sm" className="text-[#42C0B9] hover:text-[#42C0B9]/80 hover:bg-[#42C0B9]/10 rounded-full px-4">
             {t('viewAll')}
             {isRTL ? <ArrowLeft className="w-4 h-4 ms-1" /> : <ArrowRight className="w-4 h-4 ms-1" />}
           </Button>
@@ -69,7 +69,7 @@ export default function RecentReportsTable({ reports, loading }) {
                .map((report) => (
               <div
                 key={report?.id}
-                className="flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="flex items-center justify-between p-4 rounded-xl bg-slate-50/80 dark:bg-white/[0.04] hover:bg-slate-100 dark:hover:bg-white/[0.08] border border-transparent hover:border-[#42C0B9]/20 transition-all duration-200"
               >
                 <div className="flex-1 min-w-0">
                   <h4 className="font-medium text-slate-900 dark:text-white truncate">

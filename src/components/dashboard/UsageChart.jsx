@@ -16,9 +16,9 @@ export default function UsageChart({ data }) {
   }));
   
   return (
-    <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm">
+    <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
       <CardHeader>
-        <CardTitle className="text-lg font-semibold text-slate-900 dark:text-white">
+        <CardTitle className="text-lg font-semibold font-heading text-slate-900 dark:text-white">
           {t('reportsThisMonth')}
         </CardTitle>
       </CardHeader>
@@ -32,7 +32,7 @@ export default function UsageChart({ data }) {
                   <stop offset="95%" stopColor="#42C0B9" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" vertical={false} />
               <XAxis 
                 dataKey="name" 
                 stroke="#94A3B8"
@@ -44,11 +44,13 @@ export default function UsageChart({ data }) {
               />
               <Tooltip 
                 contentStyle={{ 
-                  backgroundColor: '#fff',
-                  border: 'none',
+                  backgroundColor: 'rgba(30, 41, 59, 0.95)',
+                  border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: '12px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  color: '#fff'
                 }}
+                labelStyle={{ color: '#94A3B8' }}
               />
               <Area
                 type="monotone"
