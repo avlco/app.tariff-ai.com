@@ -107,7 +107,7 @@ export default function Reports() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+        <h1 className="text-2xl font-bold font-heading text-slate-900 dark:text-white">
           {t('reports')}
         </h1>
         <Link to={createPageUrl('NewReport')}>
@@ -134,7 +134,7 @@ export default function Reports() {
       </AlertDialog>
       
       {/* Filters */}
-      <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm p-4">
+      <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
             <Search className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`} />
@@ -162,7 +162,7 @@ export default function Reports() {
       </Card>
       
       {/* Table */}
-      <Card className="bg-white dark:bg-slate-900 border-0 shadow-sm overflow-hidden">
+      <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center">
             <div className="animate-spin w-8 h-8 border-2 border-[#42C0B9] border-t-transparent rounded-full mx-auto" />
@@ -181,7 +181,7 @@ export default function Reports() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                <TableRow className="bg-slate-50/80 dark:bg-white/[0.04]">
                   <TableHead>{t('productName')}</TableHead>
                   <TableHead>{t('hsCode')}</TableHead>
                   <TableHead>{t('destinationCountry')}</TableHead>
@@ -205,7 +205,7 @@ export default function Reports() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         transition={{ delay: index * 0.05 }}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        className="hover:bg-slate-50 dark:hover:bg-white/[0.04]"
                       >
                         <TableCell>
                           <div className="font-medium text-slate-900 dark:text-white">
@@ -216,7 +216,7 @@ export default function Reports() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="font-mono font-medium text-[#114B5F] dark:text-[#42C0B9]">
+                          <span className="font-mono font-semibold text-[#42C0B9]">
                             {report?.hs_code || '---'}
                           </span>
                         </TableCell>

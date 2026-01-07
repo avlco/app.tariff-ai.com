@@ -135,19 +135,19 @@ export default function NewReport() {
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+        <h1 className="text-3xl font-bold font-heading text-slate-900 dark:text-white">
           {language === 'he' ? 'סיווג מוצר חדש' : 'New Product Classification'}
         </h1>
-        <p className="text-slate-500 mt-2">
+        <p className="text-slate-500 dark:text-slate-400 mt-2">
           {language === 'he' 
             ? 'מלא את פרטי המוצר. המערכת תנתח את המידע ותפנה אליך אם יידרשו הבהרות.'
             : 'Fill in product details. Our system will analyze the data and contact you if clarifications are needed.'}
         </p>
       </div>
 
-      <Card>
+      <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
         <CardHeader>
-          <CardTitle>{language === 'he' ? 'פרטי בסיס (חובה)' : 'Core Details (Required)'}</CardTitle>
+          <CardTitle className="font-heading">{language === 'he' ? 'פרטי בסיס (חובה)' : 'Core Details (Required)'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -196,16 +196,16 @@ export default function NewReport() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
         <CardHeader>
-          <CardTitle>{language === 'he' ? 'תיאור מעמיק' : 'Deep Description'}</CardTitle>
+          <CardTitle className="font-heading">{language === 'he' ? 'תיאור מעמיק' : 'Deep Description'}</CardTitle>
           <CardDescription>
             {language === 'he' ? 'תאר חומרים, תפקוד, ושימוש...' : 'Describe material, function, usage...'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Textarea 
-            className="min-h-[150px]"
+            className="min-h-[150px] rounded-xl border-slate-200 dark:border-white/[0.1] dark:bg-white/[0.04] focus:border-[#42C0B9] focus:ring-[#42C0B9]/20"
             value={formData.description}
             onChange={e => setFormData({...formData, description: e.target.value})}
             placeholder={language === 'he' 
@@ -215,13 +215,13 @@ export default function NewReport() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
         <CardHeader>
-          <CardTitle>{language === 'he' ? 'מרכז הראיות' : 'Evidence Center'}</CardTitle>
+          <CardTitle className="font-heading">{language === 'he' ? 'מרכז הראיות' : 'Evidence Center'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* File Upload */}
-          <div className="border-2 border-dashed border-slate-200 rounded-lg p-8 text-center hover:bg-slate-50 transition-colors">
+          <div className="border-2 border-dashed border-slate-200 dark:border-white/[0.1] rounded-2xl p-8 text-center hover:bg-slate-50 dark:hover:bg-white/[0.04] hover:border-[#42C0B9]/50 transition-all duration-200">
             <input 
               type="file" 
               multiple 
@@ -286,7 +286,7 @@ export default function NewReport() {
           size="lg"
           onClick={handleSubmit} 
           disabled={loading || !isFormValid()}
-          className="w-full md:w-auto bg-gradient-to-r from-[#114B5F] to-[#42C0B9] hover:from-[#0D3A4A] hover:to-[#35A89E] disabled:opacity-50"
+          className="w-full md:w-auto bg-gradient-to-r from-[#42C0B9] to-[#2DA39D] hover:from-[#4DD4CC] hover:to-[#42C0B9] text-white rounded-full px-8 shadow-lg hover:shadow-[0_0_25px_rgba(66,192,185,0.4)] transition-all duration-300 font-semibold disabled:opacity-50"
         >
           {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           {language === 'he' ? 'התחל סיווג' : 'Start Classification'}
@@ -316,7 +316,7 @@ export default function NewReport() {
              
              <Button 
                onClick={() => navigate(createPageUrl('Dashboard'))}
-               className="w-full bg-[#114B5F] hover:bg-[#0D3A4A]"
+               className="w-full bg-gradient-to-r from-[#42C0B9] to-[#2DA39D] hover:from-[#4DD4CC] hover:to-[#42C0B9] text-white rounded-full font-semibold"
              >
                {language === 'he' ? 'חזור ללוח הבקרה' : 'Back to Dashboard'}
                <ArrowRight className="w-4 h-4 ml-2" />
