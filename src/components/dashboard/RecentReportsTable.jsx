@@ -22,14 +22,14 @@ export default function RecentReportsTable({ reports, loading }) {
     return (
       <Card className="glass-card rounded-2xl">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg font-semibold font-heading text-slate-900 dark:text-white">
+          <CardTitle className="text-lg font-semibold font-heading text-[#114B5F] dark:text-[hsl(0,0%,98%)]">
             {t('recentReports')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 bg-slate-100 dark:bg-white/[0.04] rounded-xl animate-pulse" />
+              <div key={i} className="h-16 bg-slate-100 dark:bg-[hsl(222,35%,12%)] rounded-xl animate-pulse" />
             ))}
           </div>
         </CardContent>
@@ -53,7 +53,7 @@ export default function RecentReportsTable({ reports, loading }) {
       <CardContent>
         {!reports || reports.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-slate-500 dark:text-slate-400">{t('noResults')}</p>
+            <p className="text-[#5A8A99] dark:text-[hsl(200,15%,60%)]">{t('noResults')}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -70,17 +70,17 @@ export default function RecentReportsTable({ reports, loading }) {
                .map((report) => (
               <div
                 key={report?.id}
-                className="flex items-center justify-between p-4 rounded-xl bg-slate-50/80 dark:bg-white/[0.04] hover:bg-slate-100 dark:hover:bg-white/[0.08] border border-transparent hover:border-[#42C0B9]/20 transition-all duration-200"
+                className="flex items-center justify-between p-4 rounded-xl bg-slate-50/80 dark:bg-[hsl(222,35%,12%)] hover:bg-slate-100 dark:hover:bg-[hsl(222,35%,14%)] border border-transparent hover:border-[#42C0B9]/20 transition-all duration-200"
               >
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-slate-900 dark:text-white truncate">
+                  <h4 className="font-medium text-[#114B5F] dark:text-[hsl(0,0%,98%)] truncate">
                     {report?.product_name || 'N/A'}
                   </h4>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-sm font-mono text-[#42C0B9]">
                       {report?.hs_code || '---'}
                     </span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-[hsl(200,15%,60%)]">
                       {report?.created_date ? format(new Date(report.created_date), 'dd/MM/yyyy') : '---'}
                     </span>
                   </div>

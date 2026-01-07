@@ -18,7 +18,7 @@ export default function UsageChart({ data }) {
   return (
     <Card className="glass-card rounded-2xl">
       <CardHeader>
-        <CardTitle className="text-lg font-semibold font-heading text-slate-900 dark:text-white">
+        <CardTitle className="text-lg font-semibold font-heading text-[#114B5F] dark:text-[hsl(0,0%,98%)]">
           {t('reportsThisMonth')}
         </CardTitle>
       </CardHeader>

@@ -50,10 +50,10 @@ export default function Dashboard() {
         className="flex items-center justify-between"
       >
         <div>
-          <h1 className="text-2xl font-bold font-heading text-slate-900 dark:text-white mb-1">
+          <h1 className="text-2xl font-bold font-heading text-[#114B5F] dark:text-[hsl(0,0%,98%)] mb-1">
             {t('dashboard')}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-[#5A8A99] dark:text-[hsl(200,15%,60%)]">
             {language === 'he' ? 'סקירה כללית של הפעילות שלך' : 'Overview of your activity'}
           </p>
         </div>
