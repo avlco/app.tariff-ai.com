@@ -36,39 +36,39 @@ export default function PlanCard({ user }) {
   const isPremium = plan !== 'free';
   
   return (
-    <Card className="bg-gradient-to-br from-[#114B5F] to-[#0D3A4A] text-white border-0 shadow-lg overflow-hidden">
-      <CardContent className="p-6 relative">
-        <div className="absolute top-0 end-0 w-32 h-32 bg-[#42C0B9]/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 start-0 w-24 h-24 bg-[#D89C42]/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+    <Card className="bg-gradient-to-br from-[#0F172A] to-[#1E293B] text-white border border-white/[0.08] shadow-xl overflow-hidden rounded-2xl">
+      <CardContent className="p-5 relative">
+        <div className="absolute top-0 end-0 w-32 h-32 bg-[#42C0B9]/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+        <div className="absolute bottom-0 start-0 w-24 h-24 bg-[#E5A840]/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
         
         <div className="relative">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-3">
             {isPremium ? (
-              <Crown className="w-5 h-5 text-[#D89C42]" />
+              <Crown className="w-5 h-5 text-[#E5A840]" />
             ) : (
               <Zap className="w-5 h-5 text-[#42C0B9]" />
             )}
-            <span className="text-sm font-medium text-white/80">{t('currentPlan')}</span>
+            <span className="text-xs font-medium text-white/60 uppercase tracking-wide">{t('currentPlan')}</span>
           </div>
           
-          <h3 className="text-2xl font-bold mb-4">
+          <h3 className="text-2xl font-bold font-heading mb-4">
             {t(planKeys[plan] || planKeys.free)}
           </h3>
           
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-white/70">{t('reportsUsed')}</span>
-              <span className="font-semibold">{used} / {limit === 999 ? '∞' : limit}</span>
+              <span className="text-white/60">{t('reportsUsed')}</span>
+              <span className="font-semibold font-mono">{used} / {limit === 999 ? '∞' : limit}</span>
             </div>
             
             <Progress 
               value={percentage} 
-              className="h-2 bg-white/20"
+              className="h-1.5 bg-white/10"
             />
             
             <div className="flex justify-between text-sm">
-              <span className="text-white/70">{t('reportsRemaining')}</span>
-              <span className="font-semibold text-[#42C0B9]">
+              <span className="text-white/60">{t('reportsRemaining')}</span>
+              <span className="font-semibold text-[#42C0B9] font-mono">
                 {limit === 999 ? '∞' : Math.max(0, limit - used)}
               </span>
             </div>
@@ -76,7 +76,7 @@ export default function PlanCard({ user }) {
           
           {plan === 'free' && (
             <Link to={createPageUrl('Profile')}>
-              <Button className="w-full mt-6 bg-[#D89C42] hover:bg-[#D89C42]/90 text-white">
+              <Button className="w-full mt-5 bg-gradient-to-r from-[#E5A840] to-[#F5C463] hover:from-[#F5C463] hover:to-[#E5A840] text-[#0F172A] font-semibold rounded-full shadow-lg hover:shadow-[0_0_25px_rgba(229,168,64,0.4)] transition-all duration-300">
                 {t('upgradeNow')}
               </Button>
             </Link>
