@@ -12,9 +12,10 @@ export default function RecentReportsTable({ reports, loading }) {
   const { t, isRTL, language } = useLanguage();
   
   const statusColors = {
-    pending: 'bg-[#D89C42]/10 text-[#D89C42] border-[#D89C42]/20',
+    pending: 'bg-[#E5A840]/10 text-[#E5A840] border-[#E5A840]/20',
+    processing: 'bg-[#E5A840]/10 text-[#E5A840] border-[#E5A840]/20',
     completed: 'bg-[#42C0B9]/10 text-[#42C0B9] border-[#42C0B9]/20',
-    failed: 'bg-red-100 text-red-600 border-red-200',
+    failed: 'bg-red-500/10 text-red-400 border-red-500/20',
   };
   
   if (loading) {
@@ -76,7 +77,7 @@ export default function RecentReportsTable({ reports, loading }) {
                     {report?.product_name || 'N/A'}
                   </h4>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                    <span className="text-sm font-mono text-[#42C0B9]">
                       {report?.hs_code || '---'}
                     </span>
                     <span className="text-xs text-slate-400">

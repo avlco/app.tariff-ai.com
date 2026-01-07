@@ -98,9 +98,9 @@ export default function Reports() {
   };
   
   const statusConfig = {
-    processing: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42] border-[#D89C42]/20' },
+    processing: { icon: Clock, color: 'bg-[#E5A840]/10 text-[#E5A840] border-[#E5A840]/20' },
     completed: { icon: CheckCircle2, color: 'bg-[#42C0B9]/10 text-[#42C0B9] border-[#42C0B9]/20' },
-    failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600 border-red-200' },
+    failed: { icon: AlertCircle, color: 'bg-red-500/10 text-red-400 border-red-500/20' },
   };
   
   return (
