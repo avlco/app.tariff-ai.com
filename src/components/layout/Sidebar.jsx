@@ -90,14 +90,14 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
       <aside className={`
         fixed top-0 ${isRTL ? 'right-0' : 'left-0'} h-full
         ${isCollapsed && !isOpen ? 'w-[72px]' : 'w-64'}
-        bg-[#0F172A] border-e border-[#1E293B]/50 z-50
+        bg-[hsl(222,47%,5%)] border-e border-[hsl(222,30%,15%)] z-50
         transform transition-all duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full'}
         lg:translate-x-0 shadow-2xl lg:shadow-none
       `}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className={`px-4 py-5 border-b border-[#1E293B]/50 ${isCollapsed && !isOpen ? 'px-3' : ''}`}>
+          <div className={`px-4 py-5 border-b border-[hsl(222,30%,15%)] ${isCollapsed && !isOpen ? 'px-3' : ''}`}>
             <div className="flex items-center justify-between">
               <div className={`flex items-center gap-3 ${isCollapsed && !isOpen ? 'justify-center w-full' : ''}`}>
                 <img 
@@ -125,7 +125,7 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
           </nav>
           
           {/* Bottom controls */}
-          <div className={`px-3 py-4 border-t border-[#1E293B]/50 space-y-2 ${isCollapsed && !isOpen ? 'px-2' : ''}`}>
+          <div className={`px-3 py-4 border-t border-[hsl(222,30%,15%)] space-y-2 ${isCollapsed && !isOpen ? 'px-2' : ''}`}>
             {/* Settings/Profile Link */}
             {bottomItems.map((item) => (
               <NavItem key={item.name} item={item} isActive={currentPage === item.name} />
@@ -144,7 +144,7 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
                     {theme === 'light' ? <Moon className="w-[18px] h-[18px]" /> : <Sun className="w-[18px] h-[18px]" />}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side={isRTL ? 'left' : 'right'} className="bg-[#0F172A] text-white border-white/10">
+                <TooltipContent side={isRTL ? 'left' : 'right'} className="bg-[hsl(222,47%,5%)] text-white border-[hsl(222,30%,15%)]">
                   {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
                 </TooltipContent>
               </Tooltip>
@@ -173,7 +173,7 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
                     <LogOut className="w-[18px] h-[18px]" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side={isRTL ? 'left' : 'right'} className="bg-[#0F172A] text-white border-white/10">
+                <TooltipContent side={isRTL ? 'left' : 'right'} className="bg-[hsl(222,47%,5%)] text-white border-[hsl(222,30%,15%)]">
                   {t('logout')}
                 </TooltipContent>
               </Tooltip>

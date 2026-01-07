@@ -55,54 +55,68 @@ function LayoutContent({ children, currentPageName }) {
   };
   
   return (
-    <div className={`min-h-screen bg-slate-50 dark:bg-[#0B1120] ${language === 'ja' ? 'font-japanese' : language === 'zh' ? 'font-chinese' : isRTL ? 'font-heebo' : 'font-sans'}`}>
+    <div className={`min-h-screen bg-slate-50 dark:bg-[hsl(222,47%,5%)] ${language === 'ja' ? 'font-japanese' : language === 'zh' ? 'font-chinese' : isRTL ? 'font-heebo' : 'font-sans'}`}>
       <style>{`
                     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Heebo:wght@300;400;500;600;700&display=swap');
                     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
 
                     :root {
-                      /* Brand Colors */
-                      --brand-navy: #0F172A;
-                      --brand-navy-light: #1E293B;
+                      /* Brand Colors - Aligned with Website */
+                      --brand-navy: #114B5F;
+                      --brand-navy-dark: #0D3A4A;
                       --brand-teal: #42C0B9;
                       --brand-teal-dark: #2DA39D;
-                      --brand-gold: #E5A840;
-                      --brand-gold-light: #F5C463;
+                      --brand-gold: #D89C42;
+                      --brand-gold-light: #E5A840;
                       
-                      /* Surfaces */
-                      --brand-surface: #1E293B;
-                      --brand-surface-glass: rgba(30, 41, 59, 0.7);
-                      --card-bg: rgba(30, 41, 59, 0.5);
+                      /* Light Mode Surfaces */
+                      --brand-surface: #FFFFFF;
+                      --brand-surface-glass: rgba(255, 255, 255, 0.8);
+                      --card-bg: #FFFFFF;
                       
                       /* Borders */
-                      --border-subtle: rgba(255, 255, 255, 0.08);
-                      --border-navy: rgba(30, 41, 59, 0.3);
+                      --border-subtle: rgba(17, 75, 95, 0.1);
+                      --border-navy: rgba(17, 75, 95, 0.15);
                       
                       /* Effects */
                       --glow-teal: 0 0 20px rgba(66, 192, 185, 0.25);
-                      --glow-gold: 0 0 20px rgba(229, 168, 64, 0.25);
+                      --glow-gold: 0 0 20px rgba(216, 156, 66, 0.25);
                       
                       /* Light Mode Foregrounds */
-                      --foreground-primary: #0F172A;
-                      --foreground-secondary: #334155;
-                      --foreground-muted: #64748B;
+                      --foreground-primary: #114B5F;
+                      --foreground-secondary: #1E6B7F;
+                      --foreground-muted: #5A8A99;
                     }
 
                     .dark {
-                      --background: 11 17 32;
-                      --card: 30 41 59;
-                      --card-foreground: 248 250 252;
-                      --border: 30 41 59;
+                      /* Dark Mode Background - Deep Blue (not black) */
+                      --background: 222 47% 5%;
+                      --card: 222 40% 8%;
+                      --card-foreground: 0 0% 98%;
+                      --muted: 222 35% 12%;
+                      --muted-foreground: 200 15% 60%;
+                      --border: 222 30% 15%;
+                      --input: 222 30% 15%;
+                      
+                      /* Dark Mode Surfaces */
+                      --brand-surface: hsl(222, 40%, 8%);
+                      --brand-surface-glass: hsla(222, 40%, 8%, 0.8);
+                      --card-bg: hsl(222, 40%, 8%);
+                      
+                      /* Dark Mode Borders */
+                      --border-subtle: hsl(222, 30%, 15%);
+                      --border-navy: hsl(222, 30%, 18%);
                       
                       /* Dark Mode Foregrounds */
-                      --foreground-primary: #F8FAFC;
-                      --foreground-secondary: #CBD5E1;
-                      --foreground-muted: #94A3B8;
+                      --foreground-primary: hsl(0, 0%, 98%);
+                      --foreground-secondary: hsl(200, 15%, 75%);
+                      --foreground-muted: hsl(200, 15%, 60%);
                     }
 
                     /* Global Typography */
                     h1, h2, h3, h4, h5, h6 {
                       font-family: 'Space Grotesk', system-ui, sans-serif;
+                      letter-spacing: -0.03em;
                     }
 
                     .font-heading { font-family: 'Space Grotesk', system-ui, sans-serif; }
@@ -120,15 +134,47 @@ function LayoutContent({ children, currentPageName }) {
                     }
 
                     .glass-card {
-                      background: rgba(30, 41, 59, 0.5);
+                      background: var(--card-bg);
                       backdrop-filter: blur(12px);
                       -webkit-backdrop-filter: blur(12px);
                       border: 1px solid var(--border-subtle);
                       transition: all 0.3s ease;
                     }
 
+                    .dark .glass-card {
+                      background: hsl(222, 40%, 8%);
+                      border-color: hsl(222, 30%, 15%);
+                    }
+
                     .glass-card:hover {
                       border-color: rgba(66, 192, 185, 0.3);
+                    }
+
+                    /* Text Gradient Utility */
+                    .text-gradient {
+                      background: linear-gradient(135deg, var(--brand-teal) 0%, var(--brand-gold) 100%);
+                      -webkit-background-clip: text;
+                      -webkit-text-fill-color: transparent;
+                      background-clip: text;
+                    }
+
+                    /* Custom Scrollbar */
+                    ::-webkit-scrollbar {
+                      width: 8px;
+                      height: 8px;
+                    }
+
+                    ::-webkit-scrollbar-track {
+                      background: transparent;
+                    }
+
+                    ::-webkit-scrollbar-thumb {
+                      background: linear-gradient(180deg, #42C0B9 0%, #114B5F 100%);
+                      border-radius: 4px;
+                    }
+
+                    ::-webkit-scrollbar-thumb:hover {
+                      background: linear-gradient(180deg, #4DD4CC 0%, #1E6B7F 100%);
                     }
 
                     .btn-glow:hover {

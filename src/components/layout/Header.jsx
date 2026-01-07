@@ -9,7 +9,7 @@ export default function Header({ user, onMenuClick, notificationBell }) {
   const { isCollapsed, toggleCollapse } = useSidebar();
   
   return (
-    <header className="sticky top-0 z-40 h-14 bg-white/80 dark:bg-[#0B1120]/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-[#1E293B]/50 px-4 lg:px-6 flex items-center justify-between">
+    <header className="sticky top-0 z-40 h-14 bg-white/80 dark:bg-[hsl(222,47%,5%)]/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-[hsl(222,30%,15%)] px-4 lg:px-6 flex items-center justify-between">
       <div className="flex items-center gap-3">
         {/* Mobile Menu Button */}
         <Button
