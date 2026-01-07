@@ -1,86 +1,99 @@
-import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  FileText, 
-  PlusCircle, 
-  Settings, 
-  HelpCircle, 
-  LogOut,
-  Package,
-  Users
-} from 'lucide-react';
-import { useAuth } from '@/lib/AuthContext';
-import { Button } from "@/components/ui/button";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-const Sidebar = ({ className }) => {
-  const { logout } = useAuth();
-  const location = useLocation();
+@layer base {
+  :root {
+    /* --- Light Mode --- */
+    --background: 210 40% 98%; 
+    --foreground: 222 47% 11%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+ 
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+ 
+    /* Primary: Teal */
+    --primary: 176 47% 40%;
+    --primary-foreground: 0 0% 100%;
+ 
+    /* Secondary: Navy */
+    --secondary: 195 68% 22%; 
+    --secondary-foreground: 0 0% 98%;
+ 
+    /* Accent: Gold */
+    --accent: 38 76% 57%;
+    --accent-foreground: 222 47% 11%;
 
-  const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-    { icon: PlusCircle, label: 'New Report', path: '/new-report' },
-    { icon: FileText, label: 'Reports', path: '/reports' },
-    { icon: Package, label: 'Shipments', path: '/shipments' },
-    { icon: Users, label: 'Customers', path: '/customers' },
-    { icon: Settings, label: 'Profile', path: '/profile' },
-    { icon: HelpCircle, label: 'Support', path: '/support' },
-  ];
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+ 
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
 
-  return (
-    <div className={cn("flex flex-col h-full bg-card dark:bg-[#0F172A] border-e border-border text-foreground transition-colors duration-300", className)}>
-      {/* Logo Area */}
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#42C0B9] to-[#114B5F] flex items-center justify-center shadow-lg shadow-teal-500/20">
-            <span className="font-heading font-bold text-white text-lg">T</span>
-          </div>
-          <span className="font-heading font-bold text-xl tracking-tight">Tariff.ai</span>
-        </div>
-      </div>
+    --border: 214.3 31.8% 90%;
+    --input: 214.3 31.8% 90%;
+    --ring: 176 47% 50%;
+ 
+    --radius: 0.75rem;
+  }
+ 
+  .dark {
+    /* --- Dark Mode (העיצוב המוביל) --- */
+    --background: 222 47% 11%; /* #0F172A */
+    --foreground: 210 40% 98%;
+ 
+    --card: 217 33% 17%; /* #1E293B */
+    --card-foreground: 210 40% 98%;
+ 
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+ 
+    --primary: 176 47% 50%; /* #42C0B9 */
+    --primary-foreground: 222 47.4% 11.2%;
+ 
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+ 
+    --accent: 38 76% 57%; /* #E5A840 */
+    --accent-foreground: 222 47.4% 11.2%;
 
-      {/* Navigation */}
-      <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group",
-                  isActive 
-                    ? "bg-primary/10 text-primary font-medium" 
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )
-              }
-            >
-              <item.icon className={cn("h-5 w-5 transition-colors", isActive ? "text-primary" : "group-hover:text-primary")} />
-              <span className="font-medium">{item.label}</span>
-              {isActive && (
-                // פס סימון - משתמש ב-ms-auto כדי לעבור לצד השני אוטומטית ב-RTL
-                <div className="ms-auto w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_currentColor]" />
-              )}
-            </NavLink>
-          );
-        })}
-      </nav>
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+ 
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+ 
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 38 76% 57%;
+  }
+}
 
-      {/* Footer Area */}
-      <div className="p-4 border-t border-border bg-muted/30">
-        <Button 
-            variant="ghost" 
-            className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-2 px-2"
-            onClick={() => logout()}
-        >
-          <LogOut className="h-4 w-4 rtl:rotate-180" /> 
-          <span>Sign Out</span>
-        </Button>
-      </div>
-    </div>
-  );
-};
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading tracking-tight;
+  }
+}
 
-export default Sidebar;
+@layer utilities {
+  .rtl-flip {
+    @apply rtl:rotate-180;
+  }
+  .glass-card {
+    @apply bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-slate-200 dark:border-white/10 shadow-lg dark:shadow-xl;
+  }
+  .bg-gradient-brand {
+    @apply bg-gradient-to-r from-[#42C0B9] to-[#114B5F];
+  }
+  .text-gradient-gold {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#D89C42] to-[#f0b056];
+  }
+}
