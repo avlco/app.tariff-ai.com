@@ -121,48 +121,49 @@ export default function ClarifyReport() {
     <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-            <Button variant="ghost" onClick={() => navigate(-1)} className={`mb-2 ${isRTL ? 'pr-0' : 'pl-0'}`}>
+            <Button variant="ghost" onClick={() => navigate(-1)} className={`mb-2 ${isRTL ? 'pr-0' : 'pl-0'} hover:bg-slate-100 dark:hover:bg-white/[0.06] rounded-xl`}>
                 {isRTL ? <ArrowRight className="w-4 h-4 me-2" /> : <ArrowLeft className="w-4 h-4 me-2" />} 
                 {t('back')}
             </Button>
-            <h1 className="text-3xl font-bold">{t('missingInformation')}</h1>
-            <p className="text-slate-500">{t('reportId')}: {report.report_id}</p>
+            <h1 className="text-3xl font-bold font-heading text-slate-900 dark:text-white">{t('missingInformation')}</h1>
+            <p className="text-slate-500 dark:text-slate-400">{t('reportId')}: <span className="font-mono">{report.report_id}</span></p>
         </div>
-        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">{t('action_required')}</Badge>
+        <Badge variant="outline" className="bg-[#E5A840]/10 text-[#E5A840] border-[#E5A840]/30">{t('action_required')}</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left: Context (Read Only) */}
-        <Card className="bg-slate-50/80 h-full">
-            <CardHeader><CardTitle className="text-lg flex items-center gap-2"><FileText className="w-5 h-5"/> {t('caseContext')}</CardTitle></CardHeader>
+        <Card className="bg-slate-50/80 dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl h-full">
+            <CardHeader><CardTitle className="text-lg font-heading flex items-center gap-2"><FileText className="w-5 h-5 text-[#42C0B9]"/> {t('caseContext')}</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">{t('product')}</span><span className="font-medium">{report.product_name}</span></div>
-                    <div className="bg-white p-3 rounded border"><span className="text-xs text-slate-400 block">{t('destination')}</span><span className="font-medium">{report.destination_country}</span></div>
+                    <div className="bg-white dark:bg-white/[0.04] p-3 rounded-xl border border-slate-200/80 dark:border-white/[0.08]"><span className="text-xs text-slate-400 block uppercase tracking-wide">{t('product')}</span><span className="font-medium text-slate-900 dark:text-white">{report.product_name}</span></div>
+                    <div className="bg-white dark:bg-white/[0.04] p-3 rounded-xl border border-slate-200/80 dark:border-white/[0.08]"><span className="text-xs text-slate-400 block uppercase tracking-wide">{t('destination')}</span><span className="font-medium text-slate-900 dark:text-white">{report.destination_country}</span></div>
                 </div>
                 <div>
-                    <span className="text-xs text-slate-400 block mb-2">{t('originalInput')}</span>
-                    <div className="bg-white p-4 rounded border text-sm max-h-60 overflow-y-auto whitespace-pre-wrap">{report.user_input_text || 'None'}</div>
+                    <span className="text-xs text-slate-400 block mb-2 uppercase tracking-wide">{t('originalInput')}</span>
+                    <div className="bg-white dark:bg-white/[0.04] p-4 rounded-xl border border-slate-200/80 dark:border-white/[0.08] text-sm max-h-60 overflow-y-auto whitespace-pre-wrap text-slate-700 dark:text-slate-300">{report.user_input_text || 'None'}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {(report.uploaded_file_urls || []).map((_, i) => <Badge key={i} variant="secondary">{t('file')} {i+1}</Badge>)}
-                    {(report.external_link_urls || []).map((_, i) => <Badge key={i} variant="secondary">{t('link')} {i+1}</Badge>)}
+                    {(report.uploaded_file_urls || []).map((_, i) => <Badge key={i} variant="secondary" className="rounded-full">{t('file')} {i+1}</Badge>)}
+                    {(report.external_link_urls || []).map((_, i) => <Badge key={i} variant="secondary" className="rounded-full">{t('link')} {i+1}</Badge>)}
                 </div>
             </CardContent>
         </Card>
 
         {/* Right: Action */}
         <div className="space-y-6">
-            <Alert variant="destructive" className="bg-orange-50 border-orange-200 text-orange-900">
+            <Alert className="bg-[#E5A840]/10 border-[#E5A840]/30 text-[#E5A840] rounded-2xl">
                 <AlertTriangle className="h-5 w-5"/>
-                <AlertTitle>{t('expertRequest')}</AlertTitle>
-                <AlertDescription>{report.missing_info_question || t('provideInfo')}</AlertDescription>
+                <AlertTitle className="font-heading">{t('expertRequest')}</AlertTitle>
+                <AlertDescription className="text-slate-700 dark:text-slate-300">{report.missing_info_question || t('provideInfo')}</AlertDescription>
             </Alert>
 
-            <Card className="border-t-4 border-t-[#114B5F]">
-                <CardHeader><CardTitle>{t('provideInfo')}</CardTitle></CardHeader>
+            <Card className="border border-slate-200/80 dark:border-white/[0.08] rounded-2xl overflow-hidden">
+                <div className="h-1 bg-gradient-to-r from-[#42C0B9] to-[#E5A840]" />
+                <CardHeader><CardTitle className="font-heading">{t('provideInfo')}</CardTitle></CardHeader>
                 <CardContent className="space-y-5">
-                    <Textarea value={responseText} onChange={e => setResponseText(e.target.value)} placeholder="Type your answer..." className="min-h-[100px]"/>
+                    <Textarea value={responseText} onChange={e => setResponseText(e.target.value)} placeholder="Type your answer..." className="min-h-[100px] rounded-xl border-slate-200 dark:border-white/[0.1] dark:bg-white/[0.04] focus:border-[#42C0B9] focus:ring-[#42C0B9]/20"/>
                     
                     <div className="flex gap-2 items-center">
                         <Button variant="outline" disabled={uploading} className="relative w-full">
@@ -178,9 +179,9 @@ export default function ClarifyReport() {
                     </div>
                     {links.map((l, i) => <Badge key={i} variant="outline">{l}</Badge>)}
 
-                    <div className="pt-6 border-t flex justify-between items-center">
-                        <Button variant="ghost" onClick={handleProceedAnyway} className="text-red-600 text-xs">{t('forceProceed')}</Button>
-                        <Button onClick={handleUpdate} disabled={submitting} className="bg-[#114B5F] text-white">
+                    <div className="pt-6 border-t border-slate-200/80 dark:border-white/[0.08] flex justify-between items-center">
+                        <Button variant="ghost" onClick={handleProceedAnyway} className="text-red-500 hover:text-red-600 hover:bg-red-500/10 text-xs rounded-full">{t('forceProceed')}</Button>
+                        <Button onClick={handleUpdate} disabled={submitting} className="bg-gradient-to-r from-[#42C0B9] to-[#2DA39D] hover:from-[#4DD4CC] hover:to-[#42C0B9] text-white rounded-full px-6 shadow-lg hover:shadow-[0_0_25px_rgba(66,192,185,0.4)] transition-all duration-300 font-semibold">
                             {submitting && <Loader2 className="w-4 h-4 me-2 animate-spin"/>} {t('submitUpdate')}
                         </Button>
                     </div>
@@ -190,11 +191,11 @@ export default function ClarifyReport() {
       </div>
 
       <Dialog open={showProcessing}>
-        <DialogContent className="sm:max-w-md text-center outline-none" hideClose>
+        <DialogContent className="sm:max-w-md text-center outline-none rounded-2xl" hideClose>
             <div className="flex flex-col items-center p-6">
-                <Loader2 className="w-12 h-12 text-[#114B5F] animate-spin mb-4" />
-                <h2 className="text-lg font-bold">Processing Resumed</h2>
-                <p className="text-slate-500 text-sm mt-2">
+                <Loader2 className="w-12 h-12 text-[#42C0B9] animate-spin mb-4" />
+                <h2 className="text-lg font-bold font-heading text-slate-900 dark:text-white">Processing Resumed</h2>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">
                     We received your input. The expert system is analyzing it now.
                     You will be notified once the classification is ready.
                 </p>
