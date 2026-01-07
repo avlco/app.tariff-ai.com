@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LanguageProvider, useLanguage } from './components/providers/LanguageContext';
 import { NotificationProvider } from './components/providers/NotificationContext';
+import { SidebarProvider, useSidebar } from './components/providers/SidebarContext';
 import NotificationBell from './components/layout/NotificationBell';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
@@ -15,6 +16,7 @@ function LayoutContent({ children, currentPageName }) {
   const [user, setUser] = useState(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const { isRTL, language } = useLanguage();
+  const { isCollapsed } = useSidebar();
 
   const loadUser = async () => {
     try {
@@ -102,7 +104,7 @@ function LayoutContent({ children, currentPageName }) {
 
       <Sidebar currentPage={currentPageName} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       
-      <div className={`${isRTL ? 'lg:mr-64' : 'lg:ml-64'} min-h-screen flex flex-col transition-all duration-300`}>
+      <div className={`${isRTL ? (isCollapsed ? 'lg:mr-[72px]' : 'lg:mr-64') : (isCollapsed ? 'lg:ml-[72px]' : 'lg:ml-64')} min-h-screen flex flex-col transition-all duration-300`}>
         <Header user={user} onMenuClick={() => setSidebarOpen(true)} notificationBell={<NotificationBell />} />
         <main className="flex-1 p-4 lg:p-6">
           {children}
@@ -126,9 +128,11 @@ export default function Layout({ children, currentPageName }) {
   return (
     <LanguageProvider>
       <NotificationProvider>
-        <LayoutContent currentPageName={currentPageName}>
-          {children}
-        </LayoutContent>
+        <SidebarProvider>
+          <LayoutContent currentPageName={currentPageName}>
+            {children}
+          </LayoutContent>
+        </SidebarProvider>
       </NotificationProvider>
     </LanguageProvider>
   );
