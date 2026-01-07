@@ -20,7 +20,7 @@ export default function RecentReportsTable({ reports, loading }) {
   
   if (loading) {
     return (
-      <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
+      <Card className="glass-card rounded-2xl">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg font-semibold font-heading text-slate-900 dark:text-white">
             {t('recentReports')}
@@ -38,7 +38,7 @@ export default function RecentReportsTable({ reports, loading }) {
   }
   
   return (
-    <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
+    <Card className="glass-card rounded-2xl">
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <CardTitle className="text-lg font-semibold font-heading text-slate-900 dark:text-white">
           {t('recentReports')}

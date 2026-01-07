@@ -26,7 +26,7 @@ export default function StatsCard({ title, value, subtitle, icon: Icon, color = 
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className={`p-5 bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl transition-all duration-300 ${colorConfig.glow} hover:border-[#42C0B9]/30`}>
+      <Card className={`glass-card p-5 rounded-2xl transition-all duration-300 ${colorConfig.glow}`}>
         <div className="flex items-start justify-between mb-4">
           <div className={`p-2.5 rounded-xl ${colorConfig.icon}`}>
             <Icon className="w-5 h-5" />
@@ -34,7 +34,7 @@ export default function StatsCard({ title, value, subtitle, icon: Icon, color = 
         </div>
         <div>
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wide">{title}</p>
-          <p className="text-3xl font-bold font-heading text-slate-900 dark:text-white mb-1">{value}</p>
+          <p className="text-3xl font-bold font-heading text-slate-900 dark:text-white mb-1 font-mono">{value}</p>
           {subtitle && (
             <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
           )}

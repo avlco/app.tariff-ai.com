@@ -81,6 +81,11 @@ function LayoutContent({ children, currentPageName }) {
                       /* Effects */
                       --glow-teal: 0 0 20px rgba(66, 192, 185, 0.25);
                       --glow-gold: 0 0 20px rgba(229, 168, 64, 0.25);
+                      
+                      /* Light Mode Foregrounds */
+                      --foreground-primary: #0F172A;
+                      --foreground-secondary: #334155;
+                      --foreground-muted: #64748B;
                     }
 
                     .dark {
@@ -88,6 +93,16 @@ function LayoutContent({ children, currentPageName }) {
                       --card: 30 41 59;
                       --card-foreground: 248 250 252;
                       --border: 30 41 59;
+                      
+                      /* Dark Mode Foregrounds */
+                      --foreground-primary: #F8FAFC;
+                      --foreground-secondary: #CBD5E1;
+                      --foreground-muted: #94A3B8;
+                    }
+
+                    /* Global Typography */
+                    h1, h2, h3, h4, h5, h6 {
+                      font-family: 'Space Grotesk', system-ui, sans-serif;
                     }
 
                     .font-heading { font-family: 'Space Grotesk', system-ui, sans-serif; }
@@ -121,6 +136,20 @@ function LayoutContent({ children, currentPageName }) {
                       transform: translateY(-1px);
                     }
 
+                    /* Gold Button Variant */
+                    .btn-gold {
+                      background: linear-gradient(135deg, #E5A840 0%, #F5C463 100%);
+                      color: #0F172A;
+                      font-weight: 600;
+                      border-radius: 9999px;
+                      transition: all 0.3s ease;
+                    }
+
+                    .btn-gold:hover {
+                      box-shadow: 0 0 25px rgba(229, 168, 64, 0.4);
+                      transform: translateY(-1px);
+                    }
+
                     /* Fintech Table Styles */
                     .fintech-table {
                       background: transparent;
@@ -142,6 +171,11 @@ function LayoutContent({ children, currentPageName }) {
                     .fintech-table .mono-value {
                       font-family: 'IBM Plex Mono', monospace;
                       color: var(--brand-teal);
+                    }
+
+                    /* Force rounded-full on primary buttons */
+                    .btn-primary {
+                      border-radius: 9999px !important;
                     }
                   `}</style>
       
