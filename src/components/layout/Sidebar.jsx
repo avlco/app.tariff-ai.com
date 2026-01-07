@@ -189,22 +189,7 @@ export default function Sidebar({ currentPage, isOpen, onClose }) {
             )}
           </div>
 
-          {/* Collapse Toggle - Desktop Only */}
-          <div className="hidden lg:block px-3 py-3 border-t border-[#1E293B]/50">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleCollapse}
-              className={`w-full h-9 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors ${isCollapsed ? 'justify-center' : 'justify-between'}`}
-            >
-              {!isCollapsed && <span className="text-xs">Collapse</span>}
-              {isRTL ? (
-                isCollapsed ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
-              ) : (
-                isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
+          {/* Collapse Toggle removed - now in Header */}
         </div>
       </aside>
     </TooltipProvider>
