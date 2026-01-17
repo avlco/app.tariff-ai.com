@@ -1,37 +1,34 @@
-import ClarifyReport from './pages/ClarifyReport';
-import Customers from './pages/Customers';
+import Layout from './Layout';
 import Dashboard from './pages/Dashboard';
-import NewReport from './pages/NewReport';
-import NewShipment from './pages/NewShipment';
-import PdfReport from './pages/PdfReport';
-import Profile from './pages/Profile';
-import PublicReportView from './pages/PublicReportView';
-import ReportView from './pages/ReportView';
 import Reports from './pages/Reports';
-import ShipmentView from './pages/ShipmentView';
+import NewReport from './pages/NewReport';
+import ReportView from './pages/ReportView';
+import ClarifyReport from './pages/ClarifyReport';
+import PublicReportView from './pages/PublicReportView';
 import Shipments from './pages/Shipments';
+import NewShipment from './pages/NewShipment';
+import ShipmentView from './pages/ShipmentView';
+import Customers from './pages/Customers';
+import Profile from './pages/Profile';
 import Support from './pages/Support';
-import __Layout from './Layout.jsx';
+import PdfReport from './pages/PdfReport';
 
-
-export const PAGES = {
-    "ClarifyReport": ClarifyReport,
-    "Customers": Customers,
-    "Dashboard": Dashboard,
-    "NewReport": NewReport,
-    "NewShipment": NewShipment,
-    "PdfReport": PdfReport,
-    "Profile": Profile,
-    "PublicReportView": PublicReportView,
-    "ReportView": ReportView,
-    "Reports": Reports,
-    "ShipmentView": ShipmentView,
-    "Shipments": Shipments,
-    "Support": Support,
-}
-
-export const pagesConfig = {
-    mainPage: "Dashboard",
-    Pages: PAGES,
-    Layout: __Layout,
+export default {
+  Pages: {
+    Dashboard,
+    Reports,
+    NewReport,
+    ReportView,
+    ClarifyReport,
+    PublicReportView,
+    Shipments,
+    NewShipment,
+    ShipmentView,
+    Customers,
+    Profile,
+    Support,
+    PdfReport,
+  },
+  Layout,
+  mainPage: 'Dashboard'
 };
