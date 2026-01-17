@@ -1,695 +1,430 @@
-import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { base44 } from '../api/base44Client';
 import { useLanguage } from '../components/providers/LanguageContext';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Skeleton } from '../components/ui/skeleton';
 import { 
-  FileText, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle,
-  ExternalLink,
-  Lock,
-  Crown,
-  Share2, Copy, Loader2,
-  ChevronLeft,
-  AlertTriangle,
-  Scale,
-  Download // <--- Added Download icon
+  FileText, Share2, Download, AlertCircle, CheckCircle2, 
+  Clock, TrendingUp, Package, Globe, MapPin, DollarSign,
+  Copy, Check, ExternalLink
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
-import ReportContentWrapper from '@/components/report/ReportContentWrapper';
+import { createPageUrl } from '../utils';
 
 export default function ReportView() {
-  const { t, language, isRTL } = useLanguage();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
-  const [report, setReport] = useState(null);
-  const [tradeResource, setTradeResource] = useState(null);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   
-  const [isSharing, setIsSharing] = useState(false);
+  // Get and validate reportId
+  const urlParams = new URLSearchParams(window.location.search);
+  const reportId = urlParams.get('id')?.trim();
+  
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareLink, setShareLink] = useState('');
-  const [shareExpiry, setShareExpiry] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  // --- New State for Export ---
-  const [isExporting, setIsExporting] = useState(false);
-  
-  const urlParams = new URLSearchParams(window.location.search);
-  const reportId = urlParams.get('id');
-  
+  // Validate reportId format
+  const isValidReportId = useCallback((id) => {
+    if (!id) return false;
+    // Allow alphanumeric, hyphens, and underscores
+    return /^[a-zA-Z0-9_-]+$/.test(id);
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
+      // Validation check
+      if (!reportId) {
+        setError('missing_id');
+        setLoading(false);
+        toast.error(language === 'he' ? 'מזהה דוח חסר' : 'Report ID is missing');
+        setTimeout(() => navigate(createPageUrl('Reports')), 2000);
+        return;
+      }
+
+      if (!isValidReportId(reportId)) {
+        setError('invalid_id');
+        setLoading(false);
+        toast.error(language === 'he' ? 'מזהה דוח לא תקין' : 'Invalid report ID');
+        setTimeout(() => navigate(createPageUrl('Reports')), 2000);
+        return;
+      }
+
       try {
         const reportRes = await base44.entities.ClassificationReport.filter({ id: reportId });
+        
+        // Check if report exists
+        if (!reportRes || reportRes.length === 0) {
+          setError('not_found');
+          setLoading(false);
+          toast.error(language === 'he' ? 'דוח לא נמצא' : 'Report not found');
+          setTimeout(() => navigate(createPageUrl('Reports')), 2000);
+          return;
+        }
+        
         const reportData = reportRes[0];
         setReport(reportData);
-        
-        let resourceData = null;
-        if (reportData?.destination_country) {
-             const resources = await base44.entities.CountryTradeResource.filter({ country_name: reportData.destination_country });
-             resourceData = resources[0];
-             setTradeResource(resourceData);
-        }
-
-        const userData = await base44.auth.me();
-        setUser(userData);
+        setError(null);
       } catch (error) {
-        console.error('Error loading data:', error);
+        console.error('Error loading report:', error);
+        setError('load_error');
+        toast.error(
+          language === 'he' 
+            ? `שגיאה בטעינת דוח: ${error.message}` 
+            : `Failed to load report: ${error.message}`
+        );
+        setTimeout(() => navigate(createPageUrl('Reports')), 3000);
       } finally {
         setLoading(false);
       }
     };
-    if (reportId) loadData();
-  }, [reportId]);
-  
-  const isPremium = user?.subscription_plan && ['pay_per_use', 'basic', 'pro', 'agency', 'enterprise'].includes(user.subscription_plan);
 
-  const handleShareReport = async () => {
-    if (!reportId) return;
-    setIsSharing(true);
+    loadData();
+  }, [reportId, language, navigate, isValidReportId]);
+
+  // Memoized data
+  const primaryResult = useMemo(() => 
+    report?.classification_results?.primary || {},
+    [report?.classification_results]
+  );
+  
+  const alternatives = useMemo(() => 
+    report?.classification_results?.alternatives || [],
+    [report?.classification_results]
+  );
+  
+  const regulatoryPrimary = useMemo(() => 
+    report?.regulatory_data?.primary || {},
+    [report?.regulatory_data]
+  );
+  
+  const qa = useMemo(() => 
+    report?.qa_assessment || {},
+    [report?.qa_assessment]
+  );
+
+  const getRegulatoryForCode = useCallback((code) => {
+    if (primaryResult.hs_code === code) return regulatoryPrimary;
+    const altReg = report?.regulatory_data?.alternatives?.find(r => r.hs_code === code);
+    return altReg || {};
+  }, [primaryResult.hs_code, regulatoryPrimary, report?.regulatory_data]);
+
+  const handleShareReport = useCallback(async () => {
     try {
-      const { data } = await base44.functions.invoke('generateShareableReportLink', { reportId });
-      if (data.success) {
-        setShareLink(data.shareUrl);
-        setShareExpiry(data.expiryDate);
+      const result = await base44.functions.invoke('generateShareableReportLink', { reportId });
+      if (result?.shareUrl) {
+        setShareLink(result.shareUrl);
         setShowShareDialog(true);
-        toast.success(language === 'he' ? 'קישור שיתוף נוצר בהצלחה!' : 'Share link generated successfully!');
-      } else {
-        throw new Error(data.error || 'Failed to generate share link');
+        toast.success(language === 'he' ? 'קישור שיתוף נוצר בהצלחה' : 'Share link generated successfully');
       }
     } catch (error) {
-      console.error('Error generating share link:', error);
-      toast.error(language === 'he' ? 'שגיאה ביצירת קישור שיתוף: ' + error.message : 'Error generating share link: ' + error.message);
-    } finally {
-      setIsSharing(false);
+      console.error('Share error:', error);
+      toast.error(language === 'he' ? 'שגיאה ביצירת קישור שיתוף' : 'Failed to generate share link');
     }
-  };
+  }, [reportId, language]);
 
-  // --- New Export Function ---
-  const handleExportPdf = async () => {
-      setIsExporting(true);
-      try {
-          const { data } = await base44.functions.invoke('generateReportPdf', { reportId });
-          
-          if (data.success && data.pdfUrl) {
-              window.open(data.pdfUrl, '_blank');
-              toast.success(language === 'he' ? 'הדוח יוצא בהצלחה!' : 'Report exported successfully!');
-          } else {
-              throw new Error(data.error || 'Export failed');
-          }
-      } catch (error) {
-          console.error(error);
-          toast.error(language === 'he' ? 'שגיאה ביצוא הדוח' : 'Failed to export report: ' + error.message);
-      } finally {
-          setIsExporting(false);
-      }
-  };
-
-  const copyToClipboard = () => {
+  const handleCopyLink = useCallback(() => {
     navigator.clipboard.writeText(shareLink);
-    toast.success(language === 'he' ? 'הקישור הועתק!' : 'Link copied to clipboard!');
-  };
-  
+    setCopied(true);
+    toast.success(language === 'he' ? 'הקישור הועתק' : 'Link copied');
+    setTimeout(() => setCopied(false), 2000);
+  }, [shareLink, language]);
+
+  const handleExportPdf = useCallback(async () => {
+    setExporting(true);
+    try {
+      const result = await base44.functions.invoke('generateReportPdf', { reportId });
+      if (result?.pdfUrl) {
+        window.open(result.pdfUrl, '_blank');
+        toast.success(language === 'he' ? 'PDF נוצר בהצלחה' : 'PDF generated successfully');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error(language === 'he' ? 'שגיאה ביצירת PDF' : 'Failed to generate PDF');
+    } finally {
+      setExporting(false);
+    }
+  }, [reportId, language]);
+
+  // Loading state
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto space-y-6 p-6">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
         <Skeleton className="h-8 w-64" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <Skeleton className="h-64" />
             <Skeleton className="h-48" />
+            <Skeleton className="h-96" />
           </div>
           <Skeleton className="h-96" />
         </div>
       </div>
     );
   }
-  
-  if (!report) {
+
+  // Error state
+  if (error) {
     return (
-      <div className="max-w-5xl mx-auto text-center py-12">
-        <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-          {language === 'he' ? 'הדוח לא נמצא' : 'Report not found'}
-        </h2>
+      <div className="max-w-4xl mx-auto p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-5 w-5" />
+          <AlertTitle>
+            {language === 'he' ? 'שגיאה' : 'Error'}
+          </AlertTitle>
+          <AlertDescription>
+            {error === 'missing_id' && (language === 'he' ? 'מזהה דוח חסר' : 'Report ID is missing')}
+            {error === 'invalid_id' && (language === 'he' ? 'מזהה דוח לא תקין' : 'Invalid report ID')}
+            {error === 'not_found' && (language === 'he' ? 'הדוח לא נמצא במערכת' : 'Report not found in system')}
+            {error === 'load_error' && (language === 'he' ? 'שגיאה בטעינת הדוח' : 'Failed to load report')}
+          </AlertDescription>
+        </Alert>
+        <div className="mt-6 text-center">
+          <Button onClick={() => navigate(createPageUrl('Reports'))}>
+            {language === 'he' ? 'חזרה לדוחות' : 'Back to Reports'}
+          </Button>
+        </div>
       </div>
     );
   }
 
-  // Safe accessors
-  const primaryResult = report.classification_results?.primary || {};
-  const alternatives = report.classification_results?.alternatives || [];
-  const regulatoryPrimary = report.regulatory_data?.primary || {};
-  const regulatoryAlts = report.regulatory_data?.alternatives || [];
-  const qa = report.qa_audit || {};
-  const spec = report.structural_analysis || {};
-  const research = report.research_findings || {};
-
-  const getRegulatoryForCode = (code) => {
-    // Check primary
-    if (primaryResult.hs_code === code) return regulatoryPrimary;
-    // Check alts
-    const altReg = regulatoryAlts.find(r => r.hs_code === code);
-    return altReg || {};
-  };
+  // No report data
+  if (!report) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 text-center">
+        <AlertCircle className="w-16 h-16 mx-auto text-slate-400 mb-4" />
+        <h2 className="text-2xl font-semibold mb-2">
+          {language === 'he' ? 'לא נמצא דוח' : 'No Report Found'}
+        </h2>
+        <Button onClick={() => navigate(createPageUrl('Reports'))} className="mt-4">
+          {language === 'he' ? 'חזרה לדוחות' : 'Back to Reports'}
+        </Button>
+      </div>
+    );
+  }
 
   const statusConfig = {
-    pending: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('processing') },
-    processing: { icon: Clock, color: 'bg-[#D89C42]/10 text-[#D89C42]', label: t('processing') },
-    completed: { icon: CheckCircle2, color: 'bg-[#42C0B9]/10 text-[#42C0B9]', label: t('completed') },
-    failed: { icon: AlertCircle, color: 'bg-red-100 text-red-600', label: t('failed') },
-    waiting_for_user: { icon: AlertTriangle, color: 'bg-yellow-100 text-yellow-600', label: t('waiting_for_user') }
+    completed: { color: 'bg-green-500', text: language === 'he' ? 'הושלם' : 'Completed', icon: CheckCircle2 },
+    processing: { color: 'bg-blue-500', text: language === 'he' ? 'מעבד' : 'Processing', icon: Clock },
+    pending: { color: 'bg-yellow-500', text: language === 'he' ? 'ממתין' : 'Pending', icon: Clock },
+    failed: { color: 'bg-red-500', text: language === 'he' ? 'נכשל' : 'Failed', icon: AlertCircle },
   };
-  
-  const StatusIcon = statusConfig[report.status]?.icon || Clock;
+
+  const currentStatus = statusConfig[report.status] || statusConfig.pending;
+  const StatusIcon = currentStatus.icon;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-6">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-4"
-      >
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-          <ChevronLeft className="w-4 h-4 me-2" />
-          {t('backToReports')}
-        </Button>
-        
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Badge className={`${statusConfig[report.status]?.color} border-0`}>
-                <StatusIcon className="w-3 h-3 me-1" />
-                {statusConfig[report.status]?.label}
-              </Badge>
-              <span className="text-sm text-slate-500">
-                ID: {report.report_id}
-              </span>
-            </div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              {report.product_name}
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {format(new Date(report.created_date), 'dd/MM/yyyy HH:mm')}
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-2">
-             {/* --- New Export Button --- */}
-             <Button variant="outline" onClick={handleExportPdf} disabled={isExporting}>
-                {isExporting ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Download className="w-4 h-4 me-2" />}
-                {language === 'he' ? 'ייצוא PDF' : 'Export PDF'}
-             </Button>
-
-             {report.status === 'completed' && (
-                <Button variant="outline" onClick={handleShareReport} disabled={isSharing}>
-                  {isSharing ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Share2 className="w-4 h-4 me-2" />}
-                  {t('share')}
-                </Button>
-             )}
-             <Button variant="outline" onClick={() => window.print()}>
-               <FileText className="w-4 h-4 me-2"/>
-               {t('print')}
-             </Button>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+            {report.product_name || t('classificationReport')}
+          </h1>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="flex items-center gap-1">
+              <StatusIcon className="w-3 h-3" />
+              {currentStatus.text}
+            </Badge>
+            <span className="text-sm text-slate-500">
+              {new Date(report.created_date).toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US')}
+            </span>
           </div>
         </div>
-      </motion.div>
-
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left Column (2/3) */}
-        <div className="lg:col-span-2 space-y-6">
-            
-            {/* QA Score & Warnings */}
-            {qa.score !== undefined && (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                    <Card className="border-0 shadow-sm overflow-hidden">
-                        <div className={`h-2 ${qa.score >= 80 ? 'bg-[#42C0B9]' : qa.score >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} />
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold">{t('qaScore')}</h3>
-                                <Badge variant="outline" className="text-lg px-3 py-1">
-                                    {qa.score}/100
-                                </Badge>
-                            </div>
-                            
-                            {qa.score < 80 && qa.user_explanation && (
-                                <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900">
-                                    <AlertCircle className="h-4 w-4" />
-                                    <AlertTitle>{t('attentionNeeded')}</AlertTitle>
-                                    <AlertDescription>
-                                        {qa.user_explanation}
-                                    </AlertDescription>
-                                </Alert>
-                            )}
-                            
-                            {qa.score >= 80 && (
-                                <p className="text-slate-600 dark:text-slate-300">
-                                    {t('qaPassed')}
-                                </p>
-                            )}
-                        </CardContent>
-                    </Card>
-                </motion.div>
-            )}
-
-            {/* Primary Classification */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                <Card className="bg-gradient-to-br from-[#114B5F] to-[#0D3A4A] text-white border-0">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Scale className="w-5 h-5 text-[#42C0B9]" />
-                            {t('primaryClassification')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
-                            <div>
-                                <p className="text-white/70 text-sm uppercase tracking-wider mb-1">HS Code</p>
-                                <p className="text-5xl font-mono font-bold tracking-tight mb-2">{primaryResult.hs_code || '---'}</p>
-                                {primaryResult.legal_basis && (
-                                    <div className="inline-flex items-center bg-white/10 px-2 py-1 rounded text-xs text-white/90">
-                                        <span className="font-semibold opacity-70 me-1">{t('legalBasis')}:</span>
-                                        <ReportContentWrapper languageCode="en" className="font-medium">
-                                            {primaryResult.legal_basis}
-                                        </ReportContentWrapper>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex gap-8">
-                                <div>
-                                    <p className="text-white/70 text-sm uppercase tracking-wider mb-1">Duty Rate</p>
-                                    <p className="text-2xl font-semibold text-[#42C0B9]">{regulatoryPrimary.duty_rate || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-white/70 text-sm uppercase tracking-wider mb-1">VAT</p>
-                                    <p className="text-2xl font-semibold text-[#42C0B9]">{regulatoryPrimary.vat_rate || 'N/A'}</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-                            <ReportContentWrapper languageCode={report.target_language}>
-                                <p className="text-white/90 leading-relaxed italic">
-                                    "{primaryResult.reasoning}"
-                                </p>
-                            </ReportContentWrapper>
-                        </div>
-                    </CardContent>
-                </Card>
-            </motion.div>
-
-            {/* Comparison Table */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                <Card className="border-0 shadow-sm">
-                    <CardHeader>
-                        <CardTitle>{t('alternativesComparison')}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>{t('hsCode')}</TableHead>
-                                    <TableHead>{t('confidenceScore')}</TableHead>
-                                    <TableHead>{t('tariffRate')}</TableHead>
-                                    <TableHead>{t('classificationReasoning')}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {/* Primary Row */}
-                                <TableRow className="bg-slate-50/50">
-                                    <TableCell className="font-mono font-medium text-[#114B5F]">{primaryResult.hs_code}</TableCell>
-                                    <TableCell>
-                                        <Badge className="bg-[#114B5F] hover:bg-[#114B5F]">{primaryResult.confidence_score}%</Badge>
-                                    </TableCell>
-                                    <TableCell>{regulatoryPrimary.duty_rate}</TableCell>
-                                    <TableCell className="text-sm text-slate-600 max-w-md truncate" title={primaryResult.reasoning}>
-                                        <Badge variant="outline" className="text-[#114B5F] border-[#114B5F] mb-1">Primary</Badge>
-                                        <br/>
-                                        <ReportContentWrapper languageCode={report.target_language}>
-                                            {primaryResult.reasoning}
-                                        </ReportContentWrapper>
-                                    </TableCell>
-                                </TableRow>
-
-                                {/* Alternatives */}
-                                {alternatives.map((alt, idx) => {
-                                    const reg = getRegulatoryForCode(alt.hs_code);
-                                    return (
-                                        <TableRow key={idx}>
-                                            <TableCell className="font-mono text-slate-600">{alt.hs_code}</TableCell>
-                                            <TableCell>{alt.confidence_score}%</TableCell>
-                                            <TableCell>{reg.duty_rate || '---'}</TableCell>
-                                            <TableCell className="text-sm text-slate-600 max-w-md">
-                                                 <span className="font-semibold text-slate-900 block mb-1">{t('whyRejected')}:</span>
-                                                 <ReportContentWrapper languageCode={report.target_language}>
-                                                    {alt.rejection_reason || alt.reasoning}
-                                                 </ReportContentWrapper>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            </motion.div>
-
-            {/* Audit Trail / Details */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <Card className="border-0 shadow-sm">
-                    <CardHeader>
-                        <CardTitle>{t('technicalLegalDetails')}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Tabs defaultValue="technical">
-                            <TabsList className="w-full justify-start mb-4">
-                                <TabsTrigger value="technical">{t('technicalSpec')}</TabsTrigger>
-                                <TabsTrigger value="legal">{t('fullLegalReasoning')}</TabsTrigger>
-                                <TabsTrigger value="compliance">{t('complianceRegulation')}</TabsTrigger>
-                                <TabsTrigger value="sources">{t('verifiedSources')}</TabsTrigger>
-                            </TabsList>
-                            
-                            <TabsContent value="compliance" className="space-y-6">
-                                {/* Taxes & Duties Section */}
-                                <div className="space-y-3">
-                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                                        <Scale className="w-4 h-4 text-[#42C0B9]" />
-                                        {t('taxesDuties')}
-                                        <Badge variant="outline" className="text-xs font-normal ms-auto">
-                                            {t('taxMethod')}: {tradeResource?.tax_method || 'CIF'}
-                                        </Badge>
-                                    </h3>
-                                    <div className="border rounded-lg overflow-hidden">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow className="bg-slate-50">
-                                                    <TableHead>Type</TableHead>
-                                                    <TableHead>Rate/Amount</TableHead>
-                                                    <TableHead>Source</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                <TableRow>
-                                                    <TableCell>Duty Rate</TableCell>
-                                                    <TableCell className="font-medium">{regulatoryPrimary.duty_rate || '0%'}</TableCell>
-                                                    <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
-                                                </TableRow>
-                                                <TableRow>
-                                                    <TableCell>VAT</TableCell>
-                                                    <TableCell>{regulatoryPrimary.vat_rate || '---'}</TableCell>
-                                                    <TableCell><Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">Official Source</Badge></TableCell>
-                                                </TableRow>
-                                                {regulatoryPrimary.excise_tax && (
-                                                    <TableRow>
-                                                        <TableCell>Excise Tax</TableCell>
-                                                        <TableCell>{regulatoryPrimary.excise_tax}</TableCell>
-                                                        <TableCell><Badge variant="secondary" className="text-[10px] bg-purple-50 text-purple-700">Regulation</Badge></TableCell>
-                                                    </TableRow>
-                                                )}
-                                                {regulatoryPrimary.anti_dumping_duty && (
-                                                    <TableRow>
-                                                        <TableCell className="text-red-600">Anti-Dumping</TableCell>
-                                                        <TableCell className="text-red-600 font-medium">{regulatoryPrimary.anti_dumping_duty}</TableCell>
-                                                        <TableCell><Badge variant="secondary" className="text-[10px] bg-red-50 text-red-700">Trade Defense</Badge></TableCell>
-                                                    </TableRow>
-                                                )}
-                                                {regulatoryPrimary.other_fees && (
-                                                    <TableRow>
-                                                        <TableCell>Other Fees</TableCell>
-                                                        <TableCell>{regulatoryPrimary.other_fees}</TableCell>
-                                                        <TableCell><Badge variant="secondary" className="text-[10px]">Port/Levy</Badge></TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </div>
-
-                                {/* Standards & Certification */}
-                                <div className="space-y-3">
-                                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                                        <CheckCircle2 className="w-4 h-4 text-[#42C0B9]" />
-                                        {t('standardsCertification')}
-                                    </h3>
-                                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                                        {Array.isArray(regulatoryPrimary.standards_requirements) && regulatoryPrimary.standards_requirements.length > 0 ? (
-                                            <ul className="space-y-3">
-                                                {regulatoryPrimary.standards_requirements.map((item, idx) => (
-                                                    <li key={idx} className="flex flex-col gap-1">
-                                                        <span className="text-slate-900 font-medium">• {item.requirement || item}</span>
-                                                        {item.verification_url && (
-                                                            <a href={item.verification_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline w-fit">
-                                                                <ExternalLink className="w-3 h-3" />
-                                                                {t('verifySource')}
-                                                            </a>
-                                                        )}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        ) : (
-                                            <p className="text-slate-900 whitespace-pre-wrap mb-4">
-                                                {typeof regulatoryPrimary.standards_requirements === 'string' 
-                                                    ? regulatoryPrimary.standards_requirements 
-                                                    : t('noSpecificStandards')}
-                                            </p>
-                                        )}
-                                        
-                                        {tradeResource?.regulation_links?.length > 0 && (
-                                            <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-200/60">
-                                                <span className="text-xs text-slate-400 w-full mb-1">{t('officialResourceLinks')}:</span>
-                                                {tradeResource.regulation_links.map((link, idx) => (
-                                                    <a key={idx} href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-white border rounded-md text-xs text-slate-600 hover:text-blue-600 hover:border-blue-200 transition-colors">
-                                                        <ExternalLink className="w-3 h-3" />
-                                                        {t('officialSources')} {idx + 1}
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                
-                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                                    <h4 className="font-semibold text-sm text-slate-500 mb-1 flex items-center gap-2">
-                                        <Lock className="w-4 h-4" />
-                                        {t('importLegality')}
-                                    </h4>
-                                    <p className="text-slate-900 whitespace-pre-wrap">{regulatoryPrimary.import_legality || '---'}</p>
-                                </div>
-                            </TabsContent>
-
-                            <TabsContent value="technical" className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('standardizedName')}</h4>
-                                        <ReportContentWrapper languageCode={report.target_language}>
-                                            <p className="text-slate-900">{spec.standardized_name || '---'}</p>
-                                        </ReportContentWrapper>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('materialComposition')}</h4>
-                                        <ReportContentWrapper languageCode={report.target_language}>
-                                            <p className="text-slate-900">{spec.material_composition || '---'}</p>
-                                        </ReportContentWrapper>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('function')}</h4>
-                                        <ReportContentWrapper languageCode={report.target_language}>
-                                            <p className="text-slate-900">{spec.function || '---'}</p>
-                                        </ReportContentWrapper>
-                                    </div>
-                                    <div className="p-4 bg-slate-50 rounded-lg">
-                                        <h4 className="font-semibold text-sm text-slate-500 mb-1">{t('essentialCharacter')}</h4>
-                                        <ReportContentWrapper languageCode={report.target_language}>
-                                            <p className="text-slate-900">{spec.essential_character || '---'}</p>
-                                        </ReportContentWrapper>
-                                    </div>
-                                </div>
-                            </TabsContent>
-                            
-                            <TabsContent value="legal">
-                                <div className="prose prose-sm max-w-none p-4 bg-slate-50 rounded-lg">
-                                    <ReportContentWrapper languageCode={report.target_language}>
-                                        <p className="whitespace-pre-wrap">{primaryResult.reasoning}</p>
-                                    </ReportContentWrapper>
-                                </div>
-                            </TabsContent>
-                            
-                            <TabsContent value="sources">
-                                <div className="space-y-2">
-                                    {(research.verified_sources || []).map((source, idx) => (
-                                        <a 
-                                            key={idx} 
-                                            href={source.url} 
-                                            target="_blank" 
-                                            rel="noreferrer"
-                                            className="block p-3 bg-white border hover:bg-slate-50 rounded-lg transition-colors group"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <h4 className="font-medium text-[#114B5F] group-hover:underline">{source.title}</h4>
-                                                <ExternalLink className="w-4 h-4 text-slate-400" />
-                                            </div>
-                                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">{source.snippet}</p>
-                                            <div className="flex gap-2 mt-2">
-                                                <Badge variant="secondary" className="text-[10px] h-5">{new Date(source.date).toLocaleDateString()}</Badge>
-                                            </div>
-                                        </a>
-                                    ))}
-                                    {(!research.verified_sources || research.verified_sources.length === 0) && (
-                                        <p className="text-slate-500 italic">No public sources linked.</p>
-                                    )}
-                                </div>
-                            </TabsContent>
-                        </Tabs>
-                    </CardContent>
-                </Card>
-            </motion.div>
-        </div>
-
-        {/* Right Column (1/3) - Sidebar Info */}
-        <div className="space-y-6">
-            <Card className="border-0 shadow-sm">
-                <CardHeader>
-                    <CardTitle>{t('tradeDetails')}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                     <div>
-                        <h4 className="text-sm font-medium text-slate-500">{t('destination')}</h4>
-                        <p className="text-lg font-medium">{report.destination_country}</p>
-                     </div>
-                     <div>
-                        <h4 className="text-sm font-medium text-slate-500">{t('origin')}</h4>
-                        <p className="text-lg font-medium">{report.country_of_origin}</p>
-                     </div>
-                     
-                     {/* Regulatory Context Panel */}
-                     {tradeResource && (
-                        <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-100">
-                            <h4 className="text-xs font-semibold text-blue-800 uppercase tracking-wider mb-2">{t('regulatoryContext')}</h4>
-                            
-                            <div className="mb-2">
-                                <span className="text-xs text-slate-500 block">{t('regionalAgreements')}:</span>
-                                <span className="text-sm font-medium text-slate-700">{tradeResource.regional_agreements || 'None'}</span>
-                            </div>
-                            
-                            <div className="mb-2">
-                                <span className="text-xs text-slate-500 block">{t('hsStructure')}:</span>
-                                <span className="text-sm font-mono text-slate-700">{tradeResource.hs_structure || 'Standard'}</span>
-                            </div>
-
-                            <div>
-                                <span className="text-xs text-slate-500 block">{t('taxMethod')}:</span>
-                                <Badge variant="outline" className="bg-white text-xs font-normal mt-1">
-                                    {tradeResource.tax_method || 'CIF'}
-                                </Badge>
-                            </div>
-                        </div>
-                     )}
-
-                     <div className="pt-4 border-t">
-                        <h4 className="text-sm font-medium text-slate-500">{t('importRequirements')}</h4>
-                        <ul className="mt-2 space-y-3">
-                            {(regulatoryPrimary.import_requirements || []).map((req, idx) => {
-                                const text = typeof req === 'object' ? req.requirement : req;
-                                const url = typeof req === 'object' ? req.verification_url : null;
-                                return (
-                                    <li key={idx} className="text-sm flex flex-col gap-1">
-                                        <div className="flex items-start gap-2">
-                                            <CheckCircle2 className="w-4 h-4 text-[#42C0B9] mt-0.5 shrink-0" />
-                                            <span>{text}</span>
-                                        </div>
-                                        {url && (
-                                            <a href={url} target="_blank" rel="noreferrer" className="ml-6 text-xs text-blue-500 hover:underline flex items-center gap-1">
-                                                <ExternalLink className="w-3 h-3" /> {t('verifySource')}
-                                            </a>
-                                        )}
-                                    </li>
-                                );
-                            })}
-                            {(!regulatoryPrimary.import_requirements || regulatoryPrimary.import_requirements.length === 0) && (
-                                <li className="text-sm text-slate-500 italic">{t('noneSpecified')}</li>
-                            )}
-                        </ul>
-                     </div>
-                </CardContent>
-            </Card>
-
-            <Card className="bg-[#FAFBFC] border-dashed">
-                <CardContent className="p-6 text-center">
-                    <p className="text-xs text-slate-400 mb-2">
-                        {t('reportId')}
-                    </p>
-                    <code className="bg-slate-200 px-2 py-1 rounded text-xs block mb-4">{report.report_id}</code>
-                    <p className="text-xs text-slate-500">
-                        {t('generatedBy')}
-                    </p>
-                </CardContent>
-            </Card>
-        </div>
-
-      </div>
-
-    <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>{t('shareReport')}</DialogTitle>
-          <DialogDescription>
-            {t('shareReportDesc')}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex items-center space-x-2">
-          <Input readOnly value={shareLink} className="flex-grow" />
-          <Button onClick={copyToClipboard} variant="outline" size="icon">
-            <Copy className="h-4 w-4" />
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleShareReport}>
+            <Share2 className="w-4 h-4 me-2" />
+            {t('share')}
+          </Button>
+          <Button variant="outline" onClick={handleExportPdf} disabled={exporting}>
+            <Download className="w-4 h-4 me-2" />
+            {exporting ? t('exporting') : t('exportPdf')}
           </Button>
         </div>
-        {shareExpiry && (
-          <p className="text-xs text-slate-500 mt-2">
-            {t('linkValidUntil')}
-            {format(new Date(shareExpiry), 'dd/MM/yyyy HH:mm')}
-             (7 {t('days')})
-          </p>
-        )}
-        <DialogFooter>
-          <Button onClick={() => setShowShareDialog(false)}>{t('close')}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* QA Score */}
+          {qa.score !== undefined && (
+            <Card className="border-0 shadow-sm overflow-hidden">
+              <div className={`h-2 ${qa.score >= 80 ? 'bg-[#42C0B9]' : qa.score >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} />
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">{t('qaScore')}</h3>
+                  <Badge variant="outline" className="text-lg px-3 py-1">
+                    {qa.score}/100
+                  </Badge>
+                </div>
+                
+                {qa.score < 80 && qa.user_explanation && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>{t('attentionNeeded')}</AlertTitle>
+                    <AlertDescription>{qa.user_explanation}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Primary Classification */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-[#42C0B9]" />
+                {t('primaryClassification')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                <div>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{t('hsCode')}</p>
+                  <p className="text-2xl font-bold font-mono text-[#42C0B9]">
+                    {primaryResult.hs_code || 'N/A'}
+                  </p>
+                </div>
+                <Badge className="text-lg px-4 py-2">
+                  {primaryResult.confidence_score}% {t('confidence')}
+                </Badge>
+              </div>
+
+              {primaryResult.reasoning && (
+                <div>
+                  <h4 className="font-semibold mb-2">{t('reasoning')}</h4>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                    {primaryResult.reasoning}
+                  </p>
+                </div>
+              )}
+
+              {regulatoryPrimary.tariff_rate && (
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                  <div>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('tariffRate')}</p>
+                    <p className="text-lg font-semibold">{regulatoryPrimary.tariff_rate}</p>
+                  </div>
+                  {regulatoryPrimary.duty_amount && (
+                    <div>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{t('estimatedDuty')}</p>
+                      <p className="text-lg font-semibold">${regulatoryPrimary.duty_amount}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Alternatives */}
+          {alternatives.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('alternativeClassifications')}</CardTitle>
+                <CardDescription>{t('otherPossibleCodes')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('hsCode')}</TableHead>
+                      <TableHead>{t('confidence')}</TableHead>
+                      <TableHead>{t('tariffRate')}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {alternatives.map((alt, idx) => {
+                      const reg = getRegulatoryForCode(alt.hs_code);
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell className="font-mono font-semibold">{alt.hs_code}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{alt.confidence_score}%</Badge>
+                          </TableCell>
+                          <TableCell>{reg.tariff_rate || 'N/A'}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Product Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">{t('productDetails')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {report.destination_country && (
+                <div className="flex items-start gap-2">
+                  <Globe className="w-4 h-4 text-slate-500 mt-0.5" />
+                  <div>
+                    <p className="text-slate-600 dark:text-slate-400">{t('destination')}</p>
+                    <p className="font-semibold">{report.destination_country}</p>
+                  </div>
+                </div>
+              )}
+              
+              {report.country_of_manufacture && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-slate-500 mt-0.5" />
+                  <div>
+                    <p className="text-slate-600 dark:text-slate-400">{t('origin')}</p>
+                    <p className="font-semibold">{report.country_of_manufacture}</p>
+                  </div>
+                </div>
+              )}
+
+              {report.user_input_text && (
+                <div>
+                  <p className="text-slate-600 dark:text-slate-400 mb-1">{t('description')}</p>
+                  <p className="text-slate-900 dark:text-white whitespace-pre-wrap">
+                    {report.user_input_text}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Share Dialog */}
+      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{language === 'he' ? 'שתף דוח' : 'Share Report'}</DialogTitle>
+            <DialogDescription>
+              {language === 'he' ? 'העתק את הקישור לשיתוף הדוח' : 'Copy the link to share this report'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={shareLink}
+              readOnly
+              className="flex-1 px-3 py-2 border rounded-md bg-slate-50 dark:bg-slate-900"
+            />
+            <Button onClick={handleCopyLink} variant="outline">
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
