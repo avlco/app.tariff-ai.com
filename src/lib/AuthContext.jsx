@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { base44 } from '../api/base44Client';
-import { appClient } from '../api/base44Client';
 import { appParams } from './app-params';
 
 const AuthContext = createContext(null);
@@ -22,14 +21,9 @@ export const AuthProvider = ({ children }) => {
   const [userRegistrationError, setUserRegistrationError] = useState(null);
 
   useEffect(() => {
-    let isMounted = true;
-
     const checkUserAuth = async () => {
       try {
         const userData = await base44.auth.me();
-        
-        if (!isMounted) return;
-        
         if (userData?.id) {
           setUser(userData);
           setIsAuthenticated(true);
@@ -39,19 +33,13 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('Auth check error:', error);
-        
-        if (!isMounted) return;
-        
         if (error?.status === 403 && error?.message?.includes('not registered')) {
           setUserRegistrationError(error.message);
         }
-        
         setIsAuthenticated(false);
         setUser(null);
       } finally {
-        if (isMounted) {
-          setIsLoadingAuth(false);
-        }
+        setIsLoadingAuth(false);
       }
     };
 
@@ -61,46 +49,38 @@ export const AuthProvider = ({ children }) => {
 
         if (!appParams.appId) {
           console.error('App ID is missing');
-          if (isMounted) {
-            setIsLoadingPublicSettings(false);
-            setIsLoadingAuth(false);
-          }
+          setIsLoadingPublicSettings(false);
+          setIsLoadingAuth(false);
           return;
         }
 
-        const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
+        const publicSettingsRes = await fetch(
+          `https://api.base44.com/prod/public-settings/by-id/${appParams.appId}`
+        );
         
-        if (!isMounted) return;
-        
+        if (!publicSettingsRes.ok) {
+          throw new Error('Failed to fetch public settings');
+        }
+
+        const publicSettings = await publicSettingsRes.json();
         setAppPublicSettings(publicSettings);
 
         if (appParams.token) {
           await checkUserAuth();
         } else {
-          if (!isMounted) return;
-          
           setIsLoadingAuth(false);
           setIsAuthenticated(false);
         }
 
-        if (!isMounted) return;
-        
         setIsLoadingPublicSettings(false);
       } catch (appError) {
         console.error('Error fetching app settings:', appError);
-        
-        if (!isMounted) return;
-        
         setIsLoadingPublicSettings(false);
         setIsLoadingAuth(false);
       }
     };
 
     checkAppState();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
   const logout = async () => {
