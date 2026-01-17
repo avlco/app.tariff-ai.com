@@ -7,6 +7,10 @@
 const ALLOWED_TAGS = ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre'];
 const ALLOWED_ATTRS = ['href', 'target', 'rel', 'class', 'id'];
 
+// Node type constants for environments where Node is not defined
+const TEXT_NODE = typeof Node !== 'undefined' ? Node.TEXT_NODE : 3;
+const ELEMENT_NODE = typeof Node !== 'undefined' ? Node.ELEMENT_NODE : 1;
+
 /**
  * Remove dangerous HTML tags and attributes
  * @param {string} dirty - HTML string to sanitize
@@ -25,11 +29,11 @@ export const sanitizeHtml = (dirty) => {
   temp.innerHTML = dirty;
   
   const clean = (node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
+    if (node.nodeType === TEXT_NODE) {
       return node.textContent;
     }
     
-    if (node.nodeType !== Node.ELEMENT_NODE) {
+    if (node.nodeType !== ELEMENT_NODE) {
       return '';
     }
     
