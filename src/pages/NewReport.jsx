@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../components/providers/LanguageContext';
 import { base44 } from '@/api/base44Client';
@@ -11,8 +11,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UploadCloud, Link as LinkIcon, Loader2, FileText, X, CheckCircle, ArrowRight } from 'lucide-react';
+import { UploadCloud, Link as LinkIcon, Loader2, FileText, X, CheckCircle, ArrowRight, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { motion } from 'framer-motion';
 
 const COUNTRIES = [
@@ -21,10 +22,17 @@ const COUNTRIES = [
   "Turkey", "Vietnam", "Thailand", "Mexico"
 ].sort();
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILES = 5;
+const MAX_LINKS = 10;
+const DESCRIPTION_MIN_LENGTH = 10;
+const ALLOWED_FILE_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
 export default function NewReport() {
   const { t, language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
   
   const [formData, setFormData] = useState({
     product_name: '',
@@ -40,73 +48,204 @@ export default function NewReport() {
   const [uploading, setUploading] = useState(false);
 
   // Auto-Save Draft
-  React.useEffect(() => {
+  useEffect(() => {
     const saved = localStorage.getItem('newReportDraft');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setFormData(parsed.formData || {});
-        // Files/Links are harder to restore securely/easily without re-uploading, 
-        // so we might just skip them or handle them if complex. 
-        // For now, let's stick to text fields as is standard for light drafts.
+        if (parsed.formData) setFormData(parsed.formData);
         if (parsed.links) setLinks(parsed.links);
       } catch (e) {
         console.error("Failed to load draft", e);
+        localStorage.removeItem('newReportDraft');
       }
     }
   }, []);
 
-  React.useEffect(() => {
-    localStorage.setItem('newReportDraft', JSON.stringify({ formData, links }));
+  useEffect(() => {
+    try {
+      localStorage.setItem('newReportDraft', JSON.stringify({ formData, links }));
+    } catch (e) {
+      console.error("Failed to save draft", e);
+    }
   }, [formData, links]);
+
+  const validateFile = (file) => {
+    const errors = [];
+    
+    if (file.size > MAX_FILE_SIZE) {
+      errors.push(language === 'he' ? 'קובץ גדול מדי (מקסימום 10MB)' : 'File too large (max 10MB)');
+    }
+    
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      errors.push(language === 'he' ? 'סוג קובץ לא נתמך' : 'File type not supported');
+    }
+    
+    return errors;
+  };
+
+  const validateUrl = (url) => {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
 
   const handleFileChange = async (e) => {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length === 0) return;
 
+    // Check total number of files
+    if (files.length + selectedFiles.length > MAX_FILES) {
+      toast.error(language === 'he' ? `ניתן להעלות עד ${MAX_FILES} קבצים` : `Maximum ${MAX_FILES} files allowed`);
+      return;
+    }
+
+    // Validate each file
+    const validFiles = [];
+    for (const file of selectedFiles) {
+      const errors = validateFile(file);
+      if (errors.length > 0) {
+        toast.error(`${file.name}: ${errors.join(', ')}`);
+      } else {
+        validFiles.push(file);
+      }
+    }
+
+    if (validFiles.length === 0) return;
+
     setUploading(true);
+    const uploadedFiles = [];
+    const failedFiles = [];
+
     try {
-      const uploadPromises = selectedFiles.map(file => 
-        base44.integrations.Core.UploadFile({ file })
-      );
-      const results = await Promise.all(uploadPromises);
-      const newFileUrls = results.map(r => r.file_url);
-      setFiles(prev => [...prev, ...newFileUrls]);
-      toast.success(language === 'he' ? 'קבצים הועלו בהצלחה' : 'Files uploaded successfully');
+      for (const file of validFiles) {
+        try {
+          const result = await base44.integrations.Core.UploadFile({ file });
+          if (result?.file_url) {
+            uploadedFiles.push(result.file_url);
+          } else {
+            failedFiles.push(file.name);
+          }
+        } catch (error) {
+          console.error(`Failed to upload ${file.name}:`, error);
+          failedFiles.push(file.name);
+        }
+      }
+
+      if (uploadedFiles.length > 0) {
+        setFiles(prev => [...prev, ...uploadedFiles]);
+        toast.success(
+          language === 'he' 
+            ? `${uploadedFiles.length} קבצים הועלו בהצלחה` 
+            : `${uploadedFiles.length} files uploaded successfully`
+        );
+      }
+
+      if (failedFiles.length > 0) {
+        toast.error(
+          language === 'he'
+            ? `שגיאה בהעלאת: ${failedFiles.join(', ')}`
+            : `Failed to upload: ${failedFiles.join(', ')}`
+        );
+      }
     } catch (error) {
-      console.error(error);
-      toast.error(language === 'he' ? 'שגיאה בהעלאה' : 'Upload failed');
+      console.error('Upload error:', error);
+      toast.error(language === 'he' ? 'שגיאה בהעלאת קבצים' : 'Failed to upload files');
     } finally {
       setUploading(false);
+      // Reset file input
+      e.target.value = '';
     }
   };
 
   const handleAddLink = () => {
-    if (!newLink) return;
-    setLinks(prev => [...prev, newLink]);
+    const trimmedLink = newLink.trim();
+    
+    if (!trimmedLink) {
+      toast.error(language === 'he' ? 'נא להזין קישור' : 'Please enter a link');
+      return;
+    }
+
+    if (links.length >= MAX_LINKS) {
+      toast.error(language === 'he' ? `ניתן להוסיף עד ${MAX_LINKS} קישורים` : `Maximum ${MAX_LINKS} links allowed`);
+      return;
+    }
+
+    if (!validateUrl(trimmedLink)) {
+      toast.error(language === 'he' ? 'קישור לא תקין' : 'Invalid URL');
+      return;
+    }
+
+    if (links.includes(trimmedLink)) {
+      toast.error(language === 'he' ? 'קישור כבר קיים' : 'Link already added');
+      return;
+    }
+
+    setLinks(prev => [...prev, trimmedLink]);
     setNewLink('');
+    toast.success(language === 'he' ? 'קישור נוסף' : 'Link added');
+  };
+
+  const validateForm = () => {
+    const errors = {};
+
+    if (!formData.product_name?.trim()) {
+      errors.product_name = language === 'he' ? 'שדה חובה' : 'Required field';
+    }
+
+    if (!formData.destination_country) {
+      errors.destination_country = language === 'he' ? 'נא לבחור מדינה' : 'Please select a country';
+    }
+
+    if (!formData.country_of_manufacture) {
+      errors.country_of_manufacture = language === 'he' ? 'נא לבחור מדינה' : 'Please select a country';
+    }
+
+    const hasDescription = formData.description?.trim().length >= DESCRIPTION_MIN_LENGTH;
+    const hasFiles = files.length > 0;
+    const hasLinks = links.length > 0;
+
+    if (!hasDescription && !hasFiles && !hasLinks) {
+      errors.content = language === 'he' 
+        ? `נא להוסיף תיאור (לפחות ${DESCRIPTION_MIN_LENGTH} תווים), קבצים או קישורים`
+        : `Please add description (min ${DESCRIPTION_MIN_LENGTH} chars), files, or links`;
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const isFormValid = () => {
-    const hasBasicFields = formData.product_name && formData.destination_country && formData.country_of_manufacture;
-    const hasContent = (formData.description?.length >= 10) || files.length > 0 || links.length > 0;
+    const hasBasicFields = formData.product_name?.trim() && 
+                          formData.destination_country && 
+                          formData.country_of_manufacture;
+    const hasContent = (formData.description?.trim().length >= DESCRIPTION_MIN_LENGTH) || 
+                       files.length > 0 || 
+                       links.length > 0;
     return hasBasicFields && hasContent;
   };
 
   const handleSubmit = async () => {
-    if (!isFormValid()) {
-      toast.error(language === 'he' ? 'נא למלא שדות חובה ולהוסיף תוכן' : 'Please fill required fields and add content');
+    // Clear previous errors
+    setValidationErrors({});
+
+    // Validate form
+    if (!validateForm()) {
+      toast.error(language === 'he' ? 'נא למלא את כל השדות הנדרשים' : 'Please fill all required fields');
       return;
     }
 
     setLoading(true);
     try {
-      // 1. Create Entity
+      // Create report entity
       const report = await base44.entities.ClassificationReport.create({
-        product_name: formData.product_name,
+        product_name: formData.product_name.trim(),
         destination_country: formData.destination_country,
         country_of_manufacture: formData.country_of_manufacture,
-        user_input_text: formData.description,
+        user_input_text: formData.description?.trim() || '',
         uploaded_file_urls: files,
         external_link_urls: links,
         status: 'processing',
@@ -114,19 +253,42 @@ export default function NewReport() {
         report_id: `RPT-${Date.now()}`
       });
 
-      // 2. Async Call (Fire and Forget)
+      if (!report?.id) {
+        throw new Error('Failed to create report - no ID returned');
+      }
+
+      // Start classification (async - with proper error handling)
       base44.functions.invoke('startClassification', { 
         reportId: report.id,
-        intendedUse: formData.description 
-      }).catch(err => console.error("Async startClassification error (expected if fire-and-forget):", err));
+        intendedUse: formData.description?.trim() || ''
+      }).then(() => {
+        console.log('Classification started successfully');
+      }).catch(err => {
+        console.error("Classification start error:", err);
+        // Show warning to user but don't block success
+        toast.warning(
+          language === 'he' 
+            ? 'הדוח נוצר אך התהליך עשוי להיות מושהה' 
+            : 'Report created but processing may be delayed'
+        );
+      });
 
-      // 3. Show Success Modal & Clear Draft
+      // Clear draft
       localStorage.removeItem('newReportDraft');
+      
+      // Show success modal
       setShowSuccessModal(true);
 
     } catch (error) {
-      console.error(error);
-      toast.error(language === 'he' ? 'שגיאה ביצירת הדוח' : 'Failed to start report');
+      console.error('Report creation error:', error);
+      
+      // Show detailed error message
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      toast.error(
+        language === 'he' 
+          ? `שגיאה ביצירת הדוח: ${errorMessage}` 
+          : `Failed to create report: ${errorMessage}`
+      );
     } finally {
       setLoading(false);
     }
@@ -145,6 +307,14 @@ export default function NewReport() {
         </p>
       </div>
 
+      {/* Global validation error */}
+      {validationErrors.content && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{validationErrors.content}</AlertDescription>
+        </Alert>
+      )}
+
       <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
         <CardHeader>
           <CardTitle className="font-heading">{language === 'he' ? 'פרטי בסיס (חובה)' : 'Core Details (Required)'}</CardTitle>
@@ -152,20 +322,34 @@ export default function NewReport() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>{language === 'he' ? 'שם מוצר' : 'Product Name'}</Label>
+              <Label>{language === 'he' ? 'שם מוצר' : 'Product Name'} *</Label>
               <Input 
                 value={formData.product_name}
-                onChange={e => setFormData({...formData, product_name: e.target.value})}
+                onChange={e => {
+                  setFormData({...formData, product_name: e.target.value});
+                  if (validationErrors.product_name) {
+                    setValidationErrors({...validationErrors, product_name: null});
+                  }
+                }}
                 placeholder="e.g., Wireless Mouse M120"
+                className={validationErrors.product_name ? 'border-red-500' : ''}
               />
+              {validationErrors.product_name && (
+                <p className="text-xs text-red-500">{validationErrors.product_name}</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>{language === 'he' ? 'מדינת יעד' : 'Destination Country'}</Label>
+              <Label>{language === 'he' ? 'מדינת יעד' : 'Destination Country'} *</Label>
               <Select 
                 value={formData.destination_country} 
-                onValueChange={val => setFormData({...formData, destination_country: val})}
+                onValueChange={val => {
+                  setFormData({...formData, destination_country: val});
+                  if (validationErrors.destination_country) {
+                    setValidationErrors({...validationErrors, destination_country: null});
+                  }
+                }}
               >
-                <SelectTrigger>
+                <SelectTrigger className={validationErrors.destination_country ? 'border-red-500' : ''}>
                   <SelectValue placeholder="Select country" />
                 </SelectTrigger>
                 <SelectContent>
@@ -174,15 +358,23 @@ export default function NewReport() {
                   ))}
                 </SelectContent>
               </Select>
+              {validationErrors.destination_country && (
+                <p className="text-xs text-red-500">{validationErrors.destination_country}</p>
+              )}
             </div>
             
             <div className="space-y-2">
-              <Label>{language === 'he' ? 'מדינת ייצור' : 'Country of Manufacture'}</Label>
+              <Label>{language === 'he' ? 'מדינת ייצור' : 'Country of Manufacture'} *</Label>
               <Select 
                 value={formData.country_of_manufacture} 
-                onValueChange={val => setFormData({...formData, country_of_manufacture: val})}
+                onValueChange={val => {
+                  setFormData({...formData, country_of_manufacture: val});
+                  if (validationErrors.country_of_manufacture) {
+                    setValidationErrors({...validationErrors, country_of_manufacture: null});
+                  }
+                }}
               >
-                <SelectTrigger>
+                <SelectTrigger className={validationErrors.country_of_manufacture ? 'border-red-500' : ''}>
                   <SelectValue placeholder="Select country" />
                 </SelectTrigger>
                 <SelectContent>
@@ -191,6 +383,9 @@ export default function NewReport() {
                   ))}
                 </SelectContent>
               </Select>
+              {validationErrors.country_of_manufacture && (
+                <p className="text-xs text-red-500">{validationErrors.country_of_manufacture}</p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -200,7 +395,7 @@ export default function NewReport() {
         <CardHeader>
           <CardTitle className="font-heading">{language === 'he' ? 'תיאור מעמיק' : 'Deep Description'}</CardTitle>
           <CardDescription>
-            {language === 'he' ? 'תאר חומרים, תפקוד, ושימוש...' : 'Describe material, function, usage...'}
+            {language === 'he' ? 'תאר חומרים, תפקוד, ושימוש (לפחות 10 תווים)...' : 'Describe material, function, usage (min 10 chars)...'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -212,12 +407,18 @@ export default function NewReport() {
               ? 'לדוגמה: עשוי 80% פלדה, משמש ל...' 
               : 'e.g., Made of 80% steel, used for...'}
           />
+          <p className="text-xs text-slate-500 mt-2">
+            {formData.description?.length || 0} / {DESCRIPTION_MIN_LENGTH} {language === 'he' ? 'תווים מינימום' : 'chars minimum'}
+          </p>
         </CardContent>
       </Card>
 
       <Card className="bg-white dark:bg-[#1E293B]/50 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
         <CardHeader>
           <CardTitle className="font-heading">{language === 'he' ? 'מרכז הראיות' : 'Evidence Center'}</CardTitle>
+          <CardDescription>
+            {language === 'he' ? `מקסימום ${MAX_FILES} קבצים, ${MAX_LINKS} קישורים` : `Max ${MAX_FILES} files, ${MAX_LINKS} links`}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* File Upload */}
@@ -228,13 +429,17 @@ export default function NewReport() {
               className="hidden" 
               id="file-upload"
               onChange={handleFileChange}
+              disabled={uploading || files.length >= MAX_FILES}
+              accept=".pdf,.jpg,.jpeg,.png,.csv,.xls,.xlsx,.doc,.docx"
             />
-            <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center">
+            <label htmlFor="file-upload" className={`cursor-pointer flex flex-col items-center ${(uploading || files.length >= MAX_FILES) ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <UploadCloud className="w-10 h-10 text-slate-400 mb-2" />
               <span className="text-sm font-medium text-slate-700">
-                {uploading ? (language === 'he' ? 'מעלה...' : 'Uploading...') : (language === 'he' ? 'לחץ להעלאת קבצים' : 'Click to upload files')}
+                {uploading ? (language === 'he' ? 'מעלה...' : 'Uploading...') : 
+                 files.length >= MAX_FILES ? (language === 'he' ? 'מקסימום קבצים הושג' : 'Maximum files reached') :
+                 (language === 'he' ? 'לחץ להעלאת קבצים' : 'Click to upload files')}
               </span>
-              <span className="text-xs text-slate-500 mt-1">PDF, Images, CSV, Docs</span>
+              <span className="text-xs text-slate-500 mt-1">PDF, Images, CSV, Docs (max 10MB each)</span>
             </label>
           </div>
 
@@ -245,7 +450,13 @@ export default function NewReport() {
                 <Badge key={idx} variant="secondary" className="pl-2 pr-1 py-1 flex items-center gap-1">
                   <FileText className="w-3 h-3" />
                   File {idx + 1}
-                  <Button variant="ghost" size="icon" className="h-4 w-4 ml-1 hover:bg-slate-200 rounded-full" onClick={() => setFiles(files.filter((_, i) => i !== idx))}>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-4 w-4 ml-1 hover:bg-slate-200 rounded-full" 
+                    onClick={() => setFiles(files.filter((_, i) => i !== idx))}
+                    type="button"
+                  >
                     <X className="w-3 h-3" />
                   </Button>
                 </Badge>
@@ -258,20 +469,33 @@ export default function NewReport() {
             <Input 
               value={newLink}
               onChange={e => setNewLink(e.target.value)}
+              onKeyPress={e => e.key === 'Enter' && handleAddLink()}
               placeholder="https://..."
+              disabled={links.length >= MAX_LINKS}
             />
-            <Button variant="outline" onClick={handleAddLink} type="button">
+            <Button 
+              variant="outline" 
+              onClick={handleAddLink} 
+              type="button"
+              disabled={links.length >= MAX_LINKS || !newLink.trim()}
+            >
               <LinkIcon className="w-4 h-4 mr-2" />
-              Add
+              {language === 'he' ? 'הוסף' : 'Add'}
             </Button>
           </div>
           
           {links.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {links.map((link, idx) => (
-                <Badge key={idx} variant="outline" className="pl-2 pr-1 py-1 flex items-center gap-1">
-                  {link}
-                  <Button variant="ghost" size="icon" className="h-4 w-4 ml-1 hover:bg-slate-100 rounded-full" onClick={() => setLinks(links.filter((_, i) => i !== idx))}>
+                <Badge key={idx} variant="outline" className="pl-2 pr-1 py-1 flex items-center gap-1 max-w-xs">
+                  <span className="truncate">{link}</span>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-4 w-4 ml-1 hover:bg-slate-100 rounded-full flex-shrink-0" 
+                    onClick={() => setLinks(links.filter((_, i) => i !== idx))}
+                    type="button"
+                  >
                     <X className="w-3 h-3" />
                   </Button>
                 </Badge>
