@@ -7,6 +7,7 @@ import { NotificationProvider } from './components/providers/NotificationContext
 import { SidebarProvider } from './components/providers/SidebarContext';
 import { Toaster } from 'sonner';
 import UserNotRegisteredError from './components/UserNotRegisteredError';
+import ErrorBoundary from './components/ErrorBoundary';
 import pagesConfig from './pages.config';
 
 const queryClient = new QueryClient({
@@ -21,7 +22,7 @@ const queryClient = new QueryClient({
 const { Pages, Layout, mainPage } = pagesConfig;
 
 function AppRoutes() {
-  const { isAuthenticated, isLoadingAuth, user, userRegistrationError } = useAuth();
+  const { isAuthenticated, isLoadingAuth, authError } = useAuth();
 
   if (isLoadingAuth) {
     return (
@@ -31,7 +32,7 @@ function AppRoutes() {
     );
   }
 
-  if (userRegistrationError) {
+  if (authError?.type === 'user_not_registered') {
     return <UserNotRegisteredError />;
   }
 
@@ -67,19 +68,21 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <LanguageProvider>
-          <NotificationProvider>
-            <SidebarProvider>
-              <Router>
-                <AppRoutes />
-                <Toaster position="top-center" richColors />
-              </Router>
-            </SidebarProvider>
-          </NotificationProvider>
-        </LanguageProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <LanguageProvider>
+            <NotificationProvider>
+              <SidebarProvider>
+                <Router>
+                  <AppRoutes />
+                  <Toaster position="top-center" richColors />
+                </Router>
+              </SidebarProvider>
+            </NotificationProvider>
+          </LanguageProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
