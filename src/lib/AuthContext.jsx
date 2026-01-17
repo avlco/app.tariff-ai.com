@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { base44 } from '../api/base44Client';
+import { appClient } from '../api/base44Client';
 import { appParams } from './app-params';
 
 const AuthContext = createContext(null);
@@ -21,13 +22,13 @@ export const AuthProvider = ({ children }) => {
   const [userRegistrationError, setUserRegistrationError] = useState(null);
 
   useEffect(() => {
-    let isMounted = true; // Flag to prevent memory leaks
+    let isMounted = true;
 
     const checkUserAuth = async () => {
       try {
         const userData = await base44.auth.me();
         
-        if (!isMounted) return; // Check if component is still mounted
+        if (!isMounted) return;
         
         if (userData?.id) {
           setUser(userData);
@@ -67,15 +68,12 @@ export const AuthProvider = ({ children }) => {
           return;
         }
 
-        // Fetch public settings
-        const appClient = await import('../api/base44Client').then(m => m.appClient);
         const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
         
-        if (!isMounted) return; // Check before updating state
+        if (!isMounted) return;
         
         setAppPublicSettings(publicSettings);
 
-        // Check authentication if token exists
         if (appParams.token) {
           await checkUserAuth();
         } else {
@@ -100,7 +98,6 @@ export const AuthProvider = ({ children }) => {
 
     checkAppState();
 
-    // Cleanup function
     return () => {
       isMounted = false;
     };
@@ -108,13 +105,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Optional: Call logout endpoint if needed
-      // await base44.auth.logout();
-      
       setIsAuthenticated(false);
       setUser(null);
-      
-      // Redirect to login or home
       window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
