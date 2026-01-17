@@ -15,6 +15,12 @@ const ALLOWED_ATTRS = ['href', 'target', 'rel', 'class', 'id'];
 export const sanitizeHtml = (dirty) => {
   if (!dirty || typeof dirty !== 'string') return '';
   
+  // Check if we're in a browser environment
+  if (typeof document === 'undefined') {
+    // Server-side: just strip all HTML tags
+    return dirty.replace(/<[^>]*>/g, '');
+  }
+  
   const temp = document.createElement('div');
   temp.innerHTML = dirty;
   
@@ -75,7 +81,20 @@ export const sanitizeHtml = (dirty) => {
 export const sanitizeText = (text) => {
   if (!text || typeof text !== 'string') return '';
   
+  // First remove HTML tags
   const withoutTags = text.replace(/<[^>]*>/g, '');
+  
+  // Check if we're in a browser environment
+  if (typeof document === 'undefined') {
+    // Server-side: decode common HTML entities manually
+    return withoutTags
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, '/');
+  }
   
   const temp = document.createElement('div');
   temp.innerHTML = withoutTags;
