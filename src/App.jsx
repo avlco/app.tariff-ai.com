@@ -1,83 +1,85 @@
-import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClientInstance } from '@/lib/query-client'
-import VisualEditAgent from '@/lib/VisualEditAgent'
-import NavigationTracker from '@/lib/NavigationTracker'
-import { pagesConfig } from './pages.config'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import PageNotFound from './lib/PageNotFound';
-import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthProvider, useAuth } from './lib/AuthContext';
+import { LanguageProvider } from './components/providers/LanguageContext';
+import { NotificationProvider } from './components/providers/NotificationContext';
+import { SidebarProvider } from './components/providers/SidebarContext';
+import { Toaster } from 'sonner';
+import UserNotRegisteredError from './components/UserNotRegisteredError';
+import pagesConfig from './pages.config';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      retry: 1,
+    },
+  },
+});
 
 const { Pages, Layout, mainPage } = pagesConfig;
-const mainPageKey = mainPage ?? Object.keys(Pages)[0];
-const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+function AppRoutes() {
+  const { isAuthenticated, isLoadingAuth, user, userRegistrationError } = useAuth();
 
-const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
-
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
+  if (isLoadingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#42C0B9]"></div>
       </div>
     );
   }
 
-  // Handle authentication errors
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
-      return null;
-    }
+  if (userRegistrationError) {
+    return <UserNotRegisteredError />;
   }
 
-  // Render the main app
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold text-slate-900">Please log in</h1>
+          <p className="text-slate-600">You need to be authenticated to access this application.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Routes>
-      <Route path="/" element={
-        <LayoutWrapper currentPageName={mainPageKey}>
-          <MainPage />
-        </LayoutWrapper>
-      } />
-      {Object.entries(Pages).map(([path, Page]) => (
+      <Route path="/" element={<Navigate to={`/${mainPage}`} replace />} />
+      {Object.entries(Pages).map(([name, Component]) => (
         <Route
-          key={path}
-          path={`/${path}`}
+          key={name}
+          path={`/${name}`}
           element={
-            <LayoutWrapper currentPageName={path}>
-              <Page />
-            </LayoutWrapper>
+            <Layout>
+              <Component />
+            </Layout>
           }
         />
       ))}
-      <Route path="*" element={<PageNotFound />} />
+      <Route path="*" element={<Navigate to={`/${mainPage}`} replace />} />
     </Routes>
   );
-};
-
-
-function App() {
-
-  return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <NavigationTracker />
-          <AuthenticatedApp />
-        </Router>
-        {/* Toaster removed from here - it is now in Layout.jsx */}
-        <VisualEditAgent />
-      </QueryClientProvider>
-    </AuthProvider>
-  )
 }
 
-export default App
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <LanguageProvider>
+          <NotificationProvider>
+            <SidebarProvider>
+              <Router>
+                <AppRoutes />
+                <Toaster position="top-center" richColors />
+              </Router>
+            </SidebarProvider>
+          </NotificationProvider>
+        </LanguageProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+}
