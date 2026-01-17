@@ -15,42 +15,34 @@ const ALLOWED_ATTRS = ['href', 'target', 'rel', 'class', 'id'];
 export const sanitizeHtml = (dirty) => {
   if (!dirty || typeof dirty !== 'string') return '';
   
-  // Create a temporary div to parse HTML
   const temp = document.createElement('div');
   temp.innerHTML = dirty;
   
-  // Recursively clean the DOM tree
   const clean = (node) => {
-    // If it's a text node, return as is
     if (node.nodeType === Node.TEXT_NODE) {
       return node.textContent;
     }
     
-    // If it's not an element node, skip it
     if (node.nodeType !== Node.ELEMENT_NODE) {
       return '';
     }
     
     const tagName = node.tagName.toLowerCase();
     
-    // If tag is not allowed, return only its text content
     if (!ALLOWED_TAGS.includes(tagName)) {
       return node.textContent || '';
     }
     
-    // Create new element with allowed tag
     let result = `<${tagName}`;
     
-    // Add allowed attributes
     for (const attr of node.attributes) {
       const attrName = attr.name.toLowerCase();
       let attrValue = attr.value;
       
       if (ALLOWED_ATTRS.includes(attrName)) {
-        // Special handling for href to prevent javascript: URLs
         if (attrName === 'href') {
           if (attrValue.trim().toLowerCase().startsWith('javascript:')) {
-            continue; // Skip dangerous href
+            continue;
           }
         }
         result += ` ${attrName}="${attrValue.replace(/"/g, '&quot;')}"`;
@@ -59,7 +51,6 @@ export const sanitizeHtml = (dirty) => {
     
     result += '>';
     
-    // Process children
     for (const child of node.childNodes) {
       result += clean(child);
     }
@@ -68,7 +59,6 @@ export const sanitizeHtml = (dirty) => {
     return result;
   };
   
-  // Process all children of temp div
   let sanitized = '';
   for (const child of temp.childNodes) {
     sanitized += clean(child);
@@ -85,10 +75,8 @@ export const sanitizeHtml = (dirty) => {
 export const sanitizeText = (text) => {
   if (!text || typeof text !== 'string') return '';
   
-  // Remove HTML tags
   const withoutTags = text.replace(/<[^>]*>/g, '');
   
-  // Decode HTML entities
   const temp = document.createElement('div');
   temp.innerHTML = withoutTags;
   
@@ -117,7 +105,6 @@ export const sanitizeUrl = (url) => {
   
   const trimmed = url.trim().toLowerCase();
   
-  // Block dangerous protocols
   if (trimmed.startsWith('javascript:') || 
       trimmed.startsWith('data:') || 
       trimmed.startsWith('vbscript:')) {
