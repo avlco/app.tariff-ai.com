@@ -1,9 +1,13 @@
+// 📁 File: functions/agentAnalyze.ts
+// [האפליקציה - app.tariff-ai.com]
+
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.18.0';
+import { decrypt } from './utils/encryption.ts'; // ✅ ייבוא מנוע ההצפנה
 
 // --- INLINED GATEWAY LOGIC (ANALYST SPECIFIC) ---
 
-function cleanJson(text) {
+function cleanJson(text: any) {
   if (typeof text === 'object') return text;
   try { return JSON.parse(text); } catch (e) {
     const match = text.match(/```(?:json)?\n([\s\S]*?)\n```/);
@@ -17,7 +21,7 @@ function cleanJson(text) {
   }
 }
 
-async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
+async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }: any) {
   console.log(`[LLM Gateway - Analyst] Using Claude 3.5 Sonnet`);
   const jsonInstruction = response_schema 
     ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
@@ -37,7 +41,7 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
     
     const content = msg.content[0].text;
     return response_schema ? cleanJson(content) : content;
-  } catch (e) {
+  } catch (e: any) {
      console.error(`[LLM Gateway] Primary strategy failed:`, e.message);
      return await base44_client.integrations.Core.InvokeLLM({
         prompt: fullPrompt,
@@ -61,26 +65,31 @@ export default Deno.serve(async (req) => {
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
     
+    // 🔐 פענוח הנתונים הרגישים לפני השימוש
+    const decryptedProductName = await decrypt(report.product_name);
+    const decryptedUserInput = await decrypt(report.user_input_text);
+
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'analyzing_data'
     });
     
     // --- Multimodal Extraction & Knowledge Synthesis ---
     
+    // שימוש בנתונים המפוענחים במקום בנתונים הגולמיים
     let aggregatedContext = `
-Product Name: ${report.product_name}
+Product Name: ${decryptedProductName}
 Country of Manufacture: ${report.country_of_manufacture}
 Destination Country: ${report.destination_country}
 
 User Input:
-${report.user_input_text || ''}
+${decryptedUserInput || ''}
 `;
 
     // 1. Prepare Promises for Parallel Execution
     const fileUrls = report.uploaded_file_urls || [];
     const linkUrls = report.external_link_urls || [];
     
-    const filePromises = fileUrls.map(async (url, idx) => {
+    const filePromises = fileUrls.map(async (url: string, idx: number) => {
         try {
             // Check for unsupported formats (DOC/DOCX)
             if (url.match(/\.docx?$/i)) {
@@ -106,19 +115,19 @@ ${report.user_input_text || ''}
             } else {
                 return `File ${idx + 1} (${url}): Extraction failed or format unsupported.`;
             }
-        } catch (e) {
+        } catch (e: any) {
             return `File ${idx + 1} (${url}): Error extracting data - ${e.message}`;
         }
     });
 
-    const linkPromises = linkUrls.map(async (url, idx) => {
+    const linkPromises = linkUrls.map(async (url: string, idx: number) => {
         try {
             const scrapeResult = await base44.integrations.Core.InvokeLLM({
                 prompt: `Visit this URL: ${url}\nExtract technical specifications: Material, Function, State, Essential Character.`,
                 add_context_from_internet: true
             });
             return `Link ${idx + 1} (${url}):\n${scrapeResult}`;
-        } catch (e) {
+        } catch (e: any) {
             return `Link ${idx + 1} (${url}): Error scraping - ${e.message}`;
         }
     });
@@ -215,13 +224,16 @@ Output JSON Schema:
 
     // --- ONE-SHOT LOGIC UPGRADE ---
     // Detect if user provided clarification in the text (Mandatory Proceed)
-    const hasClarification = report.user_input_text && report.user_input_text.includes('[User Clarification]:');
+    // בודקים מול הטקסט המפוענח
+    const hasClarification = decryptedUserInput && decryptedUserInput.includes('[User Clarification]:');
 
     // Logic: Pass if Score >= 80 OR Force Flag OR User Clarified
     const scorePasses = result.status === 'success' && (result.readiness_score && result.readiness_score >= 80);
     const isReady = scorePasses || (forceProceed === true) || hasClarification;
 
     if (!isReady) {
+        // אם חסר מידע, אנחנו מעדכנים את הדוח
+        // שימו לב: missing_info_question לא מוצפן כרגע כי הוא שאלה גנרית מהמערכת, לא מידע פרטי של המשתמש
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             status: 'waiting_for_user',
             processing_status: 'waiting_for_user',
@@ -230,14 +242,14 @@ Output JSON Schema:
             destination_country: result.detected_form_fields?.destination_country || report.destination_country
         });
         
-        // Create clarification needed notification
         try {
             await base44.functions.invoke('createNotification', {
                 type: 'clarification_needed',
                 titleHe: 'נדרש מידע נוסף',
                 titleEn: 'Information Required',
-                messageHe: `הדוח "${report.product_name}" דורש הבהרה לפני המשך הסיווג`,
-                messageEn: `Report "${report.product_name}" needs clarification to continue`,
+                // משתמשים בשם המוצר המפוענח בהתראה
+                messageHe: `הדוח "${decryptedProductName}" דורש הבהרה לפני המשך הסיווג`,
+                messageEn: `Report "${decryptedProductName}" needs clarification to continue`,
                 priority: 'high',
                 relatedEntityType: 'ClassificationReport',
                 relatedEntityId: reportId,
@@ -250,10 +262,8 @@ Output JSON Schema:
             console.error("Failed to create clarification notification:", notifErr);
         }
 
-        // Email logic remains here...
         if (user.email) {
             try {
-                // FIXED: Hardcoded App URL and Component Route
                 const appUrl = 'https://app.tariff-ai.com';
                 const actionLink = `${appUrl}/ClarifyReport?id=${reportId}`;
 
@@ -290,6 +300,9 @@ Output JSON Schema:
             finalSpec.data_quality_note = "User forced classification despite missing data.";
         }
 
+        // שומרים את הניתוח המבני. 
+        // כרגע שומרים אותו כ-JSON גלוי בתוך שדה structural_analysis.
+        // אם נרצה להצפין גם את זה בעתיד, נצטרך לשנות את סוג השדה ב-Entity ל-string או להוסיף לוגיקת הצפנה מורכבת לאובייקטים.
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             processing_status: 'analyzing_completed',
             structural_analysis: finalSpec
@@ -303,7 +316,7 @@ Output JSON Schema:
         });
     }
 
-  } catch (error) {
+  } catch (error: any) {
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });
