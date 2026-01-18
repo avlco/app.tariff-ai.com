@@ -1,10 +1,14 @@
+// 📁 File: functions/initializeReportProcessing.ts
+// [האפליקציה - app.tariff-ai.com]
+
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { encrypt } from './utils/encryption.ts'; // ✅ ייבוא מנוע ההצפנה
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     
-    // Verify authentication
+    // אימות משתמש
     const user = await base44.auth.me();
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -16,7 +20,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Report ID is required' }, { status: 400 });
     }
     
-    // Get the report
+    // קבלת הדוח (בשלב זה המידע עשוי להיות עדיין גלוי אם נוצר ע"י הקליינט)
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
     
@@ -24,15 +28,14 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Report not found' }, { status: 404 });
     }
     
-    // Process chat history to extract key information
+    // עיבוד היסטוריית הצ'אט
     const chatSummary = report.chat_history && report.chat_history.length > 0
-      ? report.chat_history.map(msg => `${msg.role}: ${msg.content}`).join('\n')
+      ? report.chat_history.map((msg: any) => `${msg.role}: ${msg.content}`).join('\n')
       : 'No additional chat information provided';
     
-    // Get current date for LLM context
     const today = new Date().toISOString().split('T')[0];
     
-    // Analyze chat and extract insights using LLM
+    // ניתוח המידע באמצעות LLM (משתמשים במידע הגלוי כרגע)
     const analysisPrompt = `
 CURRENT DATE: ${today}
 
@@ -68,11 +71,21 @@ Extract and return the following in JSON format:
       }
     });
     
-    // Update report with initial analysis
+    // הכנת המידע לשמירה
+    const finalUserInputText = `${chatSummary}\n\nAdditional Details: ${analysis.additional_details}`;
+
+    // 🔐 הצפנת שדות רגישים לפני השמירה ב-DB
+    const encryptedUserInput = await encrypt(finalUserInputText);
+    
+    // אנו מצפינים מחדש גם את שם המוצר כדי להבטיח שהוא מאובטח מכאן והלאה
+    const encryptedProductName = await encrypt(report.product_name); 
+
+    // עדכון הדוח עם המידע המוצפן
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'analyzing_data',
       product_characteristics: analysis.product_characteristics,
-      user_input_text: `${chatSummary}\n\nAdditional Details: ${analysis.additional_details}`
+      user_input_text: encryptedUserInput, // ✅ נשמר מוצפן
+      product_name: encryptedProductName   // ✅ נשמר מוצפן
     });
     
     return Response.json({
@@ -81,7 +94,7 @@ Extract and return the following in JSON format:
       message: 'Initial processing completed'
     });
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error initializing report processing:', error);
     return Response.json({ 
       success: false,

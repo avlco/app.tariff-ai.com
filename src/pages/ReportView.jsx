@@ -1,3 +1,6 @@
+// 📁 File: src/pages/ReportView.jsx
+// [האפליקציה - app.tariff-ai.com]
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
@@ -47,15 +50,21 @@ export default function ReportView() {
       }
       
       try {
-        // Use filter instead of get - this matches the original working code
-        const response = await base44.entities.ClassificationReport.filter({ id: reportId });
-        const reportData = response[0];
+        // 🔄 שינוי קריטי: מעבר לקריאה דרך Secure Function
+        // במקום: base44.entities.ClassificationReport.filter...
+        const response = await base44.functions.invoke('getSecureReport', { reportId });
         
-        if (!reportData) {
-          setError('reportNotFound');
+        if (response.data.error) {
+            console.error('Secure fetch error:', response.data.error);
+            if (response.data.error === 'Forbidden') {
+                setError('accessDenied');
+            } else {
+                setError('reportNotFound');
+            }
         } else {
-          setReport(reportData);
+            setReport(response.data);
         }
+
       } catch (err) {
         console.error('Error loading report:', err);
         setError('reportNotFound');
@@ -66,6 +75,8 @@ export default function ReportView() {
     
     loadReport();
   }, [reportId]);
+  
+  // ... שאר הקוד נשאר ללא שינוי (הפונקציות handleExportPDF, handleShare וה-JSX) ...
   
   const handleExportPDF = async () => {
     if (!report) return;
@@ -142,10 +153,10 @@ export default function ReportView() {
         <div className="text-center">
           <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-            {t(error) || t('reportDetails')}
+            {t(error === 'accessDenied' ? 'accessDenied' : 'reportDetails')}
           </h2>
           <p className="text-slate-500 mb-4">
-            {t('reportNotFound')}
+            {t(error === 'accessDenied' ? 'accessDeniedMessage' : 'reportNotFound')}
           </p>
           <Button onClick={() => navigate('/reports')}>
             <ArrowLeft className="w-4 h-4 me-2" />
