@@ -27,13 +27,16 @@ import { toast } from 'sonner';
 
 export default function ReportView() {
   const { t, language } = useLanguage();
-  const { reportId } = useParams();
   const navigate = useNavigate();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  
+  // Get reportId from URL params
+  const urlParams = new URLSearchParams(window.location.search);
+  const reportId = urlParams.get('id');
   
   useEffect(() => {
     const loadReport = async () => {
@@ -44,8 +47,15 @@ export default function ReportView() {
       }
       
       try {
-        const response = await base44.entities.ClassificationReport.get(reportId);
-        setReport(response);
+        // Use filter instead of get - this matches the original working code
+        const response = await base44.entities.ClassificationReport.filter({ id: reportId });
+        const reportData = response[0];
+        
+        if (!reportData) {
+          setError('reportNotFound');
+        } else {
+          setReport(reportData);
+        }
       } catch (err) {
         console.error('Error loading report:', err);
         setError('reportNotFound');
@@ -62,13 +72,15 @@ export default function ReportView() {
     
     setIsExporting(true);
     try {
-      const response = await base44.functions.invoke('generateReportPDF', { 
+      const response = await base44.functions.invoke('generateReportPdf', { 
         reportId: report.report_id 
       });
       
-      if (response.data.pdfUrl) {
+      if (response.data.success && response.data.pdfUrl) {
         window.open(response.data.pdfUrl, '_blank');
         toast.success(t('pdfExported'));
+      } else {
+        throw new Error(response.data.error || 'Export failed');
       }
     } catch (err) {
       console.error('Error exporting PDF:', err);
@@ -87,9 +99,11 @@ export default function ReportView() {
         reportId: report.report_id 
       });
       
-      if (response.data.shareUrl) {
+      if (response.data.success && response.data.shareUrl) {
         await navigator.clipboard.writeText(response.data.shareUrl);
         toast.success(t('linkCopied'));
+      } else {
+        throw new Error(response.data.error || 'Failed to generate share link');
       }
     } catch (err) {
       console.error('Error generating share link:', err);
