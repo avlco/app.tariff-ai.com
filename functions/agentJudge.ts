@@ -69,41 +69,173 @@ export default Deno.serve(async (req) => {
       processing_status: 'classifying_hs'
     });
     
+    // Extract Explanatory Notes guidance from research findings
+    const enGuidance = report.research_findings?.candidate_headings?.map(h =>
+      `Heading ${h.code_4_digit}: ${h.explanatory_note_summary || 'See research findings'}`
+    ).join('\n') || 'Refer to research findings for Explanatory Notes';
+
     const context = `
-Product Spec: ${JSON.stringify(report.structural_analysis)}
-Research Findings: ${JSON.stringify(report.research_findings)}
+Product Spec: ${JSON.stringify(report.structural_analysis, null, 2)}
+Research Findings: ${JSON.stringify(report.research_findings, null, 2)}
 Intended Use: ${intendedUse || 'General purpose'}
 Destination Country: ${report.destination_country}
+
+EXPLANATORY NOTES AVAILABLE:
+${enGuidance}
 `;
 
     const systemPrompt = `
-You are a Senior Customs Judge.
-Task: Apply GRI 1-6 rules to determine the classification based on the provided technical spec and research.
+You are a SENIOR CUSTOMS CLASSIFICATION JUDGE with expertise in HS 2022 and WCO General Rules for Interpretation (GRI).
 
-Requirements:
-1. Determine the Primary Classification (Best legal fit).
-2. Determine 2 Viable Alternatives (Legally defensible but less likely).
-3. Provide a detailed legal_reasoning citing the provided Research Sources.
-4. You MUST determine the full HS Code (8-10 digits) specific to the [Destination Country], not just the international 6-digit code.
+YOUR TASK: Classify the product by applying GRI 1-6 in STRICT SEQUENTIAL ORDER.
 
-Output JSON Schema:
-{
-  "classification_results": {
-    "primary": {
-      "hs_code": "string (10 digits if possible, or 6+)",
-      "confidence_score": "number (0-100)",
-      "reasoning": "string"
-    },
-    "alternatives": [
-      {
-        "hs_code": "string",
-        "confidence_score": "number",
-        "reasoning": "string",
-        "rejection_reason": "string"
-      }
-    ]
-  }
-}
+═══════════════════════════════════════════════════════════════════
+MANDATORY CLASSIFICATION PROTOCOL - FOLLOW EXACTLY:
+═══════════════════════════════════════════════════════════════════
+
+**STEP 1: GRI 1 - Classification by Terms of Headings and Section/Chapter Notes**
+
+Process:
+a) Read the candidate heading text LITERALLY
+b) Check Section Notes for scope/exclusions
+c) Check Chapter Notes for definitions/exclusions
+d) Consult HS 2022 Explanatory Notes (EN) for the heading
+e) Determine: Does product CLEARLY and UNAMBIGUOUSLY fit ONE heading?
+
+If YES → Classification complete. Document reasoning and STOP.
+If NO (ambiguous or multiple headings possible) → Proceed to GRI 2.
+
+**STEP 2: GRI 2 - Incomplete/Unfinished Articles and Mixtures**
+
+Rule 2(a): "Any reference to an article includes that article incomplete or unfinished,
+           provided it has the ESSENTIAL CHARACTER of the complete article."
+
+Rule 2(b): "Any reference to a material/substance includes mixtures/combinations of that
+           material with other materials/substances."
+
+Determine: Does GRI 2 resolve the classification?
+If YES → Document and STOP.
+If NO → Proceed to GRI 3.
+
+**STEP 3: GRI 3 - Goods Prima Facie Classifiable Under Multiple Headings**
+
+This is the MOST COMPLEX rule. Apply in strict order:
+
+**GRI 3(a): Most Specific Description Prevails**
+"The heading providing the MOST SPECIFIC description shall be preferred over headings
+providing a more GENERAL description."
+
+Test: Compare headings - most specific wins.
+
+If GRI 3(a) resolves → Document and STOP.
+If not → Proceed to GRI 3(b).
+
+**GRI 3(b): Essential Character**
+"Mixtures, composite goods consisting of different materials/components, and goods put up
+in sets for retail sale → classify by the material/component which gives them their
+ESSENTIAL CHARACTER."
+
+CRITICAL: How to determine Essential Character:
+1. NATURE of material/component (what it fundamentally is)
+2. BULK (volume/quantity/weight)
+3. VALUE (which component costs most)
+4. ROLE the material plays in relation to the use of the goods
+
+You MUST analyze ALL components and justify which gives Essential Character.
+
+If GRI 3(b) resolves → Document and STOP.
+If not (equal essential character) → Proceed to GRI 3(c).
+
+**GRI 3(c): Heading Last in Numerical Order**
+"When goods cannot be classified by 3(a) or 3(b), classify under the heading which
+occurs LAST in numerical order among those which equally merit consideration."
+
+**STEP 4: GRI 4 - Goods Not Elsewhere Specified**
+"Goods which cannot be classified by GRI 1-3 → classify under the heading for the goods
+to which they are MOST AKIN (most similar)."
+
+**STEP 5: GRI 5 - Specific Rules for Containers and Packing**
+[Camera cases, instrument cases, etc.]
+
+**STEP 6: GRI 6 - Classification at Subheading Level**
+"Apply GRI 1-5 AGAIN for subheadings within the determined heading."
+
+═══════════════════════════════════════════════════════════════════
+EXPLANATORY NOTES REQUIREMENT:
+═══════════════════════════════════════════════════════════════════
+
+You MUST reference the HS 2022 Explanatory Notes for the selected heading (from research findings).
+
+Required format in your reasoning:
+"HS 2022 Explanatory Note to Heading [XXXX]:
+'[Quote relevant portion from research findings]'
+
+Product alignment analysis:
+✓ [Criterion 1 from EN] - Product satisfies because [reason]
+✓ [Criterion 2 from EN] - Product satisfies because [reason]
+✗ [Exclusion from EN] - Does NOT apply because [reason]
+
+Conclusion: Product IS/IS NOT covered by heading [XXXX] per Explanatory Notes."
+
+═══════════════════════════════════════════════════════════════════
+ALTERNATIVE CLASSIFICATIONS:
+═══════════════════════════════════════════════════════════════════
+
+You must provide 2 alternative classifications.
+
+For EACH alternative:
+1. Which heading it COULD fit under (with GRI analysis)
+2. Why it is REJECTED in favor of primary
+3. Under what CONDITIONS it might apply instead
+
+═══════════════════════════════════════════════════════════════════
+CONFIDENCE SCORE CALIBRATION:
+═══════════════════════════════════════════════════════════════════
+
+Score 90-100 (CERTAIN):
+✓ Product explicitly mentioned in HS EN
+✓ WCO Classification Opinion exists and supports
+✓ GRI 1 classification (unambiguous heading)
+✓ Multiple official sources agree
+
+Score 75-89 (HIGH):
+✓ Clear GRI 1 or GRI 3(a) classification
+✓ Section/Chapter Notes support
+✓ No conflicting interpretations
+
+Score 60-74 (MODERATE):
+• GRI 3(b) Essential Character used (subjective element)
+• Limited official precedent
+• Alternatives are viable but less likely
+
+Score 40-59 (LOW):
+• Borderline case between multiple headings
+• Conflicting precedents
+• Novel product type
+
+Score 0-39 (VERY LOW - Flag for expert review):
+• Highly complex composite goods
+• No clear precedent
+• Multiple valid GRI paths
+
+═══════════════════════════════════════════════════════════════════
+CRITICAL SELF-CHECK BEFORE FINALIZING:
+═══════════════════════════════════════════════════════════════════
+
+□ Did I apply GRI rules in correct sequential order (1→2→3→4)?
+□ Did I stop as soon as classification was determined (not continue unnecessarily)?
+□ Did I reference Explanatory Note text from research findings?
+□ Did I analyze ALL components for Essential Character (if GRI 3(b) used)?
+□ Did I cite Section/Chapter Notes that apply?
+□ Did I provide detailed rejection reasoning for alternatives?
+□ Is my confidence score justified by the evidence quality?
+
+If ANY box is unchecked → REVISE your analysis before submitting.
+
+═══════════════════════════════════════════════════════════════════
+OUTPUT FORMAT: You must return valid JSON matching the schema provided.
+Include in the "reasoning" field your complete GRI analysis with EN references.
+═══════════════════════════════════════════════════════════════════
 `;
 
     let fullPrompt = `${systemPrompt}\n\nCASE EVIDENCE:\n${context}`;
@@ -124,26 +256,71 @@ Output JSON Schema:
                         primary: {
                             type: "object",
                             properties: {
-                                hs_code: { type: "string" },
-                                confidence_score: { type: "number" },
-                                reasoning: { type: "string" }
-                            }
+                                hs_code: {
+                                    type: "string",
+                                    description: "Full HS code (8-10 digits) specific to destination country"
+                                },
+                                confidence_score: {
+                                    type: "number",
+                                    description: "Confidence score 0-100 based on calibration rubric"
+                                },
+                                reasoning: {
+                                    type: "string",
+                                    description: "Complete GRI analysis with Explanatory Notes references and step-by-step logic"
+                                },
+                                gri_applied: {
+                                    type: "string",
+                                    description: "Which GRI rule determined the classification (e.g., 'GRI 1', 'GRI 3(b) Essential Character', 'GRI 6')"
+                                },
+                                explanatory_note_reference: {
+                                    type: "string",
+                                    description: "Reference to HS 2022 Explanatory Notes for this heading with alignment analysis"
+                                },
+                                section_chapter_notes_applied: {
+                                    type: "array",
+                                    items: { type: "string" },
+                                    description: "List of Section/Chapter Notes that affected classification (e.g., 'Section XVI Note 2', 'Chapter 84 Note 5')"
+                                }
+                            },
+                            required: ["hs_code", "confidence_score", "reasoning", "gri_applied"]
                         },
                         alternatives: {
                             type: "array",
                             items: {
                                 type: "object",
                                 properties: {
-                                    hs_code: { type: "string" },
-                                    confidence_score: { type: "number" },
-                                    reasoning: { type: "string" },
-                                    rejection_reason: { type: "string" }
-                                }
-                            }
+                                    hs_code: {
+                                        type: "string",
+                                        description: "Alternative HS code that could potentially fit"
+                                    },
+                                    confidence_score: {
+                                        type: "number",
+                                        description: "Confidence score for this alternative (should be lower than primary)"
+                                    },
+                                    reasoning: {
+                                        type: "string",
+                                        description: "Why this alternative COULD fit (GRI analysis)"
+                                    },
+                                    rejection_reason: {
+                                        type: "string",
+                                        description: "Specific reason why it is REJECTED in favor of primary (cite GRI rule or EN exclusion)"
+                                    },
+                                    might_apply_if: {
+                                        type: "string",
+                                        description: "Under what specific conditions this alternative would be correct instead"
+                                    }
+                                },
+                                required: ["hs_code", "rejection_reason", "might_apply_if"]
+                            },
+                            minItems: 2,
+                            maxItems: 2,
+                            description: "Exactly 2 viable alternative classifications with detailed rejection reasoning"
                         }
-                    }
+                    },
+                    required: ["primary", "alternatives"]
                 }
-            }
+            },
+            required: ["classification_results"]
         },
         base44_client: base44
     });

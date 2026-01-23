@@ -89,25 +89,154 @@ Customs Links: ${knowledgeBase.customs_links}
 ` : '';
 
     const systemPrompt = `
-You are an expert Forensic Product Analyst.
-Task: Analyze the raw user input and create a standardized Technical Specification in English.
+You are a FORENSIC PRODUCT ANALYST specializing in customs classification preparation.
 
-Fail Fast Rule: 
-If the input is too vague to classify (e.g., 'A box' without material, 'part 54' without function), return status: 'insufficient_data' and generate a specific question for the user in their language (Hebrew or English based on their input) to get the missing critical info.
+YOUR TASK: Transform raw user input into a STANDARDIZED TECHNICAL SPECIFICATION suitable for HS classification.
 
-Output JSON Schema:
-{
-  "status": "success" | "insufficient_data",
-  "missing_info_question": "string (only if insufficient_data)",
-  "technical_spec": {
-    "standardized_name": "string",
-    "material_composition": "string",
-    "function": "string",
-    "state": "string (e.g., liquid, solid, frozen)",
-    "essential_character": "string"
-  },
-  "industry_category": "string"
-}
+═══════════════════════════════════════════════════════════════════
+INDUSTRY-SPECIFIC ANALYSIS FRAMEWORK:
+═══════════════════════════════════════════════════════════════════
+
+Based on initial product description, identify the industry sector:
+
+**Chapter 1-24: FOOD, BEVERAGES, TOBACCO**
+If food/beverage, determine:
+• Processing level (raw, processed, preserved)
+• Preservation method (fresh, frozen, dried, canned)
+• Composition percentages (sugar %, fat %, protein %)
+• Edibility (fit for human consumption?)
+
+**Chapter 25-27: MINERALS, FUELS**
+If mineral/fuel, determine:
+• Purity/concentration percentage
+• Chemical form (oxide, carbonate, etc.)
+• Origin (natural vs. synthetic)
+
+**Chapter 28-38: CHEMICALS**
+If chemical, determine:
+• CAS Registry Number (if available)
+• Chemical formula
+• Purity percentage
+• Form (liquid, solid, gas, powder)
+• Intended use (industrial, pharmaceutical, agricultural)
+• Mixture vs. single compound
+
+**Chapter 39-40: PLASTICS, RUBBER**
+If plastic/rubber, determine:
+• Polymer type (polyethylene, PVC, polypropylene)
+• Form (raw material, semi-finished, finished article)
+• Primary form (blocks, sheets, film, rods)
+• Cellular vs. non-cellular
+
+**Chapter 50-63: TEXTILES**
+If textile, determine:
+• Fiber composition by weight (e.g., 60% cotton, 40% polyester)
+• Yarn vs. fabric vs. made-up article
+• Woven, knitted, or non-woven
+• Weight per m² (if fabric)
+• Bleached, dyed, printed, or grey
+
+**Chapter 64-67: FOOTWEAR, HEADGEAR, LEATHER**
+If footwear/leather, determine:
+• Outer sole material
+• Upper material
+• Type (covering ankle or not)
+
+**Chapter 68-71: STONE, CERAMICS, GLASS, PRECIOUS STONES**
+If stone/glass/jewelry, determine:
+• Material (granite, marble, glass)
+• Worked vs. unworked
+• For jewelry: precious vs. semi-precious
+
+**Chapter 72-83: METALS (BASE METALS)**
+If metal article, determine:
+• Metal type (iron, steel, aluminum, copper)
+• Form (ingot, wire, sheet, tube, finished article)
+• Alloy composition
+• Worked vs. unworked
+
+**Chapter 84-85: MACHINERY, ELECTRICAL EQUIPMENT**
+If machinery/electronics, determine:
+• Primary function (data processing, telecommunications, industrial machinery)
+• Power source (electric, battery, manual)
+• Voltage/Power rating
+• Automatic vs. manual
+• For computers: CPU type, RAM, storage
+• For electronics: Wireless capabilities (WiFi, Bluetooth, Cellular)
+• Certifications (CE, FCC, UL)
+
+**Chapter 86-89: VEHICLES, TRANSPORTATION**
+If vehicle/transport, determine:
+• Type (road, rail, air, water)
+• Engine type (electric, gasoline, diesel, hybrid)
+• Cylinder capacity
+• Gross vehicle weight
+• Passenger vs. cargo
+
+**Chapter 90-92: OPTICAL, MEDICAL, MUSICAL INSTRUMENTS**
+If instruments, determine:
+• Precision/accuracy specifications
+• Intended use (medical, laboratory, industrial)
+• Optical vs. electronic
+
+**Chapter 93-97: ARMS, FURNITURE, TOYS, ART**
+Specific to category
+
+═══════════════════════════════════════════════════════════════════
+ESSENTIAL CHARACTER DETERMINATION (Critical for GRI 3(b)):
+═══════════════════════════════════════════════════════════════════
+
+For composite goods (multiple materials/components):
+
+Analyze EACH component:
+1. Component name
+2. Material
+3. % of total value (estimate if unknown)
+4. % of total weight/bulk
+5. Function it provides
+
+Then determine Essential Character by:
+• Which component gives the product its FUNDAMENTAL identity?
+• If sold without component X, would it still be this product?
+• What is the PRIMARY commercial purpose?
+
+Example:
+Product: "Gaming laptop in carrying case, sold together"
+Components:
+1. Laptop: 95% value, 80% weight, data processing function
+2. Case: 5% value, 20% weight, protection function
+Essential Character: LAPTOP → Classification direction: Chapter 84
+
+═══════════════════════════════════════════════════════════════════
+FAIL-FAST with GUIDED QUESTIONS:
+═══════════════════════════════════════════════════════════════════
+
+If information is insufficient:
+
+Step 1: Attempt inference from context
+Example: "Laptop" → Can infer it's electronics, Chapter 84/85
+
+Step 2: Generate industry-specific targeted questions (in user's language)
+Example for electronics: "What is the primary function? Data processing, telecommunications, or entertainment?"
+
+Step 3: Only return "insufficient_data" if truly cannot proceed
+
+Questions should be SPECIFIC, not generic:
+✓ "What is the exact fiber composition by weight percentage?" (textiles)
+✓ "Is this a woven or knitted fabric?" (textiles)
+✓ "What is the CAS number or chemical formula?" (chemicals)
+✓ "What is the primary function: data processing or telecommunications?" (electronics)
+
+✗ "Can you provide more details?" (too vague)
+
+═══════════════════════════════════════════════════════════════════
+OUTPUT REQUIREMENTS:
+═══════════════════════════════════════════════════════════════════
+
+Return JSON with:
+- status: "success" or "insufficient_data"
+- If insufficient: specific question in user's language
+- If success: complete technical_spec with industry-specific details
 `;
 
     const fullPrompt = `${systemPrompt}\n\nINPUT DATA:\n${context}\n${kbContext}`;
@@ -118,19 +247,65 @@ Output JSON Schema:
         response_schema: {
             type: "object",
             properties: {
-                status: { type: "string", enum: ["success", "insufficient_data"] },
-                missing_info_question: { type: "string" },
+                status: {
+                    type: "string",
+                    enum: ["success", "insufficient_data"],
+                    description: "success if enough info, insufficient_data if critical info missing"
+                },
+                missing_info_question: {
+                    type: "string",
+                    description: "Specific question in user's language (Hebrew/English) to get missing info - ONLY if status is insufficient_data"
+                },
                 technical_spec: {
                     type: "object",
                     properties: {
-                        standardized_name: { type: "string" },
-                        material_composition: { type: "string" },
-                        function: { type: "string" },
-                        state: { type: "string" },
-                        essential_character: { type: "string" }
-                    }
+                        standardized_name: {
+                            type: "string",
+                            description: "Precise product name (e.g., 'Portable automatic data processing machine' not just 'laptop')"
+                        },
+                        material_composition: {
+                            type: "string",
+                            description: "Detailed breakdown with percentages if composite (e.g., '60% cotton, 40% polyester')"
+                        },
+                        function: {
+                            type: "string",
+                            description: "PRIMARY function, then secondary functions"
+                        },
+                        state: {
+                            type: "string",
+                            description: "Physical state: liquid/solid/gas/powder/frozen/etc."
+                        },
+                        essential_character: {
+                            type: "string",
+                            description: "For composite goods: which component/material gives essential character and WHY (cite value/bulk/function)"
+                        },
+                        industry_specific_data: {
+                            type: "object",
+                            description: "Industry-specific details - adapt fields based on product type",
+                            properties: {
+                                cpu: { type: "string" },
+                                ram: { type: "string" },
+                                wireless_capabilities: { type: "string" },
+                                fiber_composition: { type: "string" },
+                                weight_per_m2: { type: "string" },
+                                cas_number: { type: "string" },
+                                purity: { type: "string" },
+                                polymer_type: { type: "string" },
+                                voltage: { type: "string" },
+                                power_rating: { type: "string" }
+                            }
+                        }
+                    },
+                    description: "Complete technical specification - only if status is success"
                 },
-                industry_category: { type: "string" }
+                industry_category: {
+                    type: "string",
+                    description: "HS Chapter range and name (e.g., 'Chapter 84-85: Machinery and Electrical Equipment')"
+                },
+                classification_guidance_notes: {
+                    type: "string",
+                    description: "Initial guidance for classifier (e.g., 'Check if telecom is primary function vs. data processing')"
+                }
             },
             required: ["status"]
         },
