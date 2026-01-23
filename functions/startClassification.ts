@@ -67,10 +67,10 @@ export default Deno.serve(async (req) => {
              console.warn('KB fetch failed:', e);
         }
 
-        // Step 1: The Analyst (Agent A)
-        await logProgress(reportId, 'analyst', 'Starting structural analysis (Agent A)');
+        // Step 1: The Analyst (Agent A) - Enhanced with industry-specific analysis
+        await logProgress(reportId, 'analyst', 'Starting enhanced structural analysis (Agent A) - Industry-specific frameworks');
         const analystRes = await base44.functions.invoke('agentAnalyze', { reportId, knowledgeBase });
-        
+
         if (analystRes.data.status === 'waiting_for_user' || analystRes.data.status === 'insufficient_data') {
             await logProgress(reportId, 'analyst', 'Insufficient data, waiting for user', 'pending');
             return Response.json({
@@ -80,17 +80,21 @@ export default Deno.serve(async (req) => {
                 question: analystRes.data.question
             });
         }
-        await logProgress(reportId, 'analyst', 'Structural analysis completed');
+        await logProgress(reportId, 'analyst', 'Structural analysis completed with industry-specific details');
 
-        // Step 2: The Researcher (Agent B)
-        await logProgress(reportId, 'researcher', 'Starting research (Agent B)');
-        await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
-        await logProgress(reportId, 'researcher', 'Research completed');
+        // Step 2: The Researcher (Agent B) - Enhanced with hierarchical search
+        await logProgress(reportId, 'researcher', 'Starting comprehensive research (Agent B) - Hierarchical HS search + WCO precedents');
+        const researchRes = await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
+        const candidateCount = researchRes.data?.findings?.candidate_headings?.length || 0;
+        const wcoCount = researchRes.data?.findings?.wco_precedents?.length || 0;
+        await logProgress(reportId, 'researcher', `Research completed. Found ${candidateCount} candidate headings and ${wcoCount} WCO precedents`);
 
-        // Step 3: The Judge (Agent C)
-        await logProgress(reportId, 'judge', 'Starting classification (Agent C)');
-        await base44.functions.invoke('agentJudge', { reportId, intendedUse });
-        await logProgress(reportId, 'judge', 'Classification completed');
+        // Step 3: The Judge (Agent C) - Enhanced with GRI framework
+        await logProgress(reportId, 'judge', 'Starting GRI-based classification (Agent C) - Applying GRI 1-6 framework');
+        const judgeRes = await base44.functions.invoke('agentJudge', { reportId, intendedUse });
+        const griUsed = judgeRes.data?.results?.primary?.gri_applied || 'GRI';
+        const judgeConfidence = judgeRes.data?.results?.primary?.confidence_score || 0;
+        await logProgress(reportId, 'judge', `Classification completed using ${griUsed} with confidence ${judgeConfidence}`);
 
         // Step 4: Tax & Compliance (Agent Tax & Agent Compliance)
         await logProgress(reportId, 'tax', 'Calculating duties (Agent Tax)');
@@ -101,11 +105,11 @@ export default Deno.serve(async (req) => {
         await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
         await logProgress(reportId, 'compliance', 'Compliance checks completed');
 
-        // Step 5: QA & Self-Healing Loop (Agent E)
-        await logProgress(reportId, 'qa', 'Starting QA Audit (Agent E)');
-        
+        // Step 5: QA & Self-Healing Loop (Agent F)
+        await logProgress(reportId, 'qa', 'Starting comprehensive QA Audit (Agent F) - GRI validation + EN alignment');
+
         let attempts = 0;
-        const maxAttempts = 2;
+        const maxAttempts = 3; // Increased from 2 to 3 for better self-correction
         let qaPassed = false;
         let qaAudit = null;
 
@@ -115,37 +119,58 @@ export default Deno.serve(async (req) => {
 
             if (qaAudit.status === 'passed') {
                 qaPassed = true;
-                await logProgress(reportId, 'qa', `QA Passed with score ${qaAudit.score}`);
+                await logProgress(reportId, 'qa', `QA Passed with holistic score ${qaAudit.score}/100`);
                 break;
             }
 
-            // Failed - Self Healing
+            // Failed - Enhanced Self Healing
             attempts++;
-            const faultyAgent = qaAudit.faulty_agent?.toLowerCase();
-            const instructions = qaAudit.fix_instructions;
-            
-            await logProgress(reportId, 'self-healing', `QA Failed. Triggering self-correction for ${faultyAgent}. Attempt ${attempts}/${maxAttempts}`, 'warning');
+            const faultyAgent = qaAudit.faulty_agent?.toLowerCase() || '';
+            const instructions = qaAudit.fix_instructions || 'No specific instructions provided';
 
-            if (faultyAgent.includes('judge') || faultyAgent.includes('classification')) {
-                // Re-run Judge with feedback
-                await base44.functions.invoke('agentJudge', { 
-                    reportId, 
-                    intendedUse, 
-                    feedback: instructions 
-                });
-                
-                // MUST re-run Regulator after Judge changes codes
-                await base44.functions.invoke('agentRegulate', { reportId });
-            } else if (faultyAgent.includes('tax') || faultyAgent.includes('duties')) {
+            await logProgress(reportId, 'self-healing', `QA Failed (Score: ${qaAudit.score}). Issue: ${instructions.substring(0, 100)}... Attempt ${attempts}/${maxAttempts}`, 'warning');
+
+            // Enhanced self-healing with specific agent feedback
+            if (faultyAgent.includes('analyst') || faultyAgent.includes('technical')) {
+                await logProgress(reportId, 'self-healing', 'Re-running Analyst with feedback');
+                await base44.functions.invoke('agentAnalyze', { reportId, knowledgeBase, feedback: instructions });
+                // Re-run downstream agents
+                await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
+                await base44.functions.invoke('agentJudge', { reportId, intendedUse });
                 await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+                await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
+            } else if (faultyAgent.includes('research')) {
+                await logProgress(reportId, 'self-healing', 'Re-running Researcher with feedback');
+                await base44.functions.invoke('agentResearch', { reportId, knowledgeBase, feedback: instructions });
+                // Re-run dependent agents
+                await base44.functions.invoke('agentJudge', { reportId, intendedUse });
+                await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+                await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
+            } else if (faultyAgent.includes('judge') || faultyAgent.includes('classification')) {
+                await logProgress(reportId, 'self-healing', 'Re-running Judge with feedback (GRI correction)');
+                // Re-run Judge with feedback
+                await base44.functions.invoke('agentJudge', {
+                    reportId,
+                    intendedUse,
+                    feedback: instructions
+                });
+
+                // MUST re-run Tax & Compliance after Judge changes codes
+                await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+                await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
+            } else if (faultyAgent.includes('tax') || faultyAgent.includes('duties')) {
+                await logProgress(reportId, 'self-healing', 'Re-running Tax Agent with feedback');
+                await base44.functions.invoke('agentTax', { reportId, knowledgeBase, feedback: instructions });
             } else if (faultyAgent.includes('compliance') || faultyAgent.includes('regulatory')) {
-                 await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
+                await logProgress(reportId, 'self-healing', 'Re-running Compliance Agent with feedback');
+                await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase, feedback: instructions });
             } else {
-                // Default retry loop
-                await base44.functions.invoke('agentJudge', { 
-                    reportId, 
-                    intendedUse, 
-                    feedback: instructions 
+                // Unknown agent - re-run Judge as default (most likely culprit)
+                await logProgress(reportId, 'self-healing', 'Unknown faulty agent, defaulting to Judge re-run');
+                await base44.functions.invoke('agentJudge', {
+                    reportId,
+                    intendedUse,
+                    feedback: instructions
                 });
                 await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
                 await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
@@ -153,12 +178,12 @@ export default Deno.serve(async (req) => {
         }
 
         if (!qaPassed) {
-             await logProgress(reportId, 'qa', 'QA Failed after max retries. Marking report as failed.', 'failed');
+             await logProgress(reportId, 'qa', `QA Failed after ${maxAttempts} attempts. Final score: ${qaAudit.score}/100. Issue: ${qaAudit.fix_instructions}`, 'failed');
              // agentQA already sets status to 'failed' in DB if it fails, so we just return
              return Response.json({
                  success: false,
                  status: 'failed',
-                 message: 'QA Check Failed',
+                 message: `QA Check Failed after ${maxAttempts} retries`,
                  audit: qaAudit
              });
         }
