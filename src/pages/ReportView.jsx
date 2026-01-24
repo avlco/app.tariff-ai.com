@@ -39,6 +39,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
+import MissingInfoForm from '../components/report/MissingInfoForm';
 
 export default function ReportView() {
   const { t, language, isRTL } = useLanguage();
@@ -50,23 +51,30 @@ export default function ReportView() {
   const urlParams = new URLSearchParams(window.location.search);
   const reportId = urlParams.get('id');
   
+  const loadData = async () => {
+    try {
+      const [reportData, userData] = await Promise.all([
+        base44.entities.ClassificationReport.filter({ id: reportId }),
+        base44.auth.me()
+      ]);
+      setReport(reportData[0]);
+      setUser(userData);
+    } catch (error) {
+      console.error('Error loading report:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [reportData, userData] = await Promise.all([
-          base44.entities.ClassificationReport.filter({ id: reportId }),
-          base44.auth.me()
-        ]);
-        setReport(reportData[0]);
-        setUser(userData);
-      } catch (error) {
-        console.error('Error loading report:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     if (reportId) loadData();
   }, [reportId]);
+
+  const handleInfoSubmitted = () => {
+    // Reload the report data after user submits additional info
+    setLoading(true);
+    loadData();
+  };
   
   const isPremium = user?.subscription_plan && ['pay_per_use', 'basic', 'pro', 'agency', 'enterprise'].includes(user.subscription_plan);
   
@@ -163,6 +171,11 @@ export default function ReportView() {
           </div>
         </div>
       </motion.div>
+
+      {/* Missing Info Form - Show when waiting for user */}
+      {report.status === 'waiting_for_user' && (
+        <MissingInfoForm report={report} onSubmitted={handleInfoSubmitted} />
+      )}
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
