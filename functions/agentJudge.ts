@@ -18,7 +18,7 @@ function cleanJson(text) {
 }
 
 async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
-  console.log(`[LLM Gateway - Judge] Using GPT-5.2`);
+  console.log(`[LLM Gateway - Judge] Using GPT-4o`);
   const jsonInstruction = response_schema 
     ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
     : '';
@@ -30,7 +30,7 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 
     const openai = new OpenAI({ apiKey });
     const completion = await openai.chat.completions.create({
-        model: "gpt-5.2",
+        model: "gpt-4o",
         messages: [{ role: "user", content: fullPrompt }],
         response_format: response_schema ? { type: "json_object" } : undefined
     });
@@ -48,13 +48,153 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 
 // --- END INLINED GATEWAY ---
 
+// --- GIR STATE MACHINE ---
+const GIR_STATES = ['GRI_1', 'GRI_2a', 'GRI_2b', 'GRI_3a', 'GRI_3b', 'GRI_3c', 'GRI_4', 'GRI_5', 'GRI_6'];
+
+function buildGirStateMachinePrompt(currentState, productProfile, candidates, legalNotes, feedback) {
+  const stateInstructions = {
+    'GRI_1': `
+CURRENT STATE: GRI 1 - Classification by Terms of Headings
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TASK: Determine if the product can be classified UNAMBIGUOUSLY under ONE heading.
+
+PROCESS:
+1. Read each candidate heading text LITERALLY
+2. Check Section Notes for scope/exclusions
+3. Check Chapter Notes for definitions/exclusions  
+4. Consult Explanatory Notes for each heading
+
+DECISION:
+- If ONE heading CLEARLY covers the product → RESOLVED at GRI 1
+- If MULTIPLE headings could apply → TRANSITION to GRI 2
+- If NO heading applies → TRANSITION to GRI 4
+
+OUTPUT your decision with full reasoning.`,
+
+    'GRI_2a': `
+CURRENT STATE: GRI 2(a) - Incomplete/Unfinished Articles
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE: "Any reference to an article includes that article incomplete or unfinished, 
+provided it has the ESSENTIAL CHARACTER of the complete article."
+
+TASK: Determine if product is incomplete/unfinished but has essential character.
+
+ANALYSIS REQUIRED:
+1. Is the product COMPLETE or INCOMPLETE?
+2. If incomplete, does it have the ESSENTIAL CHARACTER of the complete article?
+3. Which heading would the COMPLETE article fall under?
+
+DECISION:
+- If GRI 2(a) resolves classification → RESOLVED at GRI 2(a)
+- If not applicable → TRANSITION to GRI 2(b)`,
+
+    'GRI_2b': `
+CURRENT STATE: GRI 2(b) - Mixtures and Combinations
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE: "Any reference to a material/substance includes mixtures/combinations 
+of that material with other materials/substances."
+
+TASK: Determine if product is a mixture that can be classified by constituent material.
+
+ANALYSIS REQUIRED:
+1. Is the product a MIXTURE or COMBINATION of materials?
+2. Can it be classified under a heading for ONE of its constituent materials?
+
+DECISION:
+- If GRI 2(b) resolves classification → RESOLVED at GRI 2(b)
+- If ambiguity remains → TRANSITION to GRI 3(a)`,
+
+    'GRI_3a': `
+CURRENT STATE: GRI 3(a) - Most Specific Description
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE: "The heading providing the MOST SPECIFIC description shall be preferred 
+over headings providing a more GENERAL description."
+
+TASK: Compare candidate headings and determine which is MOST SPECIFIC.
+
+ANALYSIS REQUIRED:
+1. List each candidate heading description
+2. Rank by SPECIFICITY (most specific = mentions exact product type, materials, function)
+3. General descriptions = broad categories
+
+DECISION:
+- If ONE heading is clearly MORE SPECIFIC → RESOLVED at GRI 3(a)
+- If headings are EQUALLY SPECIFIC → TRANSITION to GRI 3(b)`,
+
+    'GRI_3b': `
+CURRENT STATE: GRI 3(b) - Essential Character
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE: "Mixtures, composite goods, and sets → classify by the material/component 
+which gives them their ESSENTIAL CHARACTER."
+
+CRITICAL: This is the MOST COMPLEX rule. You MUST analyze:
+
+1. NATURE of each component (what it fundamentally IS)
+2. BULK (volume, quantity, weight of each)
+3. VALUE (cost contribution of each component)
+4. ROLE (functional importance in the use of the goods)
+
+REQUIRED OUTPUT:
+| Component | Nature | Bulk % | Value % | Functional Role |
+|-----------|--------|--------|---------|-----------------|
+| [List each component with analysis] |
+
+ESSENTIAL CHARACTER DETERMINATION:
+Based on the above analysis, which component gives the product its essential character?
+Justify your answer with specific reference to Nature, Bulk, Value, and Role.
+
+DECISION:
+- If Essential Character is CLEAR → RESOLVED at GRI 3(b)
+- If EQUAL essential character → TRANSITION to GRI 3(c)`,
+
+    'GRI_3c': `
+CURRENT STATE: GRI 3(c) - Last in Numerical Order
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE: "When goods cannot be classified by 3(a) or 3(b), classify under 
+the heading which occurs LAST in numerical order."
+
+TASK: Since GRI 3(a) and 3(b) failed, apply GRI 3(c).
+
+REQUIRED:
+1. List candidate headings that "equally merit consideration"
+2. Select the heading with the HIGHEST numerical code
+
+DECISION: RESOLVED at GRI 3(c) with the last heading numerically.`,
+
+    'GRI_4': `
+CURRENT STATE: GRI 4 - Most Akin
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE: "Goods which cannot be classified by GRI 1-3 → classify under 
+the heading for the goods to which they are MOST AKIN (most similar)."
+
+TASK: Find the heading for goods MOST SIMILAR to this product.
+
+ANALYSIS:
+1. What existing product category is this MOST SIMILAR to?
+2. Consider: materials, appearance, purpose, function, trade name
+
+DECISION: RESOLVED at GRI 4 with the most akin heading.`
+  };
+
+  return stateInstructions[currentState] || stateInstructions['GRI_1'];
+}
+
+// --- END GIR STATE MACHINE ---
+
 export default Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, intendedUse, feedback } = await req.json();
+    const { reportId, intendedUse, feedback, enforceHierarchy } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
@@ -73,6 +213,34 @@ export default Deno.serve(async (req) => {
     const enGuidance = report.research_findings?.candidate_headings?.map(h =>
       `Heading ${h.code_4_digit}: ${h.explanatory_note_summary || 'See research findings'}`
     ).join('\n') || 'Refer to research findings for Explanatory Notes';
+    
+    // Build GIR state context if enforcing hierarchy
+    const girStateContext = enforceHierarchy ? `
+═══════════════════════════════════════════════════════════════════
+GIR STATE MACHINE - STRICT SEQUENTIAL ENFORCEMENT
+═══════════════════════════════════════════════════════════════════
+
+You MUST process GRI rules as a STATE MACHINE:
+1. Start at GRI 1
+2. Only transition to next state if current state CANNOT resolve
+3. Document the TRANSITION REASON for each state change
+4. Record your decision at EACH state visited
+
+STATE TRANSITION LOG (you must fill this):
+┌─────────┬──────────────────────────────────────────┬─────────────┐
+│ State   │ Analysis Result                          │ Transition  │
+├─────────┼──────────────────────────────────────────┼─────────────┤
+│ GRI 1   │ [Your analysis here]                     │ [RESOLVED/NEXT] │
+│ GRI 2   │ [If reached - your analysis]             │ [RESOLVED/NEXT] │
+│ GRI 3(a)│ [If reached - your analysis]             │ [RESOLVED/NEXT] │
+│ GRI 3(b)│ [If reached - FULL component analysis]   │ [RESOLVED/NEXT] │
+│ GRI 3(c)│ [If reached - last numerical]            │ [RESOLVED/NEXT] │
+└─────────┴──────────────────────────────────────────┴─────────────┘
+
+CRITICAL: If GRI 3(b) is reached, you MUST provide:
+- Component breakdown table with Nature/Bulk/Value/Role
+- Clear justification for essential character determination
+` : '';
 
     const context = `
 Product Spec: ${JSON.stringify(report.structural_analysis, null, 2)}
@@ -238,10 +406,10 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
 ═══════════════════════════════════════════════════════════════════
 `;
 
-    let fullPrompt = `${systemPrompt}\n\nCASE EVIDENCE:\n${context}`;
+    let fullPrompt = `${systemPrompt}\n\n${girStateContext}\n\nCASE EVIDENCE:\n${context}`;
     
     if (feedback) {
-      fullPrompt += `\n\nIMPORTANT - PREVIOUS ATTEMPT FEEDBACK:\nThe QA Auditor rejected the previous classification with these instructions:\n${feedback}\nPlease correct the analysis based on this feedback.`;
+      fullPrompt += `\n\nIMPORTANT - PREVIOUS ATTEMPT FEEDBACK:\nThe QA Auditor rejected the previous classification with these instructions:\n${feedback}\nPlease correct the analysis based on this feedback. Pay special attention to GRI hierarchy compliance.`;
     }
 
     const result = await invokeSpecializedLLM({
@@ -271,6 +439,40 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
                                 gri_applied: {
                                     type: "string",
                                     description: "Which GRI rule determined the classification (e.g., 'GRI 1', 'GRI 3(b) Essential Character', 'GRI 6')"
+                                },
+                                gir_state_log: {
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            state: { type: "string" },
+                                            analysis: { type: "string" },
+                                            result: { type: "string", enum: ["resolved", "next", "skipped"] },
+                                            reason: { type: "string" }
+                                        }
+                                    },
+                                    description: "Log of GIR states visited with analysis at each step"
+                                },
+                                essential_character_analysis: {
+                                    type: "object",
+                                    properties: {
+                                        components: {
+                                            type: "array",
+                                            items: {
+                                                type: "object",
+                                                properties: {
+                                                    name: { type: "string" },
+                                                    nature: { type: "string" },
+                                                    bulk_percent: { type: "number" },
+                                                    value_percent: { type: "number" },
+                                                    functional_role: { type: "string" }
+                                                }
+                                            }
+                                        },
+                                        essential_component: { type: "string" },
+                                        justification: { type: "string" }
+                                    },
+                                    description: "Detailed essential character analysis (required if GRI 3(b) used)"
                                 },
                                 explanatory_note_reference: {
                                     type: "string",
