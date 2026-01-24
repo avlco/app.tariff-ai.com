@@ -303,13 +303,31 @@ export default Deno.serve(async (req) => {
         }
 
         case ACTIONS.REQUEST_USER_INPUT: {
+          const questionText = decision.questions?.join('\n') || decision.reason;
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { 
             status: 'waiting_for_user', 
             processing_status: 'waiting_for_user',
-            missing_info_question: decision.questions?.join('\n') || decision.reason
+            missing_info_question: questionText
           });
           conversationState = updateStatus(conversationState, 'waiting_for_user', 'Awaiting user input');
           await base44.asServiceRole.entities.ConversationState.update(conversationId, conversationState);
+          
+          // Send notification to user
+          try {
+            const reportData = await base44.entities.ClassificationReport.filter({ id: reportId });
+            const report = reportData[0];
+            await base44.functions.invoke('sendUserNotification', {
+              userEmail: user.email,
+              type: 'clarification_needed',
+              reportId: reportId,
+              reportName: report?.product_name || 'Classification Report',
+              question: questionText,
+              sendEmail: true
+            });
+          } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+          }
+          
           return Response.json({ success: true, status: 'waiting_for_user', questions: decision.questions });
         }
 
@@ -408,6 +426,22 @@ export default Deno.serve(async (req) => {
             overall_confidence: conversationState.overall_confidence
           });
           await logProgress('orchestrator', `Classification completed with confidence ${conversationState.overall_confidence}%`);
+          
+          // Send completion notification
+          try {
+            const reportData = await base44.entities.ClassificationReport.filter({ id: reportId });
+            const report = reportData[0];
+            await base44.functions.invoke('sendUserNotification', {
+              userEmail: user.email,
+              type: 'report_completed',
+              reportId: reportId,
+              reportName: report?.product_name || 'Classification Report',
+              sendEmail: true
+            });
+          } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+          }
+          
           return Response.json({ success: true, status: 'completed', report_id: reportId, confidence: conversationState.overall_confidence });
         }
 
@@ -423,6 +457,22 @@ export default Deno.serve(async (req) => {
           conversationState = { ...conversationState, escalation_summary: summary };
           await base44.asServiceRole.entities.ConversationState.update(conversationId, conversationState);
           await logProgress('orchestrator', `Escalated: ${decision.reason}`, 'warning');
+          
+          // Send failure notification
+          try {
+            const reportData = await base44.entities.ClassificationReport.filter({ id: reportId });
+            const report = reportData[0];
+            await base44.functions.invoke('sendUserNotification', {
+              userEmail: user.email,
+              type: 'report_failed',
+              reportId: reportId,
+              reportName: report?.product_name || 'Classification Report',
+              sendEmail: true
+            });
+          } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+          }
+          
           return Response.json({ success: false, status: 'escalated', reason: decision.reason, summary });
         }
 

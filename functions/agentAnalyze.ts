@@ -348,6 +348,21 @@ Return JSON with:
                 }
             ]
         });
+        
+        // Send notification to user about missing information
+        try {
+            await base44.functions.invoke('sendUserNotification', {
+                userEmail: user.email,
+                type: 'clarification_needed',
+                reportId: reportId,
+                reportName: report.product_name || 'Classification Report',
+                question: result.missing_info_question,
+                sendEmail: true
+            });
+        } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+        }
+        
         return Response.json({ success: true, status: 'waiting_for_user', question: result.missing_info_question });
     } else {
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {

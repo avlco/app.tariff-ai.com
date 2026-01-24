@@ -1,13 +1,8 @@
 import React from 'react';
 import { useLanguage } from '../providers/LanguageContext';
-import { Menu, Bell } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import NotificationBell from '../notifications/NotificationBell';
 
 export default function Header({ user, onMenuClick }) {
   const { t, isRTL, language } = useLanguage();
@@ -32,6 +27,7 @@ export default function Header({ user, onMenuClick }) {
       </div>
       
       <div className="flex items-center gap-2">
+        <NotificationBell />
       </div>
     </header>
   );
