@@ -18,7 +18,7 @@ function cleanJson(text) {
 }
 
 async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
-  console.log(`[LLM Gateway - QA] Using Claude Opus 4.5`);
+  console.log(`[LLM Gateway - QA] Using Claude Sonnet 4`);
   const jsonInstruction = response_schema 
     ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
     : '';
@@ -30,7 +30,7 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 
     const anthropic = new Anthropic({ apiKey });
     const msg = await anthropic.messages.create({
-        model: "claude-opus-4.5",
+        model: "claude-sonnet-4-20250514",
         max_tokens: 4096,
         messages: [{ role: "user", content: fullPrompt }]
     });
@@ -45,6 +45,120 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
     });
   }
 }
+
+// --- GIR VALIDATION LOGIC ---
+
+function validateGirHierarchy(classificationResults) {
+  const issues = [];
+  const girApplied = classificationResults?.primary?.gri_applied || '';
+  const stateLog = classificationResults?.primary?.gir_state_log || [];
+  
+  // Check if GIR state log exists
+  if (stateLog.length === 0 && !girApplied.includes('GRI 1')) {
+    issues.push({
+      type: 'gir_hierarchy_violation',
+      severity: 'high',
+      description: 'No GIR state log provided - cannot verify hierarchy compliance'
+    });
+  }
+  
+  // Check GIR 3(b) requires essential character analysis
+  if (girApplied.includes('3(b)') || girApplied.includes('3b')) {
+    const ecAnalysis = classificationResults?.primary?.essential_character_analysis;
+    if (!ecAnalysis || !ecAnalysis.components || ecAnalysis.components.length === 0) {
+      issues.push({
+        type: 'essential_character_incomplete',
+        severity: 'high',
+        description: 'GRI 3(b) used but no essential character component analysis provided'
+      });
+    } else if (!ecAnalysis.justification) {
+      issues.push({
+        type: 'essential_character_incomplete',
+        severity: 'medium',
+        description: 'Essential character analysis missing justification'
+      });
+    }
+  }
+  
+  // Check hierarchy was followed
+  const girOrder = ['GRI 1', 'GRI 2', 'GRI 3(a)', 'GRI 3(b)', 'GRI 3(c)', 'GRI 4'];
+  const appliedIndex = girOrder.findIndex(g => girApplied.includes(g.replace('GRI ', '').replace('(', '').replace(')', '')));
+  
+  if (appliedIndex > 0 && stateLog.length > 0) {
+    // Verify all prior states were visited
+    const visitedStates = stateLog.map(s => s.state);
+    for (let i = 0; i < appliedIndex; i++) {
+      const expectedState = girOrder[i].replace('GRI ', 'GRI_').replace('(', '').replace(')', '');
+      const found = visitedStates.some(v => v.includes(expectedState) || v.includes(girOrder[i]));
+      if (!found) {
+        issues.push({
+          type: 'gir_hierarchy_violation',
+          severity: 'high',
+          description: `${girOrder[i]} was skipped before applying ${girApplied}`,
+          missing_state: girOrder[i]
+        });
+      }
+    }
+  }
+  
+  return issues;
+}
+
+function validateEnAlignment(classificationResults, researchFindings) {
+  const issues = [];
+  const reasoning = classificationResults?.primary?.reasoning || '';
+  const enReference = classificationResults?.primary?.explanatory_note_reference || '';
+  
+  // Check if EN was referenced
+  if (!reasoning.toLowerCase().includes('explanatory note') && !enReference) {
+    issues.push({
+      type: 'en_not_referenced',
+      severity: 'medium',
+      description: 'Explanatory Notes not explicitly referenced in reasoning'
+    });
+  }
+  
+  // Check for EN exclusion violations
+  const candidateHeadings = researchFindings?.candidate_headings || [];
+  const selectedCode = classificationResults?.primary?.hs_code?.substring(0, 4);
+  
+  for (const heading of candidateHeadings) {
+    if (heading.code_4_digit === selectedCode && heading.en_exclusions) {
+      // Check if any exclusion might apply
+      issues.push({
+        type: 'en_exclusion_check_needed',
+        severity: 'low',
+        description: `Heading ${selectedCode} has EN exclusions that should be verified`,
+        exclusions: heading.en_exclusions
+      });
+    }
+  }
+  
+  return issues;
+}
+
+function validatePrecedentConsistency(classificationResults, researchFindings) {
+  const issues = [];
+  const selectedCode = classificationResults?.primary?.hs_code;
+  const wcoOpinions = researchFindings?.wco_precedents || [];
+  
+  // Check for conflicting WCO opinions
+  for (const opinion of wcoOpinions) {
+    const opinionCode = opinion.hs_code || opinion.classification;
+    if (opinionCode && opinionCode.substring(0, 4) !== selectedCode?.substring(0, 4)) {
+      issues.push({
+        type: 'precedent_conflict',
+        severity: 'medium',
+        description: `WCO opinion suggests ${opinionCode} but classification is ${selectedCode}`,
+        bti_case: opinion
+      });
+    }
+  }
+  
+  return issues;
+}
+
+// --- END GIR VALIDATION LOGIC ---
 
 // --- END INLINED GATEWAY ---
 
@@ -65,12 +179,31 @@ export default Deno.serve(async (req) => {
       processing_status: 'qa_pending'
     });
     
+    // Pre-validate using rule-based checks
+    const girIssues = validateGirHierarchy(report.classification_results);
+    const enIssues = validateEnAlignment(report.classification_results, report.research_findings);
+    const precedentIssues = validatePrecedentConsistency(report.classification_results, report.research_findings);
+    
+    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues];
+    const criticalIssues = preValidationIssues.filter(i => i.severity === 'high');
+    
+    const preValidationContext = preValidationIssues.length > 0 ? `
+═══════════════════════════════════════════════════════════════════
+PRE-VALIDATION ISSUES DETECTED (Rule-Based):
+═══════════════════════════════════════════════════════════════════
+${preValidationIssues.map(i => `• [${i.severity.toUpperCase()}] ${i.type}: ${i.description}`).join('\n')}
+
+${criticalIssues.length > 0 ? 'CRITICAL ISSUES FOUND - Likely FAIL unless reasoning explains why these are acceptable.' : ''}
+` : '';
+
     const context = `
 REPORT ID: ${reportId}
 Technical Spec: ${JSON.stringify(report.structural_analysis)}
 Research: ${JSON.stringify(report.research_findings)}
 Judge Results: ${JSON.stringify(report.classification_results)}
 Regulatory Data: ${JSON.stringify(report.regulatory_data)}
+
+${preValidationContext}
 `;
 
     const systemPrompt = `
@@ -81,22 +214,39 @@ Your role is the FINAL GATE before the report is delivered to the user.
 QA AUDIT PROTOCOL - COMPREHENSIVE CHECKS:
 ═══════════════════════════════════════════════════════════════════
 
-**CHECK 1: GRI COMPLIANCE VALIDATION**
+**CHECK 1: GRI COMPLIANCE VALIDATION (ENHANCED)**
 
 Review the classification reasoning from Agent C (Judge).
 
+MANDATORY: Check the gir_state_log if provided. This shows the GRI states visited.
+
 Verify:
 ✓ Was a specific GRI rule cited? (GRI 1, 2a, 2b, 3a, 3b, 3c, 4, 5, or 6)
-✓ Was the GRI sequence followed correctly?
+✓ Was the GRI sequence followed correctly? (Check gir_state_log)
+  → Each state must show analysis BEFORE transitioning to next
   → If GRI 3 was used: Was GRI 1 truly ambiguous? (If not, ERROR)
-  → If GRI 3(b) was used: Was Essential Character analysis provided with justification?
+  → If GRI 3(b) was used: Check essential_character_analysis object
+    - Must have components array with Nature/Bulk/Value/Role for EACH component
+    - Must have clear justification for which component gives essential character
   → If GRI 3(c) was used: Were 3(a) and 3(b) genuinely unable to resolve?
+
+GRI 3(b) ESSENTIAL CHARACTER - DETAILED CHECK:
+If GRI 3(b) is claimed:
+□ Does essential_character_analysis.components exist?
+□ Does it list ALL major components?
+□ Are bulk_percent and value_percent provided?
+□ Is the functional_role explained for each?
+□ Is the essential_component clearly identified with justification?
+
+If ANY of the above is missing → status: "failed", faulty_agent: "judge"
+fix_instructions: "GRI 3(b) requires complete essential character analysis with component breakdown"
 
 Common GRI ERRORS to catch:
 ❌ Jumping to GRI 3 when GRI 1 was sufficient (heading was unambiguous)
 ❌ Using GRI 3(b) Essential Character without analyzing all components
 ❌ Using GRI 3(c) without trying 3(a) and 3(b) first
 ❌ Misapplying GRI 2(a) to complete goods
+❌ Empty gir_state_log when GRI > 1 is used
 
 If GRI error found → status: "failed", faulty_agent: "judge"
 
@@ -284,7 +434,27 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
                         score: { type: "number" },
                         user_explanation: { type: "string" },
                         faulty_agent: { type: "string" },
-                        fix_instructions: { type: "string" }
+                        fix_instructions: { type: "string" },
+                        issues_found: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    type: { type: "string" },
+                                    severity: { type: "string", enum: ["high", "medium", "low"] },
+                                    description: { type: "string" }
+                                }
+                            },
+                            description: "Detailed list of issues found during QA"
+                        },
+                        gir_compliance: {
+                            type: "object",
+                            properties: {
+                                hierarchy_followed: { type: "boolean" },
+                                states_visited: { type: "array", items: { type: "string" } },
+                                essential_character_complete: { type: "boolean" }
+                            }
+                        }
                     }
                 }
             }
