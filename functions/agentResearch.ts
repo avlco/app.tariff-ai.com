@@ -459,6 +459,36 @@ OUTPUT: Return comprehensive JSON with all research findings.
                     type: "array",
                     items: { type: "string" },
                     description: "Section/Chapter Notes found during research"
+                },
+                en_exclusions: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            heading: { type: "string" },
+                            exclusion_text: { type: "string" },
+                            redirect_heading: { type: "string" }
+                        }
+                    },
+                    description: "EN exclusions found that redirect products to other headings"
+                },
+                bti_cases: {
+                    type: "array",
+                    items: {
+                        type: "object",
+                        properties: {
+                            reference: { type: "string" },
+                            country: { type: "string" },
+                            hs_code: { type: "string" },
+                            product_description: { type: "string" },
+                            date: { type: "string" }
+                        }
+                    },
+                    description: "EU BTI cases found for similar products"
+                },
+                confirmed_hs_structure: {
+                    type: "string",
+                    description: "Confirmed HS digit structure for destination country (e.g., '10 digits')"
                 }
             },
             required: ["candidate_headings", "verified_sources"]

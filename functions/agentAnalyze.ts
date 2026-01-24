@@ -18,7 +18,7 @@ function cleanJson(text) {
 }
 
 async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44_client }) {
-  console.log(`[LLM Gateway - Analyst] Using Claude Sonnet 4.5`);
+  console.log(`[LLM Gateway - Analyst] Using Claude Sonnet 4`);
   const jsonInstruction = response_schema 
     ? `\n\nCRITICAL: Return the output EXCLUSIVELY in valid JSON format matching this schema:\n${JSON.stringify(response_schema, null, 2)}` 
     : '';
@@ -30,8 +30,8 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 
     const anthropic = new Anthropic({ apiKey });
     const msg = await anthropic.messages.create({
-        model: "claude-sonnet-4.5",
-        max_tokens: 8192, // High context window support
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8192,
         messages: [{ role: "user", content: fullPrompt }]
     });
     
@@ -294,6 +294,24 @@ Return JSON with:
                                 voltage: { type: "string" },
                                 power_rating: { type: "string" }
                             }
+                        },
+                        components_breakdown: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    name: { type: "string" },
+                                    material: { type: "string" },
+                                    value_percent: { type: "number" },
+                                    weight_percent: { type: "number" },
+                                    function: { type: "string" }
+                                }
+                            },
+                            description: "Component breakdown for composite goods (required for GRI 3(b) analysis)"
+                        },
+                        readiness_score: {
+                            type: "number",
+                            description: "Data completeness score 0-100"
                         }
                     },
                     description: "Complete technical specification - only if status is success"
@@ -305,6 +323,10 @@ Return JSON with:
                 classification_guidance_notes: {
                     type: "string",
                     description: "Initial guidance for classifier (e.g., 'Check if telecom is primary function vs. data processing')"
+                },
+                potential_gir_path: {
+                    type: "string",
+                    description: "Likely GIR rule needed (e.g., 'GRI 1 - unambiguous' or 'GRI 3(b) - composite goods')"
                 }
             },
             required: ["status"]

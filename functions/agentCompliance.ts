@@ -79,18 +79,62 @@ ${kbContext}
 `;
 
     const systemPrompt = `
-You are a Compliance Specialist (Legal).
-Task: Search for official import requirements, mandatory standards, and labeling laws. Look for official documentation in ANY format (Official Government Portals, PDF, DOC, HTML gazettes). Do NOT limit to PDFs. Prioritize sources from the Standardization Institute and Ministries of the destination country.
+You are a REGULATORY COMPLIANCE EXPERT specializing in international trade and import requirements.
 
-Output JSON Schema:
-{
-  "compliance_data": {
-    "import_requirements": ["string"],
-    "mandatory_standards": ["string"],
-    "labeling_laws": ["string"],
-    "prohibitions": ["string"]
-  }
-}
+YOUR MISSION: Find ALL official regulatory requirements for importing this product.
+
+═══════════════════════════════════════════════════════════════════
+RESEARCH AREAS - CHECK ALL:
+═══════════════════════════════════════════════════════════════════
+
+**1. IMPORT LICENSES & PERMITS**
+- Does this product require an import license?
+- Which government ministry/agency issues permits?
+- Is this a "controlled" or "restricted" item?
+- Automatic vs. non-automatic licensing
+
+**2. MANDATORY STANDARDS**
+- Local standards (ISO, CE, local standards institute)
+- Safety certifications required
+- Testing/certification bodies recognized
+- Standard numbers (e.g., "SI 900" for Israel, "EN 60950" for EU)
+
+**3. LABELING REQUIREMENTS**
+- Language requirements (Hebrew, Arabic, local language)
+- Mandatory label content (origin, ingredients, warnings)
+- Energy efficiency labels
+- Size/placement requirements
+
+**4. HEALTH & SAFETY**
+- Food safety certifications (for food products)
+- Pharmaceutical approvals (for medical products)
+- Cosmetic regulations
+- Chemical safety (REACH, etc.)
+
+**5. ENVIRONMENTAL COMPLIANCE**
+- RoHS/WEEE (for electronics)
+- Packaging regulations
+- Recycling requirements
+- Carbon footprint declarations
+
+**6. SPECIAL SECTOR REQUIREMENTS**
+- Telecom equipment approvals
+- Radio frequency certifications
+- Encryption regulations
+- Dual-use goods controls
+
+**7. PROHIBITED/RESTRICTED ITEMS**
+- Outright bans
+- Quota restrictions
+- Seasonal restrictions
+- Country-of-origin restrictions
+
+═══════════════════════════════════════════════════════════════════
+OUTPUT: Provide ACTIONABLE requirements with:
+- Specific standard/regulation numbers
+- Issuing authority
+- Verification URLs where possible
+═══════════════════════════════════════════════════════════════════
 `;
 
     const fullPrompt = `${systemPrompt}\n\nDATA:\n${context}`;
@@ -103,10 +147,56 @@ Output JSON Schema:
                 compliance_data: {
                     type: "object",
                     properties: {
-                        import_requirements: { type: "array", items: { type: "string" } },
-                        mandatory_standards: { type: "array", items: { type: "string" } },
+                        import_requirements: { 
+                            type: "array", 
+                            items: { 
+                                type: "object",
+                                properties: {
+                                    requirement: { type: "string" },
+                                    verification_url: { type: "string" }
+                                }
+                            } 
+                        },
+                        mandatory_standards: { 
+                            type: "array", 
+                            items: { 
+                                type: "object",
+                                properties: {
+                                    standard: { type: "string" },
+                                    issuing_body: { type: "string" },
+                                    verification_url: { type: "string" }
+                                }
+                            } 
+                        },
                         labeling_laws: { type: "array", items: { type: "string" } },
-                        prohibitions: { type: "array", items: { type: "string" } }
+                        prohibitions: { type: "array", items: { type: "string" } },
+                        licenses_required: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    license_type: { type: "string" },
+                                    issuing_authority: { type: "string" },
+                                    application_url: { type: "string" }
+                                }
+                            }
+                        },
+                        certifications_needed: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    certification: { type: "string" },
+                                    testing_body: { type: "string" },
+                                    validity_period: { type: "string" }
+                                }
+                            }
+                        },
+                        import_legality: {
+                            type: "string",
+                            enum: ["freely_importable", "requires_license", "restricted", "prohibited"],
+                            description: "Overall import legality status"
+                        }
                     }
                 }
             }
@@ -114,20 +204,23 @@ Output JSON Schema:
         base44_client: base44
     });
 
-    // Merge into regulatory_data
+    // Merge into regulatory_data with enhanced structure
+    const complianceData = result.compliance_data || {};
+    
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         regulatory_data: {
             ...(report.regulatory_data || {}),
             primary: {
                 ...(report.regulatory_data?.primary || {}),
-                import_requirements: result.compliance_data.import_requirements
+                import_requirements: complianceData.import_requirements || [],
+                standards_requirements: complianceData.mandatory_standards || [],
+                import_legality: complianceData.import_legality || 'freely_importable'
             },
-            // Store extra details in custom fields if needed or mapped
-            compliance_details: result.compliance_data
+            compliance_details: complianceData
         }
     });
     
-    return Response.json({ success: true, status: 'compliance_checked', data: result.compliance_data });
+    return Response.json({ success: true, status: 'compliance_checked', data: complianceData });
 
   } catch (error) {
     console.error('Agent Compliance Error:', error);
