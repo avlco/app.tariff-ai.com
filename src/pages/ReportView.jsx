@@ -390,7 +390,7 @@ export default function ReportView() {
                             {(regulatoryPrimary.import_requirements || []).map((req, idx) => (
                                 <li key={idx} className="text-sm flex items-start gap-2">
                                     <CheckCircle2 className="w-4 h-4 text-[#42C0B9] mt-0.5 shrink-0" />
-                                    <span>{req}</span>
+                                    <span>{typeof req === 'object' ? req.requirement : req}</span>
                                 </li>
                             ))}
                             {(!regulatoryPrimary.import_requirements || regulatoryPrimary.import_requirements.length === 0) && (
