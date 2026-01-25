@@ -1,6 +1,25 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import OpenAI from 'npm:openai@^4.28.0';
 
+// --- TARIFF-AI 2.0: RETRIEVE & DEDUCE ARCHITECTURE ---
+// This agent now prioritizes targeted retrieval from CountryTradeResource
+// over free-form web search. The LLM synthesizes scraped legal text.
+
+import { 
+  fetchAllSources, 
+  getTariffLookupUrl, 
+  getTradeAgreementSources,
+  validateCountry,
+  getHsCodeStructure 
+} from './utils/resourceManager.js';
+
+import { 
+  scrapeTargetedUrl, 
+  scrapeMultipleUrls,
+  scrapeEuTaric,
+  scrapeEuBti
+} from './utils/webScraper.js';
+
 // --- INLINED GATEWAY LOGIC (RESEARCHER SPECIFIC) ---
 
 function cleanJson(text) {
@@ -50,6 +69,81 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 }
 
 // --- END INLINED GATEWAY ---
+
+/**
+ * PHASE 0: Retrieve official sources from CountryTradeResource
+ * This is the NEW primary data gathering method
+ */
+async function retrieveOfficialSources(base44, destCountry, spec) {
+  console.log(`[AgentResearch] Phase 0: Retrieving official sources for ${destCountry}`);
+  
+  const results = {
+    country_validated: false,
+    sources_retrieved: [],
+    raw_legal_text: '',
+    scrape_errors: []
+  };
+  
+  // Validate country exists in knowledge base
+  const countryValidation = await validateCountry(base44, destCountry);
+  results.country_validated = countryValidation.valid;
+  results.normalized_country = countryValidation.normalized_name;
+  results.hs_structure = countryValidation.hs_structure;
+  
+  if (!countryValidation.valid) {
+    console.warn(`[AgentResearch] Country ${destCountry} not found in knowledge base`);
+    return results;
+  }
+  
+  // Get all available sources
+  const allSources = await fetchAllSources(base44, destCountry);
+  
+  if (!allSources.success) {
+    console.warn(`[AgentResearch] Failed to fetch sources: ${allSources.error}`);
+    return results;
+  }
+  
+  results.metadata = allSources.metadata;
+  
+  // Prepare search options based on product spec
+  const scrapeOptions = {
+    hsCode: spec.industry_specific_data?.suggested_hs_code || null,
+    searchTerms: [
+      spec.standardized_name,
+      spec.material_composition,
+      spec.function
+    ].filter(Boolean),
+    preserveStructure: true,
+    maxLength: 12000
+  };
+  
+  // Scrape customs links (primary priority)
+  if (allSources.sources.customs?.length > 0) {
+    console.log(`[AgentResearch] Scraping ${allSources.sources.customs.length} customs URLs`);
+    const customsResults = await scrapeMultipleUrls(allSources.sources.customs.slice(0, 3), scrapeOptions);
+    
+    if (customsResults.success) {
+      results.sources_retrieved.push(...customsResults.results.filter(r => r.success));
+      results.raw_legal_text += customsResults.combined_legal_text || '';
+    }
+    results.scrape_errors.push(...customsResults.results.filter(r => !r.success).map(r => r.error));
+  }
+  
+  // Scrape trade agreement links
+  if (allSources.sources.trade_agreements?.length > 0) {
+    console.log(`[AgentResearch] Scraping ${allSources.sources.trade_agreements.length} trade agreement URLs`);
+    const ftaResults = await scrapeMultipleUrls(allSources.sources.trade_agreements.slice(0, 2), scrapeOptions);
+    
+    if (ftaResults.success) {
+      results.sources_retrieved.push(...ftaResults.results.filter(r => r.success));
+      results.raw_legal_text += '\n\n--- TRADE AGREEMENTS ---\n' + (ftaResults.combined_legal_text || '');
+    }
+  }
+  
+  console.log(`[AgentResearch] Retrieved ${results.sources_retrieved.length} sources, ${results.raw_legal_text.length} chars of legal text`);
+  
+  return results;
+}
 
 export default Deno.serve(async (req) => {
   try {
