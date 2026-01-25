@@ -1458,7 +1458,23 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
         ...audit,
         pre_validation_issues: preValidationIssues,
         retrieval_quality_score: audit.retrieval_quality_score || retrievalScore,
-        retrieve_deduce_compliant: citationIssues.filter(i => i.severity === 'high').length === 0
+        retrieve_deduce_compliant: citationIssues.filter(i => i.severity === 'high').length === 0,
+        // Task 2.2: Essential Character validation results
+        essential_character_validation: {
+            required: ecValidation.required,
+            valid: ecValidation.valid,
+            components_count: ecValidation.summary?.components_count || 0,
+            has_justification: ecValidation.summary?.has_justification || false,
+            issues_count: ecIssues.length
+        },
+        // Task 2.4: HS Format validation results
+        hs_format_validation: {
+            valid: hsFormatValidation.valid,
+            expected_digits: hsFormatValidation.expected_digits,
+            actual_digits: hsFormatValidation.actual_digits,
+            country_format: hsFormatValidation.country_format,
+            issues_count: hsFormatIssues.length
+        }
     };
     
     let finalStatus = 'completed';
