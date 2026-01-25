@@ -1034,13 +1034,17 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
 
     // Log classification results
     console.log(`[AgentJudge] ✓ Classification complete:`);
-    console.log(`[AgentJudge]   - HS Code: ${enrichedResults.primary.hs_code}`);
-    console.log(`[AgentJudge]   - Confidence: ${enrichedResults.primary.confidence_score}`);
-    console.log(`[AgentJudge]   - GRI Applied: ${enrichedResults.primary.gri_applied || enrichedResults.primary.gir_applied}`);
-    console.log(`[AgentJudge]   - Citations: ${enrichedResults.primary.citation_count}`);
-    console.log(`[AgentJudge]   - Context Gaps: ${enrichedResults.primary.context_gaps?.length || 0}`);
+    console.log(`[AgentJudge]   - HS Code: ${enrichedResults.primary?.hs_code || 'N/A'}`);
+    console.log(`[AgentJudge]   - Confidence: ${enrichedResults.primary?.confidence_score || 'N/A'}`);
+    console.log(`[AgentJudge]   - GRI Applied: ${enrichedResults.primary?.gri_applied || enrichedResults.primary?.gir_applied || 'N/A'}`);
+    console.log(`[AgentJudge]   - GIR State Log: ${enrichedResults.primary?.gir_state_log?.length || 0} states`);
+    console.log(`[AgentJudge]   - Essential Char: ${enrichedResults.primary?.essential_character_analysis ? 'YES' : 'NO'}`);
+    console.log(`[AgentJudge]   - Citations: ${enrichedResults.primary?.citation_count || 0}`);
+    console.log(`[AgentJudge]   - Context Gaps: ${enrichedResults.primary?.context_gaps?.length || 0}`);
     console.log(`[AgentJudge]   - Legal Text Chars: ${legalTextContext.length}`);
-    console.log(`[AgentJudge]   - Alternatives: ${enrichedResults.alternatives?.map(a => a.hs_code).join(', ')}`);
+    console.log(`[AgentJudge]   - Self-Healing: ${enrichedResults.primary?.self_healing_applied ? 'YES' : 'NO'}`);
+    console.log(`[AgentJudge]   - Validation Issues: ${enrichedResults.primary?.validation_issues_count || 0}`);
+    console.log(`[AgentJudge]   - Alternatives: ${enrichedResults.alternatives?.map(a => a.hs_code).join(', ') || 'N/A'}`);
     console.log(`[AgentJudge]   - Duration: ${duration}ms`);
     console.log(`[AgentJudge] ═══════════════════════════════════════════`);
 
