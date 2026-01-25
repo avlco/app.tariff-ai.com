@@ -649,12 +649,33 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
                                 },
                                 explanatory_note_reference: {
                                     type: "string",
-                                    description: "Reference to HS 2022 Explanatory Notes for this heading with alignment analysis"
+                                    description: "EXACT QUOTE from EN in LEGAL_TEXT_CONTEXT with alignment analysis"
                                 },
                                 section_chapter_notes_applied: {
                                     type: "array",
                                     items: { type: "string" },
-                                    description: "List of Section/Chapter Notes that affected classification (e.g., 'Section XVI Note 2', 'Chapter 84 Note 5')"
+                                    description: "List of Section/Chapter Notes with EXACT QUOTES from context"
+                                },
+                                legal_citations: {
+                                    type: "array",
+                                    items: {
+                                        type: "object",
+                                        properties: {
+                                            source_type: { 
+                                                type: "string", 
+                                                enum: ["HEADING_TEXT", "EN", "SECTION_NOTE", "CHAPTER_NOTE", "WCO_OPINION", "BTI", "TARIC", "NATIONAL_TARIFF"] 
+                                            },
+                                            source_reference: { type: "string" },
+                                            exact_quote: { type: "string" },
+                                            relevance: { type: "string" }
+                                        }
+                                    },
+                                    description: "All legal citations used in reasoning - MUST cite from LEGAL_TEXT_CONTEXT"
+                                },
+                                context_gaps: {
+                                    type: "array",
+                                    items: { type: "string" },
+                                    description: "List any information that was NOT found in LEGAL_TEXT_CONTEXT"
                                 }
                             },
                             required: ["hs_code", "confidence_score", "reasoning", "gri_applied"]
