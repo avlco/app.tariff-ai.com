@@ -8,6 +8,7 @@
  * 2. Extracts raw legal text for context injection into LLM
  * 3. Handles PDF documents via external API (PDFShift)
  * 4. Optimizes context window by extracting relevant sections
+ * 5. TARIFF-AI 2.0: Implements caching layer to reduce redundant network calls
  * 
  * Sources:
  * - WCO ECICS (EN database)
@@ -16,6 +17,8 @@
  * - BTI databases
  * - Any URL from CountryTradeResource
  */
+
+import { get as cacheGet, set as cacheSet, CACHE_KEYS, CACHE_TTL } from './cache.js';
 
 const SOURCES = {
   WCO_ECICS: 'https://www.wcoomd.org/en/topics/nomenclature/instrument-and-tools/hs-online.aspx',
@@ -541,8 +544,22 @@ export async function scrapeTargetedUrl(url, options = {}) {
     hsCode = null,
     searchTerms = [],
     preserveStructure = true,
-    maxLength = 15000
+    maxLength = 15000,
+    useCache = true
   } = options;
+  
+  // TARIFF-AI 2.0: Check cache first
+  if (useCache) {
+    const cacheKey = CACHE_KEYS.WEBSCRAPE_URL(url);
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      console.log(`[WebScraper] Cache HIT for ${url.substring(0, 50)}...`);
+      return {
+        ...cached,
+        from_cache: true
+      };
+    }
+  }
   
   try {
     const response = await fetchWithRetry(url, { timeout: 20000 });
@@ -603,7 +620,7 @@ export async function scrapeTargetedUrl(url, options = {}) {
       }
     }
     
-    return {
+    const result = {
       success: true,
       url,
       content_type: contentType,
@@ -616,6 +633,14 @@ export async function scrapeTargetedUrl(url, options = {}) {
       hs_code_referenced: hsCode,
       fetched_at: new Date().toISOString()
     };
+    
+    // TARIFF-AI 2.0: Store in cache
+    if (useCache) {
+      const cacheKey = CACHE_KEYS.WEBSCRAPE_URL(url);
+      cacheSet(cacheKey, result, CACHE_TTL.WEBSCRAPE_URL);
+    }
+    
+    return result;
     
   } catch (error) {
     return {
