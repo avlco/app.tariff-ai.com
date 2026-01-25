@@ -654,34 +654,75 @@ export default Deno.serve(async (req) => {
         }
 
         case ACTIONS.FINALIZE: {
-          await base44.asServiceRole.entities.ClassificationReport.update(reportId, { 
-            status: 'completed', 
-            processing_status: 'completed',
-            confidence_score: conversationState.overall_confidence
-          });
-          conversationState = updateStatus(conversationState, 'completed', decision.reason);
-          await base44.asServiceRole.entities.ConversationState.update(conversationId, {
-            ...conversationState,
-            overall_confidence: conversationState.overall_confidence
-          });
-          await logProgress('orchestrator', `Classification completed with confidence ${conversationState.overall_confidence}%`);
-          
-          // Send completion notification
+          // TARIFF-AI 2.0: Call generateFinalReport for QA and stats update
+          await logProgress('orchestrator', 'Running final QA and statistics update');
+
           try {
-            const reportData = await base44.entities.ClassificationReport.filter({ id: reportId });
-            const report = reportData[0];
-            await base44.functions.invoke('sendUserNotification', {
-              userEmail: user.email,
-              type: 'report_completed',
-              reportId: reportId,
-              reportName: report?.product_name || 'Classification Report',
-              sendEmail: true
+            const finalResult = await base44.functions.invoke('generateFinalReport', { reportId });
+
+            if (finalResult.data?.finalStatus === 'failed') {
+              // QA failed - escalate
+              conversationState = updateStatus(conversationState, 'failed', 'Final QA failed');
+              await base44.asServiceRole.entities.ConversationState.update(conversationId, {
+                ...conversationState,
+                overall_confidence: conversationState.overall_confidence
+              });
+              await logProgress('orchestrator', `Final QA failed: ${finalResult.data?.qaResult?.critical_errors?.join(', ') || 'Unknown reason'}`, 'error');
+
+              return Response.json({ 
+                success: false, 
+                status: 'failed', 
+                reason: 'Final QA failed',
+                qa_notes: finalResult.data?.qaResult?.qa_notes || []
+              });
+            }
+
+            // QA passed - finalize
+            conversationState = updateStatus(conversationState, 'completed', decision.reason);
+            await base44.asServiceRole.entities.ConversationState.update(conversationId, {
+              ...conversationState,
+              overall_confidence: conversationState.overall_confidence
             });
-          } catch (notifError) {
-            console.error('Failed to send notification:', notifError);
+            await logProgress('orchestrator', `Classification completed with confidence ${conversationState.overall_confidence}%`);
+
+            // Send completion notification
+            try {
+              const reportData = await base44.entities.ClassificationReport.filter({ id: reportId });
+              const report = reportData[0];
+              await base44.functions.invoke('sendUserNotification', {
+                userEmail: user.email,
+                type: 'report_completed',
+                reportId: reportId,
+                reportName: report?.product_name || 'Classification Report',
+                sendEmail: true
+              });
+            } catch (notifError) {
+              console.error('Failed to send notification:', notifError);
+            }
+
+            return Response.json({ 
+              success: true, 
+              status: 'completed', 
+              report_id: reportId, 
+              confidence: conversationState.overall_confidence,
+              qa_notes: finalResult.data?.qaResult?.qa_notes || []
+            });
+
+          } catch (finalError) {
+            console.error('generateFinalReport failed:', finalError);
+            await logProgress('orchestrator', `generateFinalReport error: ${finalError.message}`, 'error');
+
+            // Fallback: complete without final QA
+            await base44.asServiceRole.entities.ClassificationReport.update(reportId, { 
+              status: 'completed', 
+              processing_status: 'completed',
+              confidence_score: conversationState.overall_confidence
+            });
+            conversationState = updateStatus(conversationState, 'completed', 'Completed (final QA skipped)');
+            await base44.asServiceRole.entities.ConversationState.update(conversationId, conversationState);
+
+            return Response.json({ success: true, status: 'completed', report_id: reportId, confidence: conversationState.overall_confidence });
           }
-          
-          return Response.json({ success: true, status: 'completed', report_id: reportId, confidence: conversationState.overall_confidence });
         }
 
         case ACTIONS.ESCALATE: {
