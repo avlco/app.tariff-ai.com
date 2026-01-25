@@ -160,6 +160,187 @@ function validatePrecedentConsistency(classificationResults, researchFindings) {
 
 // --- END GIR VALIDATION LOGIC ---
 
+// --- TARIFF-AI 2.0: CITATION VALIDATION LOGIC ---
+
+/**
+ * Validate that legal citations reference actual content from the retrieved corpus
+ * This is the KEY validation for "Retrieve & Deduce" architecture
+ */
+function validateCitations(classificationResults, researchFindings) {
+  const issues = [];
+  const legalCitations = classificationResults?.primary?.legal_citations || [];
+  const contextGaps = classificationResults?.primary?.context_gaps || [];
+  
+  // Check if citations exist at all
+  if (legalCitations.length === 0) {
+    issues.push({
+      type: 'no_citations',
+      severity: 'high',
+      description: 'No legal citations provided - Retrieve & Deduce protocol requires explicit citations from LEGAL_TEXT_CONTEXT'
+    });
+  }
+  
+  // Check citation types distribution
+  const citationTypes = legalCitations.map(c => c.source_type);
+  const hasHeadingText = citationTypes.includes('HEADING_TEXT');
+  const hasEN = citationTypes.includes('EN');
+  const hasOfficialSource = citationTypes.some(t => 
+    ['TARIC', 'WCO_OPINION', 'BTI', 'NATIONAL_TARIFF', 'SECTION_NOTE', 'CHAPTER_NOTE'].includes(t)
+  );
+  
+  if (!hasHeadingText && !hasEN) {
+    issues.push({
+      type: 'missing_core_citations',
+      severity: 'medium',
+      description: 'Classification missing HEADING_TEXT or EN citations - core legal basis not explicitly cited'
+    });
+  }
+  
+  // Validate citations have actual quotes
+  for (const citation of legalCitations) {
+    if (!citation.exact_quote || citation.exact_quote.length < 10) {
+      issues.push({
+        type: 'empty_citation',
+        severity: 'medium',
+        description: `Citation ${citation.source_type}/${citation.source_reference} has no exact quote`
+      });
+    }
+  }
+  
+  // Check context gaps are flagged
+  if (contextGaps.length > 3) {
+    issues.push({
+      type: 'excessive_context_gaps',
+      severity: 'medium',
+      description: `${contextGaps.length} context gaps flagged - classification may need more research`
+    });
+  }
+  
+  // Cross-reference citations with research findings
+  const rawCorpus = researchFindings?.raw_legal_text_corpus || '';
+  const candidateHeadings = researchFindings?.candidate_headings || [];
+  const wcoOpinions = researchFindings?.wco_precedents || [];
+  
+  // Verify WCO citations exist in research
+  const wcoCitations = legalCitations.filter(c => c.source_type === 'WCO_OPINION');
+  for (const citation of wcoCitations) {
+    const foundInResearch = wcoOpinions.some(op => 
+      citation.source_reference?.includes(op.opinion_number) ||
+      citation.exact_quote?.includes(op.reasoning?.substring(0, 30))
+    );
+    if (!foundInResearch && wcoOpinions.length > 0) {
+      issues.push({
+        type: 'unverified_citation',
+        severity: 'low',
+        description: `WCO citation ${citation.source_reference} not found in research findings - may be fabricated`
+      });
+    }
+  }
+  
+  // Check if EN citations align with candidate headings
+  const enCitations = legalCitations.filter(c => c.source_type === 'EN');
+  for (const citation of enCitations) {
+    const headingCode = citation.source_reference?.match(/\d{4}/)?.[0];
+    if (headingCode) {
+      const foundInCandidates = candidateHeadings.some(h => h.code_4_digit === headingCode);
+      if (!foundInCandidates) {
+        issues.push({
+          type: 'citation_heading_mismatch',
+          severity: 'medium',
+          description: `EN citation for heading ${headingCode} but heading not in candidate list from research`
+        });
+      }
+    }
+  }
+  
+  return issues;
+}
+
+/**
+ * Validate tax and compliance extraction quality
+ */
+function validateExtractionQuality(regulatoryData) {
+  const issues = [];
+  
+  // Check tax extraction
+  const taxMeta = regulatoryData?.tax_extraction_metadata;
+  const compMeta = regulatoryData?.compliance_extraction_metadata;
+  
+  if (taxMeta) {
+    if (!taxMeta.legal_context_available) {
+      issues.push({
+        type: 'tax_no_context',
+        severity: 'medium',
+        description: 'Tax rates extracted without legal context - may be estimates'
+      });
+    }
+  }
+  
+  if (compMeta) {
+    if (!compMeta.legal_context_available) {
+      issues.push({
+        type: 'compliance_no_context',
+        severity: 'medium',
+        description: 'Compliance requirements extracted without legal context - may be generic'
+      });
+    }
+  }
+  
+  // Check for "NOT_FOUND_IN_CONTEXT" markers
+  const primary = regulatoryData?.primary || {};
+  if (primary.duty_rate?.includes('NOT_FOUND') || primary.vat_rate?.includes('NOT_FOUND')) {
+    issues.push({
+      type: 'tax_data_gap',
+      severity: 'low',
+      description: 'Some tax rates not found in retrieved context - manual verification recommended'
+    });
+  }
+  
+  // Check source citations exist for rates
+  if (!primary.duty_rate_source && primary.duty_rate && !primary.duty_rate.includes('NOT_FOUND')) {
+    issues.push({
+      type: 'tax_no_citation',
+      severity: 'medium',
+      description: 'Duty rate provided without source citation'
+    });
+  }
+  
+  return issues;
+}
+
+/**
+ * Calculate retrieval quality score
+ */
+function calculateRetrievalScore(researchFindings, classificationResults) {
+  let score = 100;
+  
+  // Raw legal text corpus presence (+20 if exists, -10 if missing)
+  if (researchFindings?.raw_legal_text_corpus?.length > 1000) {
+    score += 10;
+  } else if (!researchFindings?.raw_legal_text_corpus) {
+    score -= 10;
+  }
+  
+  // Citation count (expect at least 3)
+  const citationCount = classificationResults?.primary?.legal_citations?.length || 0;
+  if (citationCount >= 5) score += 10;
+  else if (citationCount >= 3) score += 5;
+  else if (citationCount === 0) score -= 20;
+  
+  // Context gaps penalty
+  const gapCount = classificationResults?.primary?.context_gaps?.length || 0;
+  score -= gapCount * 3;
+  
+  // Legal text used flag
+  if (classificationResults?.primary?.legal_text_based) {
+    score += 5;
+  }
+  
+  return Math.max(0, Math.min(100, score));
+}
+
+// --- END CITATION VALIDATION LOGIC ---
+
 // --- END INLINED GATEWAY ---
 
 export default Deno.serve(async (req) => {
