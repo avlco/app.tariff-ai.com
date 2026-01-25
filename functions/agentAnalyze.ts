@@ -463,158 +463,163 @@ This is REQUIRED for proper GRI 3(b) classification.
 
     // Store response schema for retry
     const responseSchema = {
+        type: "object",
+        properties: {
+            status: {
+                type: "string",
+                enum: ["success", "insufficient_data"],
+                description: "success if enough info, insufficient_data if critical info missing"
+            },
+            missing_info_question: {
+                type: "string",
+                description: "Specific question in user's language (Hebrew/English) to get missing info - ONLY if status is insufficient_data"
+            },
+            technical_spec: {
+                type: "object",
+                properties: {
+                    standardized_name: {
+                        type: "string",
+                        description: "Precise product name (e.g., 'Portable automatic data processing machine' not just 'laptop')"
+                    },
+                    material_composition: {
+                        type: "string",
+                        description: "Detailed breakdown with percentages if composite (e.g., '60% cotton, 40% polyester')"
+                    },
+                    function: {
+                        type: "string",
+                        description: "PRIMARY function, then secondary functions"
+                    },
+                    state: {
+                        type: "string",
+                        description: "Physical state: liquid/solid/gas/powder/frozen/etc."
+                    },
+                    essential_character: {
+                        type: "string",
+                        description: "For composite goods: which component/material gives essential character and WHY (cite value/bulk/function)"
+                    },
+                    industry_specific_data: {
+                        type: "object",
+                        description: "Industry-specific details - adapt fields based on product type",
+                        properties: {
+                            cpu: { type: "string" },
+                            ram: { type: "string" },
+                            wireless_capabilities: { type: "string" },
+                            fiber_composition: { type: "string" },
+                            weight_per_m2: { type: "string" },
+                            cas_number: { type: "string" },
+                            purity: { type: "string" },
+                            polymer_type: { type: "string" },
+                            voltage: { type: "string" },
+                            power_rating: { type: "string" }
+                        }
+                    },
+                    components_breakdown: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                name: { type: "string" },
+                                material: { type: "string" },
+                                value_percent: { type: "number" },
+                                weight_percent: { type: "number" },
+                                function: { type: "string", enum: ["primary", "secondary", "auxiliary"] }
+                            }
+                        },
+                        description: "Component breakdown for composite goods (required for GRI 3(b) analysis)"
+                    },
+                    readiness_score: {
+                        type: "number",
+                        description: "Data completeness score 0-100"
+                    },
+                    suggested_hs_code: {
+                        type: "string",
+                        description: "Initial 4-digit HS heading suggestion based on analysis (e.g., '8471')"
+                    }
+                },
+                description: "Complete technical specification - only if status is success"
+            },
+            composite_analysis: {
+                type: "object",
+                properties: {
+                    is_composite: {
+                        type: "boolean",
+                        description: "True if product consists of multiple materials/components"
+                    },
+                    composite_type: {
+                        type: "string",
+                        enum: ["single_component", "mixture", "set", "combined_article", "retail_set"],
+                        description: "Type of composite if applicable"
+                    },
+                    essential_character_component: {
+                        type: "string",
+                        description: "Name of component providing essential character"
+                    },
+                    essential_character_reasoning: {
+                        type: "string",
+                        description: "Detailed reasoning citing value/bulk/function dominance"
+                    },
+                    essential_character_factors: {
+                        type: "object",
+                        properties: {
+                            value_dominant: { type: "string" },
+                            bulk_dominant: { type: "string" },
+                            function_dominant: { type: "string" },
+                            user_perception: { type: "string" }
+                        }
+                    }
+                },
+                description: "Composite goods analysis per WCO guidelines"
+            },
+            industry_category: {
+                type: "string",
+                description: "HS Chapter range and name (e.g., 'Chapter 84-85: Machinery and Electrical Equipment')"
+            },
+            classification_guidance_notes: {
+                type: "string",
+                description: "Initial guidance for classifier (e.g., 'Check if telecom is primary function vs. data processing')"
+            },
+            potential_gir_path: {
+                type: "string",
+                enum: ["GRI_1", "GRI_2a", "GRI_2b", "GRI_3a", "GRI_3b", "GRI_3c", "GRI_4", "GRI_5", "GRI_6"],
+                description: "Likely GIR rule needed for classification"
+            },
+            search_queries: {
+                type: "object",
+                properties: {
+                    hs_search_queries: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Queries for HS code lookup (English)"
+                    },
+                    legal_notes_queries: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Queries for Explanatory Notes"
+                    },
+                    precedent_queries: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Queries for BTI/WCO rulings"
+                    },
+                    country_specific_queries: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Queries in destination country language"
+                    }
+                },
+                description: "Multi-lingual search queries for research phase"
+            }
+        },
+        required: ["status"]
+    };
+
+    // First LLM call
+    let result = await invokeSpecializedLLM({
         prompt: fullPrompt,
         task_type: 'analysis',
-        response_schema: {
-            type: "object",
-            properties: {
-                status: {
-                    type: "string",
-                    enum: ["success", "insufficient_data"],
-                    description: "success if enough info, insufficient_data if critical info missing"
-                },
-                missing_info_question: {
-                    type: "string",
-                    description: "Specific question in user's language (Hebrew/English) to get missing info - ONLY if status is insufficient_data"
-                },
-                technical_spec: {
-                    type: "object",
-                    properties: {
-                        standardized_name: {
-                            type: "string",
-                            description: "Precise product name (e.g., 'Portable automatic data processing machine' not just 'laptop')"
-                        },
-                        material_composition: {
-                            type: "string",
-                            description: "Detailed breakdown with percentages if composite (e.g., '60% cotton, 40% polyester')"
-                        },
-                        function: {
-                            type: "string",
-                            description: "PRIMARY function, then secondary functions"
-                        },
-                        state: {
-                            type: "string",
-                            description: "Physical state: liquid/solid/gas/powder/frozen/etc."
-                        },
-                        essential_character: {
-                            type: "string",
-                            description: "For composite goods: which component/material gives essential character and WHY (cite value/bulk/function)"
-                        },
-                        industry_specific_data: {
-                            type: "object",
-                            description: "Industry-specific details - adapt fields based on product type",
-                            properties: {
-                                cpu: { type: "string" },
-                                ram: { type: "string" },
-                                wireless_capabilities: { type: "string" },
-                                fiber_composition: { type: "string" },
-                                weight_per_m2: { type: "string" },
-                                cas_number: { type: "string" },
-                                purity: { type: "string" },
-                                polymer_type: { type: "string" },
-                                voltage: { type: "string" },
-                                power_rating: { type: "string" }
-                            }
-                        },
-                        components_breakdown: {
-                            type: "array",
-                            items: {
-                                type: "object",
-                                properties: {
-                                    name: { type: "string" },
-                                    material: { type: "string" },
-                                    value_percent: { type: "number" },
-                                    weight_percent: { type: "number" },
-                                    function: { type: "string", enum: ["primary", "secondary", "auxiliary"] }
-                                }
-                            },
-                            description: "Component breakdown for composite goods (required for GRI 3(b) analysis)"
-                        },
-                        readiness_score: {
-                            type: "number",
-                            description: "Data completeness score 0-100"
-                        },
-                        suggested_hs_code: {
-                            type: "string",
-                            description: "Initial 4-digit HS heading suggestion based on analysis (e.g., '8471')"
-                        }
-                    },
-                    description: "Complete technical specification - only if status is success"
-                },
-                composite_analysis: {
-                    type: "object",
-                    properties: {
-                        is_composite: {
-                            type: "boolean",
-                            description: "True if product consists of multiple materials/components"
-                        },
-                        composite_type: {
-                            type: "string",
-                            enum: ["single_component", "mixture", "set", "combined_article", "retail_set"],
-                            description: "Type of composite if applicable"
-                        },
-                        essential_character_component: {
-                            type: "string",
-                            description: "Name of component providing essential character"
-                        },
-                        essential_character_reasoning: {
-                            type: "string",
-                            description: "Detailed reasoning citing value/bulk/function dominance"
-                        },
-                        essential_character_factors: {
-                            type: "object",
-                            properties: {
-                                value_dominant: { type: "string" },
-                                bulk_dominant: { type: "string" },
-                                function_dominant: { type: "string" },
-                                user_perception: { type: "string" }
-                            }
-                        }
-                    },
-                    description: "Composite goods analysis per WCO guidelines"
-                },
-                industry_category: {
-                    type: "string",
-                    description: "HS Chapter range and name (e.g., 'Chapter 84-85: Machinery and Electrical Equipment')"
-                },
-                classification_guidance_notes: {
-                    type: "string",
-                    description: "Initial guidance for classifier (e.g., 'Check if telecom is primary function vs. data processing')"
-                },
-                potential_gir_path: {
-                    type: "string",
-                    enum: ["GRI_1", "GRI_2a", "GRI_2b", "GRI_3a", "GRI_3b", "GRI_3c", "GRI_4", "GRI_5", "GRI_6"],
-                    description: "Likely GIR rule needed for classification"
-                },
-                search_queries: {
-                    type: "object",
-                    properties: {
-                        hs_search_queries: {
-                            type: "array",
-                            items: { type: "string" },
-                            description: "Queries for HS code lookup (English)"
-                        },
-                        legal_notes_queries: {
-                            type: "array",
-                            items: { type: "string" },
-                            description: "Queries for Explanatory Notes"
-                        },
-                        precedent_queries: {
-                            type: "array",
-                            items: { type: "string" },
-                            description: "Queries for BTI/WCO rulings"
-                        },
-                        country_specific_queries: {
-                            type: "array",
-                            items: { type: "string" },
-                            description: "Queries in destination country language"
-                        }
-                    },
-                    description: "Multi-lingual search queries for research phase"
-                }
-            },
-            required: ["status"]
-        };
+        response_schema: responseSchema,
+        base44_client: base44
+    });
 
     const duration = Date.now() - startTime;
     
