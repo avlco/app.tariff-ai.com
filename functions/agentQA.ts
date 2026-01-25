@@ -1614,7 +1614,9 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
             composite_issues_count: compositeIssues.length,
             gir_issues_count: girIssues.length,
             research_issues_count: researchIssues.length,
-            research_needs_expansion: researchNeedsExpansion
+            research_needs_expansion: researchNeedsExpansion,
+            bti_consensus_score: btiConsensus.consensus_score,
+            en_exclusion_conflicts_count: enExclusionConflicts.length
         },
         duration_ms: duration
     });
