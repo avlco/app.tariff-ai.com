@@ -503,11 +503,28 @@ Return JSON with:
         
         return Response.json({ success: true, status: 'waiting_for_user', question: result.missing_info_question });
     } else {
+        // Enrich technical_spec with composite analysis and search queries
+        const enrichedSpec = {
+            ...result.technical_spec,
+            composite_analysis: result.composite_analysis || { is_composite: false, composite_type: 'single_component' },
+            search_queries: result.search_queries || {},
+            industry_category: result.industry_category,
+            potential_gir_path: result.potential_gir_path,
+            classification_guidance_notes: result.classification_guidance_notes
+        };
+        
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             processing_status: 'analyzing_completed',
-            structural_analysis: result.technical_spec
+            structural_analysis: enrichedSpec
         });
-        return Response.json({ success: true, status: 'analyzing_completed', spec: result.technical_spec });
+        
+        return Response.json({ 
+            success: true, 
+            status: 'analyzing_completed', 
+            spec: enrichedSpec,
+            composite_detected: result.composite_analysis?.is_composite || false,
+            gir_path: result.potential_gir_path
+        });
     }
 
   } catch (error) {
