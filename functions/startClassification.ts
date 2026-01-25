@@ -71,8 +71,8 @@ export default Deno.serve(async (req) => {
             }
         }
 
-        // === LEGACY PIPELINE (Fallback) ===
-        await logProgress(reportId, 'initialization', 'Starting legacy classification workflow');
+        // === LEGACY PIPELINE (Fallback) - TARIFF-AI 2.0 ENHANCED ===
+        await logProgress(reportId, 'initialization', 'Starting legacy classification workflow (Retrieve & Deduce v2.0)');
 
         // Ping Check
         try {
@@ -94,29 +94,44 @@ export default Deno.serve(async (req) => {
              console.warn('KB fetch failed:', e);
         }
 
-        // Step 1: Analyst
-        await logProgress(reportId, 'analyst', 'Starting structural analysis (Agent A)');
+        // Step 1: Analyst (with Composite Analysis)
+        await logProgress(reportId, 'analyst', 'Starting structural analysis with composite detection (Agent Analyze)');
         const analystRes = await base44.functions.invoke('agentAnalyze', { reportId, knowledgeBase });
 
         if (analystRes.data.status === 'waiting_for_user' || analystRes.data.status === 'insufficient_data') {
             return Response.json({ success: true, status: 'waiting_for_user', action: 'input_required', question: analystRes.data.question });
         }
+        
+        // Log composite detection
+        if (analystRes.data.composite_detected) {
+            await logProgress(reportId, 'analyst', `Composite product detected: ${analystRes.data.gir_path || 'GRI_3b likely'}`);
+        }
 
-        // Step 2: Researcher
-        await logProgress(reportId, 'researcher', 'Starting research (Agent B)');
-        await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
+        // Step 2: Researcher (with Legal Text Retrieval)
+        await logProgress(reportId, 'researcher', 'Starting legal text retrieval from CountryTradeResource (Agent Research)');
+        const researchRes = await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
+        
+        // Log retrieval quality
+        const retrievalSummary = researchRes.data?.retrieval_summary || {};
+        await logProgress(reportId, 'researcher', `Retrieved ${retrievalSummary.official_sources_used || 0} official sources, legal text: ${retrievalSummary.legal_text_available ? 'YES' : 'NO'}`);
 
-        // Step 3: Judge
-        await logProgress(reportId, 'judge', 'Starting classification (Agent C)');
-        await base44.functions.invoke('agentJudge', { reportId, intendedUse });
+        // Step 3: Judge (with Citation Protocol)
+        await logProgress(reportId, 'judge', 'Starting GIR classification with citation protocol (Agent Judge)');
+        const judgeRes = await base44.functions.invoke('agentJudge', { reportId, intendedUse, enforceHierarchy: true });
+        
+        // Log citation count
+        const citationCount = judgeRes.data?.results?.primary?.legal_citations?.length || 0;
+        await logProgress(reportId, 'judge', `Classification complete with ${citationCount} legal citations`);
 
-        // Step 4: Tax & Compliance
-        await logProgress(reportId, 'tax', 'Calculating duties');
+        // Step 4: Tax & Compliance (with Source Extraction)
+        await logProgress(reportId, 'tax', 'Extracting duty rates with source citations (Agent Tax)');
         await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+        
+        await logProgress(reportId, 'compliance', 'Extracting compliance requirements with source citations (Agent Compliance)');
         await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
 
-        // Step 5: QA Loop
-        await logProgress(reportId, 'qa', 'Starting QA Audit');
+        // Step 5: QA Loop (with Citation Validation)
+        await logProgress(reportId, 'qa', 'Starting QA Audit with citation validation');
         
         let attempts = 0;
         const maxAttempts = 3;
@@ -126,32 +141,58 @@ export default Deno.serve(async (req) => {
         while (attempts < maxAttempts) {
             const qaRes = await base44.functions.invoke('agentQA', { reportId });
             qaAudit = qaRes.data.audit;
+            
+            // Log retrieval quality score
+            const retrievalScore = qaRes.data.retrieval_metadata?.retrieval_quality_score || qaAudit?.retrieval_quality_score;
+            if (retrievalScore) {
+                await logProgress(reportId, 'qa', `Retrieval quality score: ${retrievalScore}/100`);
+            }
 
             if (qaAudit.status === 'passed') {
                 qaPassed = true;
-                await logProgress(reportId, 'qa', `QA Passed with score ${qaAudit.score}/100`);
+                await logProgress(reportId, 'qa', `QA Passed with score ${qaAudit.score}/100, R&D compliant: ${qaAudit.retrieve_deduce_compliant ? 'YES' : 'NO'}`);
                 break;
             }
 
             attempts++;
             const faultyAgent = qaAudit.faulty_agent?.toLowerCase() || '';
             const instructions = qaAudit.fix_instructions || '';
+            const issueType = qaAudit.issues_found?.[0]?.type || 'unknown';
 
-            await logProgress(reportId, 'self-healing', `QA Failed. Attempt ${attempts}/${maxAttempts}`, 'warning');
+            await logProgress(reportId, 'self-healing', `QA Failed (${issueType}). Attempt ${attempts}/${maxAttempts}`, 'warning');
 
-            if (faultyAgent.includes('analyst')) {
-                await base44.functions.invoke('agentAnalyze', { reportId, knowledgeBase, feedback: instructions });
-                await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
-                await base44.functions.invoke('agentJudge', { reportId, intendedUse });
+            // TARIFF-AI 2.0: Enhanced self-healing based on issue type
+            if (issueType.includes('citation') || issueType.includes('no_citations')) {
+                // Citation issues - re-run Judge with citation enforcement
+                await logProgress(reportId, 'self-healing', 'Re-running Judge with citation enforcement');
+                await base44.functions.invoke('agentJudge', { reportId, intendedUse, feedback: instructions, enforceHierarchy: true, enforceCitations: true });
                 await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
                 await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
-            } else if (faultyAgent.includes('research')) {
-                await base44.functions.invoke('agentResearch', { reportId, knowledgeBase, feedback: instructions });
-                await base44.functions.invoke('agentJudge', { reportId, intendedUse });
+            } else if (issueType.includes('tax_no_citation') || issueType.includes('tax_data_gap')) {
+                // Tax extraction issues - re-run Tax
+                await logProgress(reportId, 'self-healing', 'Re-running Tax agent with source enforcement');
+                await base44.functions.invoke('agentTax', { reportId, knowledgeBase, feedback: instructions });
+            } else if (issueType.includes('compliance_no_context')) {
+                // Compliance extraction issues - re-run Compliance
+                await logProgress(reportId, 'self-healing', 'Re-running Compliance agent with source enforcement');
+                await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase, feedback: instructions });
+            } else if (faultyAgent.includes('analyst') || issueType.includes('essential_character')) {
+                await logProgress(reportId, 'self-healing', 'Re-running full pipeline from Analyst');
+                await base44.functions.invoke('agentAnalyze', { reportId, knowledgeBase, feedback: instructions });
+                await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
+                await base44.functions.invoke('agentJudge', { reportId, intendedUse, enforceHierarchy: true, enforceCitations: true });
+                await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+                await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
+            } else if (faultyAgent.includes('research') || issueType.includes('legal_context')) {
+                await logProgress(reportId, 'self-healing', 'Re-running from Research with expanded search');
+                await base44.functions.invoke('agentResearch', { reportId, knowledgeBase, feedback: instructions, expandSearch: true });
+                await base44.functions.invoke('agentJudge', { reportId, intendedUse, enforceHierarchy: true, enforceCitations: true });
                 await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
                 await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
             } else {
-                await base44.functions.invoke('agentJudge', { reportId, intendedUse, feedback: instructions });
+                // Default: re-run Judge with feedback and citation enforcement
+                await logProgress(reportId, 'self-healing', 'Re-running Judge with feedback');
+                await base44.functions.invoke('agentJudge', { reportId, intendedUse, feedback: instructions, enforceHierarchy: true, enforceCitations: true });
                 await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
                 await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
             }
@@ -162,7 +203,7 @@ export default Deno.serve(async (req) => {
         }
 
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, { status: 'completed', processing_status: 'completed' });
-        await logProgress(reportId, 'workflow', 'Classification completed successfully');
+        await logProgress(reportId, 'workflow', 'Classification completed successfully (Retrieve & Deduce v2.0)');
 
         return Response.json({ success: true, status: 'completed', report_id: reportId });
 
