@@ -50,53 +50,136 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 
 function validateGirHierarchy(classificationResults) {
   const issues = [];
-  const girApplied = classificationResults?.primary?.gri_applied || '';
+  const girApplied = classificationResults?.primary?.gri_applied || classificationResults?.primary?.gir_applied || '';
   const stateLog = classificationResults?.primary?.gir_state_log || [];
   
-  // Check if GIR state log exists
-  if (stateLog.length === 0 && !girApplied.includes('GRI 1')) {
+  // Check 1: GIR state log exists for non-GRI-1 classifications
+  const isGRI1 = girApplied.includes('GRI 1') || girApplied.includes('GRI_1') || girApplied === '1';
+  if (!isGRI1 && stateLog.length === 0) {
     issues.push({
       type: 'gir_hierarchy_violation',
       severity: 'high',
-      description: 'No GIR state log provided - cannot verify hierarchy compliance'
+      description: `GRI ${girApplied} was applied but no gir_state_log provided. Cannot verify hierarchy compliance.`
     });
   }
   
-  // Check GIR 3(b) requires essential character analysis
-  if (girApplied.includes('3(b)') || girApplied.includes('3b')) {
+  // Check 2: GIR 3(b) requires COMPLETE essential character analysis
+  const isGRI3b = girApplied.includes('3(b)') || girApplied.includes('3b') || girApplied.includes('3B');
+  if (isGRI3b) {
     const ecAnalysis = classificationResults?.primary?.essential_character_analysis;
-    if (!ecAnalysis || !ecAnalysis.components || ecAnalysis.components.length === 0) {
+    
+    if (!ecAnalysis) {
       issues.push({
-        type: 'essential_character_incomplete',
+        type: 'essential_character_missing',
         severity: 'high',
-        description: 'GRI 3(b) used but no essential character component analysis provided'
+        description: 'GRI 3(b) Essential Character claimed but essential_character_analysis object is completely missing'
       });
-    } else if (!ecAnalysis.justification) {
-      issues.push({
-        type: 'essential_character_incomplete',
-        severity: 'medium',
-        description: 'Essential character analysis missing justification'
-      });
+    } else {
+      // Check components array
+      if (!ecAnalysis.components || ecAnalysis.components.length === 0) {
+        issues.push({
+          type: 'essential_character_no_components',
+          severity: 'high',
+          description: 'GRI 3(b) requires component breakdown but essential_character_analysis.components is empty'
+        });
+      } else {
+        // Validate component fields
+        let hasIncompleteComponent = false;
+        for (const comp of ecAnalysis.components) {
+          if (!comp.name || !comp.functional_role) {
+            hasIncompleteComponent = true;
+            break;
+          }
+        }
+        if (hasIncompleteComponent) {
+          issues.push({
+            type: 'essential_character_incomplete_components',
+            severity: 'medium',
+            description: 'Some components in essential_character_analysis missing name or functional_role'
+          });
+        }
+        
+        // Check for bulk/value percentages
+        const hasPercentages = ecAnalysis.components.some(c => 
+          c.bulk_percent !== undefined || c.value_percent !== undefined
+        );
+        if (!hasPercentages) {
+          issues.push({
+            type: 'essential_character_no_percentages',
+            severity: 'medium',
+            description: 'Essential character analysis should include bulk_percent and value_percent for components'
+          });
+        }
+      }
+      
+      // Check essential_component identified
+      if (!ecAnalysis.essential_component) {
+        issues.push({
+          type: 'essential_character_no_conclusion',
+          severity: 'high',
+          description: 'essential_character_analysis.essential_component not specified - which component gives essential character?'
+        });
+      }
+      
+      // Check justification
+      if (!ecAnalysis.justification || ecAnalysis.justification.length < 30) {
+        issues.push({
+          type: 'essential_character_weak_justification',
+          severity: 'medium',
+          description: 'essential_character_analysis.justification is missing or too brief'
+        });
+      }
     }
   }
   
-  // Check hierarchy was followed
+  // Check 3: Hierarchy was followed (no skipping states)
   const girOrder = ['GRI 1', 'GRI 2', 'GRI 3(a)', 'GRI 3(b)', 'GRI 3(c)', 'GRI 4'];
-  const appliedIndex = girOrder.findIndex(g => girApplied.includes(g.replace('GRI ', '').replace('(', '').replace(')', '')));
+  let appliedIndex = -1;
   
-  if (appliedIndex > 0 && stateLog.length > 0) {
-    // Verify all prior states were visited
-    const visitedStates = stateLog.map(s => s.state);
-    for (let i = 0; i < appliedIndex; i++) {
-      const expectedState = girOrder[i].replace('GRI ', 'GRI_').replace('(', '').replace(')', '');
-      const found = visitedStates.some(v => v.includes(expectedState) || v.includes(girOrder[i]));
-      if (!found) {
+  for (let i = 0; i < girOrder.length; i++) {
+    const girNum = girOrder[i].replace('GRI ', '').replace('(', '').replace(')', '');
+    if (girApplied.includes(girNum)) {
+      appliedIndex = i;
+      break;
+    }
+  }
+  
+  // If GRI 2+ used, verify GRI 1 was at least considered
+  if (appliedIndex >= 1 && stateLog.length > 0) {
+    const visitedStates = stateLog.map(s => (s.state || '').toLowerCase());
+    const gri1Visited = visitedStates.some(v => v.includes('1') || v.includes('gri_1') || v.includes('gri 1'));
+    
+    if (!gri1Visited) {
+      issues.push({
+        type: 'gir_skipped_gri1',
+        severity: 'high',
+        description: `GRI ${girApplied} applied but GRI 1 analysis not found in state log. Must start at GRI 1.`
+      });
+    }
+    
+    // If GRI 3(b) used, verify 3(a) was considered
+    if (isGRI3b) {
+      const gri3aVisited = visitedStates.some(v => v.includes('3a') || v.includes('3(a)'));
+      if (!gri3aVisited) {
         issues.push({
-          type: 'gir_hierarchy_violation',
-          severity: 'high',
-          description: `${girOrder[i]} was skipped before applying ${girApplied}`,
-          missing_state: girOrder[i]
+          type: 'gir_skipped_gri3a',
+          severity: 'medium',
+          description: 'GRI 3(b) applied but GRI 3(a) analysis not in state log. Should explain why 3(a) was insufficient.'
         });
+      }
+    }
+  }
+  
+  // Check 4: State log entries have required fields
+  if (stateLog.length > 0) {
+    for (const entry of stateLog) {
+      if (!entry.state || !entry.result) {
+        issues.push({
+          type: 'gir_incomplete_state_log',
+          severity: 'low',
+          description: 'Some gir_state_log entries missing state or result fields'
+        });
+        break;
       }
     }
   }
