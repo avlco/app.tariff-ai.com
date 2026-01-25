@@ -80,8 +80,10 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
  * PHASE 0: Retrieve official sources from CountryTradeResource
  * This is the NEW primary data gathering method
  */
-async function retrieveOfficialSources(base44, destCountry, spec) {
-  console.log(`[AgentResearch] Phase 0: Retrieving official sources for ${destCountry}`);
+async function retrieveOfficialSources(base44, destCountry, spec, options = {}) {
+  const { expandSearch = false, focusAreas = null } = options;
+  
+  console.log(`[AgentResearch] Phase 0: Retrieving official sources for ${destCountry}${expandSearch ? ' (EXPAND MODE)' : ''}`);
   
   const results = {
     country_validated: false,
@@ -220,7 +222,7 @@ export default Deno.serve(async (req) => {
     // ═══════════════════════════════════════════════════════════════════
     console.log('[AgentResearch] Starting RETRIEVE & DEDUCE workflow');
     
-    const officialSources = await retrieveOfficialSources(base44, destCountry, spec);
+    const officialSources = await retrieveOfficialSources(base44, destCountry, spec, { expandSearch, focusAreas });
     
     // Also scrape standard sources (EU TARIC, BTI) for supplementary data
     const standardSourcesTasks = [
