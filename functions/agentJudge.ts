@@ -547,8 +547,12 @@ export default Deno.serve(async (req) => {
       `Heading ${h.code_4_digit}: ${h.explanatory_note_summary || 'See research findings'}`
     ).join('\n') || 'Refer to research findings for Explanatory Notes';
     
-    // Build GIR state context if enforcing hierarchy
-    const girStateContext = enforceHierarchy ? `
+    // Build dynamic GIR state prompt based on product type
+    const isComposite = report.structural_analysis?.composite_analysis?.is_composite;
+    const compositeType = report.structural_analysis?.composite_analysis?.composite_type;
+    
+    // Always inject GIR state machine context for better hierarchy compliance
+    const girStateContext = `
 ═══════════════════════════════════════════════════════════════════
 GIR STATE MACHINE - STRICT SEQUENTIAL ENFORCEMENT
 ═══════════════════════════════════════════════════════════════════
