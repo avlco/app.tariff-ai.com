@@ -365,7 +365,15 @@ export default Deno.serve(async (req) => {
     const enIssues = validateEnAlignment(report.classification_results, report.research_findings);
     const precedentIssues = validatePrecedentConsistency(report.classification_results, report.research_findings);
     
-    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues];
+    // TARIFF-AI 2.0: Citation validation
+    const citationIssues = validateCitations(report.classification_results, report.research_findings);
+    const extractionIssues = validateExtractionQuality(report.regulatory_data);
+    const retrievalScore = calculateRetrievalScore(report.research_findings, report.classification_results);
+    
+    console.log(`[AgentQA] Citation issues: ${citationIssues.length}, Extraction issues: ${extractionIssues.length}`);
+    console.log(`[AgentQA] Retrieval quality score: ${retrievalScore}`);
+    
+    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues, ...citationIssues, ...extractionIssues];
     const criticalIssues = preValidationIssues.filter(i => i.severity === 'high');
     
     const preValidationContext = preValidationIssues.length > 0 ? `
@@ -374,6 +382,8 @@ PRE-VALIDATION ISSUES DETECTED (Rule-Based):
 ═══════════════════════════════════════════════════════════════════
 ${preValidationIssues.map(i => `• [${i.severity.toUpperCase()}] ${i.type}: ${i.description}`).join('\n')}
 
+RETRIEVAL QUALITY SCORE: ${retrievalScore}/100
+${citationIssues.length > 0 ? `CITATION ISSUES: ${citationIssues.length} - Review legal citations carefully` : ''}
 ${criticalIssues.length > 0 ? 'CRITICAL ISSUES FOUND - Likely FAIL unless reasoning explains why these are acceptable.' : ''}
 ` : '';
 
