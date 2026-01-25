@@ -1394,8 +1394,28 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
                             properties: {
                                 hierarchy_followed: { type: "boolean" },
                                 states_visited: { type: "array", items: { type: "string" } },
-                                essential_character_complete: { type: "boolean" }
+                                essential_character_complete: { type: "boolean" },
+                                essential_character_validation: {
+                                    type: "object",
+                                    properties: {
+                                        required: { type: "boolean" },
+                                        valid: { type: "boolean" },
+                                        components_count: { type: "number" },
+                                        has_justification: { type: "boolean" }
+                                    },
+                                    description: "Task 2.2: Essential Character Table validation results"
+                                }
                             }
+                        },
+                        hs_format_validation: {
+                            type: "object",
+                            properties: {
+                                valid: { type: "boolean" },
+                                expected_digits: { type: "number" },
+                                actual_digits: { type: "number" },
+                                country_specific: { type: "string" }
+                            },
+                            description: "Task 2.4: HS Code format validation per country"
                         },
                         citation_validation: {
                             type: "object",
