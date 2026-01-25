@@ -642,12 +642,44 @@ OUTPUT: Return comprehensive JSON with all research findings.
         base44_client: base44
     });
 
+    // Enrich result with retrieval metadata
+    const enrichedResult = {
+      ...result,
+      // Tariff-AI 2.0 metadata
+      retrieval_metadata: {
+        country_validated: officialSources.country_validated,
+        normalized_country: officialSources.normalized_country,
+        hs_structure: officialSources.hs_structure,
+        sources_retrieved_count: officialSources.sources_retrieved?.length || 0,
+        legal_text_corpus_length: legalTextCorpus.length,
+        retrieval_errors: officialSources.scrape_errors
+      },
+      // Include raw legal text for downstream agents (Judge, Tax)
+      raw_legal_text_corpus: legalTextCorpus.substring(0, 50000),
+      // BTI results for precedent analysis
+      bti_cases: result.bti_cases || (euBtiResult?.bti_references?.map(ref => ({
+        reference: ref,
+        source: 'EU_BTI_DATABASE'
+      })) || []),
+      // Confirmed HS structure from CountryTradeResource
+      confirmed_hs_structure: officialSources.hs_structure || result.confirmed_hs_structure
+    };
+
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         processing_status: 'research_completed',
-        research_findings: result
+        research_findings: enrichedResult
     });
     
-    return Response.json({ success: true, status: 'research_completed', findings: result });
+    return Response.json({ 
+      success: true, 
+      status: 'research_completed', 
+      findings: enrichedResult,
+      retrieval_summary: {
+        official_sources_used: officialSources.sources_retrieved?.length || 0,
+        legal_text_available: legalTextCorpus.length > 0,
+        country_in_knowledge_base: officialSources.country_validated
+      }
+    });
 
   } catch (error) {
     console.error('Agent B (Researcher) Error:', error);
