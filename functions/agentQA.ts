@@ -802,13 +802,24 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
     console.log(`[AgentQA]   - Duration: ${duration}ms`);
     console.log(`[AgentQA] ═══════════════════════════════════════════`);
 
-    await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+    // Build update object only with defined values to avoid overwriting with undefined
+    const updateData = {
         qa_audit: enrichedAudit,
         status: finalStatus,
-        processing_status: processingStatus,
-        confidence_score: enrichedAudit.score,
-        qa_notes: [enrichedAudit.user_explanation]
-    });
+        processing_status: processingStatus
+    };
+    
+    // Only add score if it exists
+    if (enrichedAudit.score !== undefined && enrichedAudit.score !== null) {
+        updateData.confidence_score = enrichedAudit.score;
+    }
+    
+    // Only add qa_notes if user_explanation exists and is not empty
+    if (enrichedAudit.user_explanation) {
+        updateData.qa_notes = [enrichedAudit.user_explanation];
+    }
+    
+    await base44.asServiceRole.entities.ClassificationReport.update(reportId, updateData);
     
     return Response.json({ 
         success: true, 
