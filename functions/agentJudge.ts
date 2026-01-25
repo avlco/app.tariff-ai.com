@@ -721,14 +721,35 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
         base44_client: base44
     });
 
+    // Enrich results with citation metadata
+    const enrichedResults = {
+        ...result.classification_results,
+        primary: {
+            ...result.classification_results.primary,
+            // Add metadata about legal text usage
+            legal_text_based: legalTextContext.length > 1000,
+            legal_text_length: legalTextContext.length,
+            citation_count: result.classification_results.primary.legal_citations?.length || 0
+        }
+    };
+
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
-        classification_results: result.classification_results,
-        hs_code: result.classification_results.primary.hs_code,
-        confidence_score: result.classification_results.primary.confidence_score,
-        classification_reasoning: result.classification_results.primary.reasoning
+        classification_results: enrichedResults,
+        hs_code: enrichedResults.primary.hs_code,
+        confidence_score: enrichedResults.primary.confidence_score,
+        classification_reasoning: enrichedResults.primary.reasoning
     });
     
-    return Response.json({ success: true, status: 'classification_completed', results: result.classification_results });
+    return Response.json({ 
+        success: true, 
+        status: 'classification_completed', 
+        results: enrichedResults,
+        retrieval_metadata: {
+            legal_text_injected: legalTextContext.length > 0,
+            legal_text_chars: legalTextContext.length,
+            citations_required: true
+        }
+    });
 
   } catch (error) {
     console.error('Agent C (Judge) Error:', error);
