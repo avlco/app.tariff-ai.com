@@ -784,7 +784,10 @@ export default Deno.serve(async (req) => {
               retrieval_quality_score: audit.retrieval_quality_score || retrievalMetadata.retrieval_quality_score || null,
               retrieve_deduce_compliant: audit.retrieve_deduce_compliant || false,
               research_needs_expansion: researchNeedsExpansion,
-              detailed_fix_instructions: audit.detailed_fix_instructions || null
+              detailed_fix_instructions: audit.detailed_fix_instructions || null,
+              // TARIFF-AI 2.0: BTI consensus and EN exclusion results
+              bti_consensus: audit.bti_consensus || null,
+              en_exclusion_conflicts: audit.en_exclusion_conflicts || []
             }
           };
 
