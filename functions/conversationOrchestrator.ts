@@ -626,26 +626,46 @@ export default Deno.serve(async (req) => {
 
         case ACTIONS.VALIDATE: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'qa_pending' });
-          const res = await base44.functions.invoke('agentQA', { reportId });
+          
+          let res;
+          try {
+            res = await base44.functions.invoke('agentQA', { reportId });
+          } catch (invokeError) {
+            console.error('[Orchestrator] agentQA invocation failed:', invokeError.message);
+            await logProgress('error', `agentQA invocation failed: ${invokeError.message}`);
+            actionOutput = { error: invokeError.message };
+            break;
+          }
 
           // Null safety: validate response
-          if (!res.data || res.data.error) {
-            await logProgress('error', `agentQA returned error: ${res.data?.error || 'No data returned'}`);
-            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+          if (!res || !res.data) {
+            await logProgress('error', 'agentQA returned null/undefined response');
+            actionOutput = { error: 'Agent returned no data' };
+            break;
+          }
+          
+          if (res.data.error) {
+            await logProgress('error', `agentQA returned error: ${res.data.error}`);
+            actionOutput = { error: res.data.error };
             break;
           }
 
           actionOutput = res.data;
 
+          // Defensive access to audit object
           const audit = res.data.audit || res.data.qa_audit || {};
+          const auditStatus = audit.status || 'unknown';
+          const auditScore = typeof audit.score === 'number' ? audit.score : 0;
 
           // TARIFF-AI 2.0: Extract all QA validation results including R&D checks
           const retrievalMetadata = res.data.retrieval_metadata || {};
-          console.log(`[Orchestrator] QA Retrieval Score: ${retrievalMetadata.retrieval_quality_score || 'N/A'}, Citation Issues: ${retrievalMetadata.citation_issues_count || 'N/A'}`);
+          console.log(`[Orchestrator] QA Status: ${auditStatus}, Score: ${auditScore}`);
+          console.log(`[Orchestrator] QA Retrieval Score: ${retrievalMetadata.retrieval_quality_score || audit.retrieval_quality_score || 'N/A'}`);
+          console.log(`[Orchestrator] Citation Issues: ${retrievalMetadata.citation_issues_count || 'N/A'}`);
 
           // Collect all issues from QA including pre-validation
           const allIssues = [];
-          if (audit.status !== 'passed' && audit.fix_instructions) {
+          if (auditStatus !== 'passed' && audit.fix_instructions) {
             allIssues.push({ type: 'qa_failed', description: audit.fix_instructions, severity: 'high' });
           }
           if (Array.isArray(audit.issues_found)) {
@@ -657,8 +677,8 @@ export default Deno.serve(async (req) => {
 
           newStateUpdates = {
             validation_result: {
-              passed: audit.status === 'passed',
-              score: audit.score || 0,
+              passed: auditStatus === 'passed',
+              score: auditScore,
               issues: allIssues,
               gir_compliance: audit.gir_compliance || null,
               citation_validation: audit.citation_validation || null,
@@ -668,7 +688,7 @@ export default Deno.serve(async (req) => {
             }
           };
 
-          if (audit.status !== 'passed') {
+          if (auditStatus !== 'passed') {
             conversationState = incrementSelfHealing(conversationState);
           }
           break;
