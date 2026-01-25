@@ -304,6 +304,34 @@ function validateCitations(classificationResults, researchFindings) {
   const candidateHeadings = researchFindings?.candidate_headings || [];
   const wcoOpinions = researchFindings?.wco_precedents || [];
   
+  // Task 4.3: Enhanced cross-reference validation
+  // Check if exact_quote appears in raw_legal_text_corpus
+  if (rawCorpus.length > 100) {
+    for (const citation of legalCitations) {
+      if (citation.exact_quote && citation.exact_quote.length > 20) {
+        // Normalize both strings for comparison
+        const normalizedQuote = citation.exact_quote.toLowerCase().replace(/\s+/g, ' ').substring(0, 50);
+        const normalizedCorpus = rawCorpus.toLowerCase().replace(/\s+/g, ' ');
+        
+        // Check if quote appears in corpus (fuzzy - first 50 chars)
+        if (!normalizedCorpus.includes(normalizedQuote.substring(0, 30))) {
+          // Also check in candidate_headings explanatory notes
+          const foundInEN = candidateHeadings.some(h => 
+            h.explanatory_note_summary?.toLowerCase().includes(normalizedQuote.substring(0, 30))
+          );
+          
+          if (!foundInEN) {
+            issues.push({
+              type: 'citation_not_in_corpus',
+              severity: 'medium',
+              description: `Citation "${citation.source_type}/${citation.source_reference}" quote not found in retrieved legal text corpus - may be fabricated`
+            });
+          }
+        }
+      }
+    }
+  }
+  
   // Verify WCO citations exist in research
   const wcoCitations = legalCitations.filter(c => c.source_type === 'WCO_OPINION');
   for (const citation of wcoCitations) {
@@ -313,8 +341,8 @@ function validateCitations(classificationResults, researchFindings) {
     );
     if (!foundInResearch && wcoOpinions.length > 0) {
       issues.push({
-        type: 'unverified_citation',
-        severity: 'low',
+        type: 'unverified_wco_citation',
+        severity: 'medium',
         description: `WCO citation ${citation.source_reference} not found in research findings - may be fabricated`
       });
     }
@@ -336,55 +364,243 @@ function validateCitations(classificationResults, researchFindings) {
     }
   }
   
+  // Check BTI citations
+  const btiCitations = legalCitations.filter(c => c.source_type === 'BTI');
+  const btiCases = researchFindings?.bti_cases || [];
+  for (const citation of btiCitations) {
+    const foundInResearch = btiCases.some(b => 
+      citation.source_reference?.includes(b.reference) ||
+      citation.exact_quote?.includes(b.product_description?.substring(0, 20))
+    );
+    if (!foundInResearch && btiCases.length > 0) {
+      issues.push({
+        type: 'unverified_bti_citation',
+        severity: 'low',
+        description: `BTI citation ${citation.source_reference} not found in research findings`
+      });
+    }
+  }
+  
   return issues;
 }
 
 /**
- * Validate tax and compliance extraction quality
+ * Task 4.1: Validate tax and compliance extraction quality
+ * Updated to use tax_data and compliance_data (TARIFF-AI 2.0)
  */
-function validateExtractionQuality(regulatoryData) {
+function validateExtractionQuality(taxData, complianceData) {
   const issues = [];
   
-  // Check tax extraction
-  const taxMeta = regulatoryData?.tax_extraction_metadata;
-  const compMeta = regulatoryData?.compliance_extraction_metadata;
-  
-  if (taxMeta) {
-    if (!taxMeta.legal_context_available) {
+  // === TAX DATA VALIDATION ===
+  if (taxData) {
+    const primary = taxData.primary || {};
+    const extractionMeta = taxData.extraction_metadata || {};
+    
+    // Check if legal context was available
+    if (extractionMeta.legal_context_available === false) {
       issues.push({
         type: 'tax_no_context',
         severity: 'medium',
         description: 'Tax rates extracted without legal context - may be estimates'
       });
     }
+    
+    // Check duty rate has source citation
+    if (primary.duty_rate && !primary.duty_rate.includes('NOT_FOUND')) {
+      if (!primary.duty_rate_source) {
+        issues.push({
+          type: 'tax_no_citation',
+          severity: 'medium',
+          description: 'Duty rate provided without duty_rate_source citation'
+        });
+      }
+    }
+    
+    // Check VAT rate has source citation
+    if (primary.vat_rate && !primary.vat_rate.includes('NOT_FOUND')) {
+      if (!primary.vat_rate_source) {
+        issues.push({
+          type: 'vat_no_citation',
+          severity: 'medium',
+          description: 'VAT rate provided without vat_rate_source citation'
+        });
+      }
+    }
+    
+    // Check for NOT_FOUND markers
+    if (primary.duty_rate?.includes('NOT_FOUND') || primary.vat_rate?.includes('NOT_FOUND')) {
+      issues.push({
+        type: 'tax_data_gap',
+        severity: 'low',
+        description: 'Some tax rates not found in retrieved context - manual verification recommended'
+      });
+    }
+    
+    // Check data_gaps array
+    if (taxData.data_gaps?.length > 0) {
+      issues.push({
+        type: 'tax_gaps_flagged',
+        severity: 'low',
+        description: `${taxData.data_gaps.length} tax data gaps acknowledged: ${taxData.data_gaps.slice(0, 2).join(', ')}`
+      });
+    }
+    
+    // Check extraction confidence
+    if (taxData.extraction_confidence === 'low' && !taxData.data_gaps?.length) {
+      issues.push({
+        type: 'tax_low_confidence_unexplained',
+        severity: 'medium',
+        description: 'Tax extraction confidence is low but no data_gaps provided to explain why'
+      });
+    }
+  } else {
+    issues.push({
+      type: 'tax_data_missing',
+      severity: 'medium',
+      description: 'tax_data object is missing from report'
+    });
   }
   
-  if (compMeta) {
-    if (!compMeta.legal_context_available) {
+  // === COMPLIANCE DATA VALIDATION ===
+  if (complianceData) {
+    const extractionMeta = complianceData.extraction_metadata || {};
+    
+    // Check if legal context was available
+    if (extractionMeta.legal_context_available === false) {
       issues.push({
         type: 'compliance_no_context',
         severity: 'medium',
         description: 'Compliance requirements extracted without legal context - may be generic'
       });
     }
-  }
-  
-  // Check for "NOT_FOUND_IN_CONTEXT" markers
-  const primary = regulatoryData?.primary || {};
-  if (primary.duty_rate?.includes('NOT_FOUND') || primary.vat_rate?.includes('NOT_FOUND')) {
+    
+    // Check import_requirements have source citations
+    const requirements = complianceData.import_requirements || [];
+    const reqsWithoutSource = requirements.filter(r => !r.source_citation);
+    if (reqsWithoutSource.length > 0 && requirements.length > 0) {
+      issues.push({
+        type: 'compliance_requirements_no_citation',
+        severity: 'medium',
+        description: `${reqsWithoutSource.length}/${requirements.length} import requirements lack source citations`
+      });
+    }
+    
+    // Check mandatory_standards have source citations
+    const standards = complianceData.mandatory_standards || [];
+    const standardsWithoutSource = standards.filter(s => !s.source_citation);
+    if (standardsWithoutSource.length > 0 && standards.length > 0) {
+      issues.push({
+        type: 'compliance_standards_no_citation',
+        severity: 'medium',
+        description: `${standardsWithoutSource.length}/${standards.length} mandatory standards lack source citations`
+      });
+    }
+    
+    // Check data_gaps array
+    if (complianceData.data_gaps?.length > 0) {
+      issues.push({
+        type: 'compliance_gaps_flagged',
+        severity: 'low',
+        description: `${complianceData.data_gaps.length} compliance data gaps acknowledged`
+      });
+    }
+    
+    // Check extraction confidence
+    if (complianceData.extraction_confidence === 'low' && !complianceData.data_gaps?.length) {
+      issues.push({
+        type: 'compliance_low_confidence_unexplained',
+        severity: 'medium',
+        description: 'Compliance extraction confidence is low but no data_gaps provided'
+      });
+    }
+  } else {
     issues.push({
-      type: 'tax_data_gap',
-      severity: 'low',
-      description: 'Some tax rates not found in retrieved context - manual verification recommended'
+      type: 'compliance_data_missing',
+      severity: 'medium',
+      description: 'compliance_data object is missing from report'
     });
   }
   
-  // Check source citations exist for rates
-  if (!primary.duty_rate_source && primary.duty_rate && !primary.duty_rate.includes('NOT_FOUND')) {
+  return issues;
+}
+
+/**
+ * Task 4.2: Validate composite analysis consistency between Analyst and Judge
+ */
+function validateCompositeConsistency(structuralAnalysis, classificationResults) {
+  const issues = [];
+  
+  const compositeAnalysis = structuralAnalysis?.composite_analysis;
+  const girApplied = classificationResults?.primary?.gri_applied || classificationResults?.primary?.gir_applied || '';
+  const ecAnalysis = classificationResults?.primary?.essential_character_analysis;
+  
+  // Check 1: If Analyst detected composite, Judge should have handled it
+  if (compositeAnalysis?.is_composite === true) {
+    const isGRI3b = girApplied.includes('3(b)') || girApplied.includes('3b') || girApplied.includes('3B');
+    
+    if (!isGRI3b) {
+      // Not using GRI 3(b) for composite - check if GRI 1 is justified
+      const isGRI1 = girApplied.includes('GRI 1') || girApplied.includes('GRI_1') || girApplied === '1';
+      
+      if (isGRI1) {
+        // GRI 1 for composite is unusual - should have explanation
+        issues.push({
+          type: 'composite_gri1_unusual',
+          severity: 'medium',
+          description: `Analyst detected composite (${compositeAnalysis.composite_type}) but Judge used GRI 1. Verify if heading explicitly covers composite.`
+        });
+      } else {
+        issues.push({
+          type: 'composite_not_gri3b',
+          severity: 'medium',
+          description: `Analyst detected composite product but Judge used ${girApplied} instead of GRI 3(b). Verify essential character was considered.`
+        });
+      }
+    }
+    
+    // Check 2: If composite detected, essential_character_component should match between agents
+    if (compositeAnalysis.essential_character_component && ecAnalysis?.essential_component) {
+      const analystEC = compositeAnalysis.essential_character_component.toLowerCase();
+      const judgeEC = ecAnalysis.essential_component.toLowerCase();
+      
+      // Fuzzy match - check if they refer to same component
+      if (!analystEC.includes(judgeEC) && !judgeEC.includes(analystEC)) {
+        issues.push({
+          type: 'essential_character_mismatch',
+          severity: 'high',
+          description: `Analyst identified "${compositeAnalysis.essential_character_component}" as essential character, but Judge identified "${ecAnalysis.essential_component}". Resolve inconsistency.`
+        });
+      }
+    }
+    
+    // Check 3: Analyst's composite_type should align with Judge's approach
+    if (compositeAnalysis.composite_type === 'retail_set' && !girApplied.includes('3(b)')) {
+      issues.push({
+        type: 'retail_set_not_3b',
+        severity: 'medium',
+        description: 'Analyst identified "retail_set" which typically requires GRI 3(b) essential character analysis'
+      });
+    }
+  }
+  
+  // Check 4: If Judge used GRI 3(b) but Analyst didn't detect composite
+  if (compositeAnalysis?.is_composite === false) {
+    const isGRI3b = girApplied.includes('3(b)') || girApplied.includes('3b');
+    if (isGRI3b) {
+      issues.push({
+        type: 'gri3b_but_not_composite',
+        severity: 'high',
+        description: 'Judge used GRI 3(b) but Analyst marked is_composite=false. Inconsistent analysis.'
+      });
+    }
+  }
+  
+  // Check 5: Validation metadata from agentAnalyze
+  if (structuralAnalysis?.self_healing_applied && structuralAnalysis?.validation_issues_count > 0) {
     issues.push({
-      type: 'tax_no_citation',
-      severity: 'medium',
-      description: 'Duty rate provided without source citation'
+      type: 'analyst_self_healed',
+      severity: 'low',
+      description: `Analyst self-healed with ${structuralAnalysis.validation_issues_count} validation issues. Review composite analysis quality.`
     });
   }
   
@@ -459,13 +675,19 @@ export default Deno.serve(async (req) => {
     
     // TARIFF-AI 2.0: Citation validation
     const citationIssues = validateCitations(report.classification_results, report.research_findings);
-    const extractionIssues = validateExtractionQuality(report.regulatory_data);
+    // Task 4.1: Use tax_data and compliance_data instead of regulatory_data
+    const extractionIssues = validateExtractionQuality(report.tax_data, report.compliance_data);
+    // Task 4.2: Composite consistency check
+    const compositeIssues = validateCompositeConsistency(report.structural_analysis, report.classification_results);
     const retrievalScore = calculateRetrievalScore(report.research_findings, report.classification_results);
     
+    // Task 4.5: Enhanced logging
+    console.log(`[AgentQA] GIR issues: ${girIssues.length}, EN issues: ${enIssues.length}`);
     console.log(`[AgentQA] Citation issues: ${citationIssues.length}, Extraction issues: ${extractionIssues.length}`);
+    console.log(`[AgentQA] Composite consistency issues: ${compositeIssues.length}`);
     console.log(`[AgentQA] Retrieval quality score: ${retrievalScore}`);
     
-    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues, ...citationIssues, ...extractionIssues];
+    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues, ...citationIssues, ...extractionIssues, ...compositeIssues];
     const criticalIssues = preValidationIssues.filter(i => i.severity === 'high');
     
     const preValidationContext = preValidationIssues.length > 0 ? `
@@ -479,12 +701,14 @@ ${citationIssues.length > 0 ? `CITATION ISSUES: ${citationIssues.length} - Revie
 ${criticalIssues.length > 0 ? 'CRITICAL ISSUES FOUND - Likely FAIL unless reasoning explains why these are acceptable.' : ''}
 ` : '';
 
+    // Task 4.4: Updated context to use tax_data and compliance_data
     const context = `
 REPORT ID: ${reportId}
 Technical Spec: ${JSON.stringify(report.structural_analysis)}
 Research: ${JSON.stringify(report.research_findings)}
 Judge Results: ${JSON.stringify(report.classification_results)}
-Regulatory Data: ${JSON.stringify(report.regulatory_data)}
+Tax Data: ${JSON.stringify(report.tax_data)}
+Compliance Data: ${JSON.stringify(report.compliance_data)}
 
 ${preValidationContext}
 `;
@@ -876,8 +1100,10 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
     console.log(`[AgentQA]   - Retrieval Quality: ${enrichedAudit.retrieval_quality_score}/100`);
     console.log(`[AgentQA]   - R&D Compliant: ${enrichedAudit.retrieve_deduce_compliant ? 'YES' : 'NO'}`);
     console.log(`[AgentQA]   - Pre-validation Issues: ${preValidationIssues.length}`);
+    console.log(`[AgentQA]   - GIR Issues: ${girIssues.length}`);
     console.log(`[AgentQA]   - Citation Issues: ${citationIssues.length}`);
     console.log(`[AgentQA]   - Extraction Issues: ${extractionIssues.length}`);
+    console.log(`[AgentQA]   - Composite Issues: ${compositeIssues.length}`);
     if (enrichedAudit.status === 'failed') {
         console.log(`[AgentQA]   - Faulty Agent: ${enrichedAudit.faulty_agent}`);
         console.log(`[AgentQA]   - Fix Instructions: ${enrichedAudit.fix_instructions?.substring(0, 100)}...`);
@@ -911,7 +1137,9 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
         retrieval_metadata: {
             retrieval_quality_score: retrievalScore,
             citation_issues_count: citationIssues.length,
-            extraction_issues_count: extractionIssues.length
+            extraction_issues_count: extractionIssues.length,
+            composite_issues_count: compositeIssues.length,
+            gir_issues_count: girIssues.length
         },
         duration_ms: duration
     });
