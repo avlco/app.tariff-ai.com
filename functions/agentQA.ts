@@ -586,6 +586,48 @@ Verify:
 If mismatch → status: "failed", faulty_agent: "tax" or "compliance"
 
 ═══════════════════════════════════════════════════════════════════
+**CHECK 11: EXTRACTION QUALITY (Retrieve & Deduce Protocol)**
+═══════════════════════════════════════════════════════════════════
+
+For Tax and Compliance agents, verify extraction quality:
+
+TAX DATA:
+✓ Does duty_rate have duty_rate_source citation?
+✓ Does vat_rate have vat_rate_source citation?
+✓ Are data_gaps flagged for rates not found in context?
+✓ Is extraction_confidence provided (high/medium/low)?
+
+COMPLIANCE DATA:
+✓ Do import_requirements have source_citation for each?
+✓ Do mandatory_standards have source_citation for each?
+✓ Are data_gaps flagged for requirements not in context?
+✓ Is extraction_confidence provided?
+
+Extraction RED FLAGS:
+❌ Rates/requirements without source citations → WARNING
+❌ "NOT_FOUND_IN_CONTEXT" not flagged when data missing → WARNING
+❌ Low extraction_confidence without explanation → WARNING
+
+These are warnings, not failures - but reduce score by 5-15 points
+
+═══════════════════════════════════════════════════════════════════
+**CHECK 12: CONTEXT GAPS ANALYSIS**
+═══════════════════════════════════════════════════════════════════
+
+Review context_gaps arrays across all agents:
+
+For classification context_gaps:
+✓ Are gaps legitimate (info truly not in corpus)?
+✓ Are gaps critical to classification or minor?
+✓ Did Judge make assumptions despite gaps?
+
+For tax/compliance data_gaps:
+✓ Are gaps acknowledged to user?
+✓ Is manual verification recommended where needed?
+
+If critical gaps not acknowledged → Reduce score by 10 points
+
+═══════════════════════════════════════════════════════════════════
 HOLISTIC SCORE CALCULATION (0-100):
 ═══════════════════════════════════════════════════════════════════
 
