@@ -442,7 +442,35 @@ Common GRI ERRORS to catch:
 If GRI error found → status: "failed", faulty_agent: "judge"
 
 ═══════════════════════════════════════════════════════════════════
-**CHECK 2: EXPLANATORY NOTES ALIGNMENT**
+**CHECK 2: CITATION VALIDATION (Retrieve & Deduce Protocol)**
+═══════════════════════════════════════════════════════════════════
+
+TARIFF-AI 2.0 CRITICAL: All classifications must cite from LEGAL_TEXT_CONTEXT
+
+Review the legal_citations array in classification_results.primary:
+
+For EACH citation, verify:
+✓ source_type is specified (HEADING_TEXT, EN, WCO_OPINION, BTI, TARIC, etc.)
+✓ source_reference identifies the specific source
+✓ exact_quote contains actual quoted text (not paraphrased)
+✓ The quote is relevant to the classification decision
+
+Required citations (at minimum):
+□ At least ONE heading text citation OR EN citation
+□ If GRI 3(b) used: Citation supporting essential character determination
+□ If precedent mentioned: WCO_OPINION or BTI citation
+
+Citation RED FLAGS:
+❌ No legal_citations array at all → FAIL
+❌ Citations with empty exact_quote → FAIL
+❌ Generic statements without source → FAIL
+❌ Citations not traceable to research_findings → WARNING
+
+If citations missing or fabricated → status: "failed", faulty_agent: "judge"
+fix_instructions: "Provide explicit citations from LEGAL_TEXT_CONTEXT with exact quotes"
+
+═══════════════════════════════════════════════════════════════════
+**CHECK 3: EXPLANATORY NOTES ALIGNMENT**
 ═══════════════════════════════════════════════════════════════════
 
 Verify:
