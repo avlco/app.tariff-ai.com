@@ -1014,8 +1014,29 @@ export default Deno.serve(async (req) => {
     console.log(`[AgentQA] Composite consistency issues: ${compositeIssues.length}`);
     console.log(`[AgentQA] Retrieval quality score: ${retrievalScore}`);
     
-    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues, ...citationIssues, ...extractionIssues, ...compositeIssues];
+    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues, ...ecIssues, ...hsFormatIssues, ...citationIssues, ...extractionIssues, ...compositeIssues];
     const criticalIssues = preValidationIssues.filter(i => i.severity === 'high');
+    
+    // Build essential character context for LLM
+    const ecContext = ecValidation.required ? `
+ESSENTIAL CHARACTER ANALYSIS STATUS:
+- Required: YES (GRI 3(b) used)
+- Valid: ${ecValidation.valid ? 'YES' : 'NO'}
+- Components Found: ${ecValidation.summary?.components_count || 0}
+- Essential Component Identified: ${ecValidation.summary?.has_essential_component ? 'YES' : 'NO'}
+- Justification Provided: ${ecValidation.summary?.has_justification ? 'YES' : 'NO'} (${ecValidation.summary?.justification_length || 0} chars)
+` : '';
+
+    // Build HS format context for LLM
+    const hsFormatContext = `
+HS CODE FORMAT CHECK:
+- HS Code: ${report.classification_results?.primary?.hs_code || 'MISSING'}
+- Destination: ${report.destination_country || 'Unknown'}
+- Expected Digits: ${hsFormatValidation.expected_digits}
+- Actual Digits: ${hsFormatValidation.actual_digits}
+- Format Valid: ${hsFormatValidation.valid ? 'YES' : 'NO'}
+${hsFormatValidation.country_format ? `- Note: ${hsFormatValidation.country_format}` : ''}
+`;
     
     const preValidationContext = preValidationIssues.length > 0 ? `
 ═══════════════════════════════════════════════════════════════════
@@ -1023,10 +1044,18 @@ PRE-VALIDATION ISSUES DETECTED (Rule-Based):
 ═══════════════════════════════════════════════════════════════════
 ${preValidationIssues.map(i => `• [${i.severity.toUpperCase()}] ${i.type}: ${i.description}`).join('\n')}
 
+${ecContext}
+${hsFormatContext}
+
 RETRIEVAL QUALITY SCORE: ${retrievalScore}/100
 ${citationIssues.length > 0 ? `CITATION ISSUES: ${citationIssues.length} - Review legal citations carefully` : ''}
+${ecIssues.length > 0 ? `ESSENTIAL CHARACTER ISSUES: ${ecIssues.length} - Review GRI 3(b) analysis` : ''}
+${hsFormatIssues.length > 0 ? `HS FORMAT ISSUES: ${hsFormatIssues.length} - Check country-specific code format` : ''}
 ${criticalIssues.length > 0 ? 'CRITICAL ISSUES FOUND - Likely FAIL unless reasoning explains why these are acceptable.' : ''}
-` : '';
+` : `
+${ecContext}
+${hsFormatContext}
+`;
 
     // Task 4.4: Updated context to use tax_data and compliance_data
     const context = `
