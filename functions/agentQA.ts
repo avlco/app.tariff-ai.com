@@ -939,6 +939,114 @@ ${highIssues.length > 0 ? 'CRITICAL issues MUST be fixed before approval.' : ''}
 
 // --- END CITATION VALIDATION LOGIC ---
 
+// --- TARIFF-AI 2.0: BTI CONSENSUS CHECK (Task 4.3a) ---
+
+/**
+ * Analyze BTI precedents and calculate consensus score
+ * Used to validate classification against existing rulings
+ */
+function analyzeBtiConsensus(btiCases, selectedHsCode) {
+  const result = {
+    total_cases: 0,
+    matching_cases: 0,
+    conflicting_cases: [],
+    consensus_score: 0,
+    recommendations: []
+  };
+  
+  if (!btiCases || btiCases.length === 0) {
+    return { ...result, recommendations: ['No BTI precedents found for comparison'] };
+  }
+  
+  result.total_cases = btiCases.length;
+  const selectedHeading = selectedHsCode?.substring(0, 4);
+  
+  for (const bti of btiCases) {
+    const btiHeading = bti.hs_code?.substring(0, 4);
+    
+    if (btiHeading === selectedHeading) {
+      result.matching_cases++;
+    } else if (btiHeading) {
+      result.conflicting_cases.push({
+        reference: bti.reference,
+        hs_code: bti.hs_code,
+        product: bti.product_description?.substring(0, 100)
+      });
+    }
+  }
+  
+  // Calculate consensus score
+  if (result.total_cases > 0) {
+    result.consensus_score = Math.round((result.matching_cases / result.total_cases) * 100);
+  }
+  
+  // Generate recommendations
+  if (result.conflicting_cases.length > result.matching_cases) {
+    result.recommendations.push(
+      `WARNING: ${result.conflicting_cases.length} BTI cases suggest different heading than selected ${selectedHeading}. Review classification.`
+    );
+  }
+  
+  if (result.consensus_score < 50 && result.total_cases >= 3) {
+    result.recommendations.push(
+      `LOW CONSENSUS (${result.consensus_score}%): BTI precedents are mixed. Consider alternative headings.`
+    );
+  }
+  
+  return result;
+}
+
+// --- TARIFF-AI 2.0: EN EXCLUSION CHECK (Task 4.3b) ---
+
+/**
+ * Check if product may be excluded by EN exclusions
+ * Returns potential exclusion conflicts
+ */
+function checkEnExclusions(researchFindings, productDescription) {
+  const conflicts = [];
+  const enExclusions = researchFindings?.en_exclusions || [];
+  const candidateHeadings = researchFindings?.candidate_headings || [];
+  
+  const productLower = (productDescription || '').toLowerCase();
+  
+  for (const exclusion of enExclusions) {
+    const exclusionText = (exclusion.exclusion_text || '').toLowerCase();
+    
+    // Check for keyword overlap
+    const exclusionKeywords = exclusionText.split(/\s+/).filter(w => w.length > 4);
+    const matchingKeywords = exclusionKeywords.filter(kw => productLower.includes(kw));
+    
+    if (matchingKeywords.length >= 2) {
+      conflicts.push({
+        type: 'en_exclusion_match',
+        heading: exclusion.heading,
+        exclusion_text: exclusion.exclusion_text,
+        redirect_heading: exclusion.redirect_heading,
+        matching_keywords: matchingKeywords,
+        severity: matchingKeywords.length >= 3 ? 'high' : 'medium'
+      });
+    }
+  }
+  
+  // Also check structured EN from candidate headings
+  for (const heading of candidateHeadings) {
+    if (heading.exclusion_conflicts?.length > 0) {
+      for (const conflict of heading.exclusion_conflicts) {
+        conflicts.push({
+          type: 'structured_en_conflict',
+          heading: heading.code_4_digit,
+          exclusion_text: conflict.exclusion_text,
+          redirect_heading: conflict.redirect_heading,
+          matching_keywords: conflict.matching_keywords,
+          severity: conflict.confidence === 'high' ? 'high' : 'medium'
+        });
+      }
+    }
+  }
+  
+  return conflicts;
+}
+
 // --- END INLINED GATEWAY ---
 
 export default Deno.serve(async (req) => {
@@ -982,6 +1090,21 @@ export default Deno.serve(async (req) => {
     const researchIssues = validateResearchCompleteness(report.research_findings);
     const retrievalScore = calculateRetrievalScore(report.research_findings, report.classification_results);
     
+    // Task 4.3a: BTI consensus check
+    const btiConsensus = analyzeBtiConsensus(
+      report.research_findings?.bti_cases,
+      report.classification_results?.primary?.hs_code
+    );
+    
+    // Task 4.3b: EN exclusion check
+    const enExclusionConflicts = checkEnExclusions(
+      report.research_findings,
+      report.structural_analysis?.standardized_name || report.product_name
+    );
+    
+    console.log(`[AgentQA] BTI Consensus: ${btiConsensus.consensus_score}% (${btiConsensus.matching_cases}/${btiConsensus.total_cases})`);
+    console.log(`[AgentQA] EN Exclusion Conflicts: ${enExclusionConflicts.length}`);
+    
     // Task 4.5: Enhanced logging
     console.log(`[AgentQA] GIR issues: ${girIssues.length}, EN issues: ${enIssues.length}`);
     console.log(`[AgentQA] Research completeness issues: ${researchIssues.length}`);
@@ -989,7 +1112,34 @@ export default Deno.serve(async (req) => {
     console.log(`[AgentQA] Composite consistency issues: ${compositeIssues.length}`);
     console.log(`[AgentQA] Retrieval quality score: ${retrievalScore}`);
     
-    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues, ...citationIssues, ...extractionIssues, ...compositeIssues, ...researchIssues];
+    // Add BTI consensus issues if low
+    const btiIssues = [];
+    if (btiConsensus.consensus_score < 50 && btiConsensus.total_cases >= 3) {
+      btiIssues.push({
+        type: 'bti_low_consensus',
+        severity: 'medium',
+        description: `BTI consensus is only ${btiConsensus.consensus_score}% (${btiConsensus.matching_cases}/${btiConsensus.total_cases}). ${btiConsensus.recommendations.join(' ')}`
+      });
+    }
+    
+    if (btiConsensus.conflicting_cases.length > 0 && btiConsensus.conflicting_cases.length > btiConsensus.matching_cases) {
+      btiIssues.push({
+        type: 'bti_majority_conflict',
+        severity: 'high',
+        description: `Majority of BTI cases (${btiConsensus.conflicting_cases.length}/${btiConsensus.total_cases}) suggest different headings. Review classification.`,
+        conflicting_headings: btiConsensus.conflicting_cases.map(c => c.hs_code?.substring(0, 4)).filter(Boolean)
+      });
+    }
+    
+    // Add EN exclusion issues
+    const enExclusionIssues = enExclusionConflicts.map(conflict => ({
+      type: 'en_exclusion_conflict',
+      severity: conflict.severity,
+      description: `EN for heading ${conflict.heading} may EXCLUDE this product: "${conflict.exclusion_text?.substring(0, 100)}..." → Redirect to ${conflict.redirect_heading || 'other heading'}`,
+      matching_keywords: conflict.matching_keywords
+    }));
+
+    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues, ...citationIssues, ...extractionIssues, ...compositeIssues, ...researchIssues, ...btiIssues, ...enExclusionIssues];
     const criticalIssues = preValidationIssues.filter(i => i.severity === 'high');
     
     // Task 4.2c.3: Check if research needs expansion
@@ -1391,7 +1541,10 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
         retrieval_quality_score: audit.retrieval_quality_score || retrievalScore,
         retrieve_deduce_compliant: citationIssues.filter(i => i.severity === 'high').length === 0,
         research_needs_expansion: researchNeedsExpansion,
-        research_issues: researchIssues
+        research_issues: researchIssues,
+        // Task 4.3: BTI consensus and EN exclusion results
+        bti_consensus: btiConsensus,
+        en_exclusion_conflicts: enExclusionConflicts
     };
     
     // Task 4.2b: Generate detailed self-healing feedback if failed
@@ -1421,6 +1574,8 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
     console.log(`[AgentQA]   - Composite Issues: ${compositeIssues.length}`);
     console.log(`[AgentQA]   - Research Issues: ${researchIssues.length}`);
     console.log(`[AgentQA]   - Research Needs Expansion: ${researchNeedsExpansion ? 'YES' : 'NO'}`);
+    console.log(`[AgentQA]   - BTI Consensus: ${btiConsensus.consensus_score}%`);
+    console.log(`[AgentQA]   - EN Exclusion Conflicts: ${enExclusionConflicts.length}`);
     if (enrichedAudit.status === 'failed') {
         console.log(`[AgentQA]   - Faulty Agent: ${enrichedAudit.faulty_agent}`);
         console.log(`[AgentQA]   - Fix Instructions: ${enrichedAudit.fix_instructions?.substring(0, 100)}...`);
