@@ -383,6 +383,15 @@ export default Deno.serve(async (req) => {
 
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
 
+    // Verify report exists before proceeding
+    console.log(`[Orchestrator] Looking for report with id: ${reportId}`);
+    const existingReports = await base44.entities.ClassificationReport.filter({ id: reportId });
+    if (!existingReports || existingReports.length === 0) {
+        console.error(`[Orchestrator] Report not found: ${reportId}`);
+        return Response.json({ error: `Report not found: ${reportId}` }, { status: 404 });
+    }
+    console.log(`[Orchestrator] Found report: ${existingReports[0].product_name}`);
+
     // Initialize or load conversation state
     const existingStates = await base44.asServiceRole.entities.ConversationState.filter({ report_id: reportId });
     
