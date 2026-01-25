@@ -49,6 +49,89 @@ async function invokeSpecializedLLM({ prompt, response_schema, base44_client }) 
 
 // --- END INLINED GATEWAY ---
 
+/**
+ * TARIFF-AI 2.0: Extract tax-relevant data from retrieved legal text corpus
+ * This function builds the tax context from previously scraped sources
+ */
+function buildTaxLegalContext(researchFindings, classificationResults) {
+  const sections = [];
+  
+  // 1. Raw Legal Text Corpus - extract tariff-specific content
+  if (researchFindings?.raw_legal_text_corpus) {
+    // Extract sections related to tariffs, duties, taxes
+    const legalText = researchFindings.raw_legal_text_corpus;
+    const tariffKeywords = ['duty', 'tariff', 'rate', 'vat', 'tax', 'customs', 'מכס', 'מע"מ', 'שיעור'];
+    
+    // Try to find tariff-related paragraphs
+    const paragraphs = legalText.split(/\n\n+/);
+    const relevantParagraphs = paragraphs.filter(p => 
+      tariffKeywords.some(kw => p.toLowerCase().includes(kw))
+    ).slice(0, 20); // Max 20 relevant paragraphs
+    
+    if (relevantParagraphs.length > 0) {
+      sections.push(`
+═══════════════════════════════════════════════════════════════════
+TARIFF DATA FROM LEGAL TEXT CORPUS
+(Extract rates and duties ONLY from this text - do not estimate)
+═══════════════════════════════════════════════════════════════════
+${relevantParagraphs.join('\n\n')}
+═══════════════════════════════════════════════════════════════════`);
+    }
+  }
+  
+  // 2. Country-specific tariff data from research
+  if (researchFindings?.country_specific_data) {
+    const csd = researchFindings.country_specific_data;
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+COUNTRY-SPECIFIC TARIFF DATA
+═══════════════════════════════════════════════════════════════════
+Tariff Year: ${csd.tariff_year || 'Unknown'}
+HS Structure: ${csd.hs_structure || 'Unknown'}
+National Codes: ${csd.national_codes?.join(', ') || 'None found'}
+National Notes: ${csd.national_notes?.join('\n') || 'None found'}
+Official Source: ${csd.official_source || 'Not specified'}
+═══════════════════════════════════════════════════════════════════`);
+  }
+  
+  // 3. Trade Agreements (for preferential rates)
+  if (researchFindings?.trade_agreements?.length > 0) {
+    const ftaText = researchFindings.trade_agreements.map(fta => `
+FTA: ${fta.name}
+Preferential Rate: ${fta.preferential_rate || 'See agreement'}
+Origin Requirements: ${fta.origin_requirements || 'Standard'}
+Certificate: ${fta.certificate_needed || 'Check requirements'}
+`).join('\n');
+    
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+TRADE AGREEMENTS & PREFERENTIAL RATES
+═══════════════════════════════════════════════════════════════════
+${ftaText}
+═══════════════════════════════════════════════════════════════════`);
+  }
+  
+  // 4. Classification citations that mention rates
+  if (classificationResults?.primary?.legal_citations?.length > 0) {
+    const rateCitations = classificationResults.primary.legal_citations.filter(c =>
+      c.exact_quote?.toLowerCase().includes('rate') ||
+      c.exact_quote?.toLowerCase().includes('duty') ||
+      c.exact_quote?.toLowerCase().includes('%')
+    );
+    
+    if (rateCitations.length > 0) {
+      sections.push(`
+═══════════════════════════════════════════════════════════════════
+RATE-RELATED CITATIONS FROM CLASSIFICATION
+═══════════════════════════════════════════════════════════════════
+${rateCitations.map(c => `[${c.source_type}] ${c.source_reference}: "${c.exact_quote}"`).join('\n')}
+═══════════════════════════════════════════════════════════════════`);
+    }
+  }
+  
+  return sections.join('\n\n');
+}
+
 export default Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -66,7 +149,12 @@ export default Deno.serve(async (req) => {
         return Response.json({ error: 'Classification results missing.' }, { status: 400 });
     }
     
-    // Status update handled by orchestrator or kept as is
+    // ═══════════════════════════════════════════════════════════════════
+    // TARIFF-AI 2.0: Build TAX_LEGAL_CONTEXT from retrieved sources
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('[AgentTax] Building tax legal context from retrieved sources');
+    const taxLegalContext = buildTaxLegalContext(report.research_findings, report.classification_results);
+    console.log(`[AgentTax] Tax legal context: ${taxLegalContext.length} chars`);
     
     const primaryCode = report.classification_results.primary.hs_code;
     const altCodes = (report.classification_results.alternatives || []).map(a => a.hs_code);
@@ -87,32 +175,47 @@ ${kbContext}
 `;
 
     const systemPrompt = `
-You are a Tax Specialist.
-Task: Calculate import duties and VAT for [${report.destination_country}]. Use the provided HS Code. Cross-reference with the provided Knowledge Base links if available.
+You are a CUSTOMS TAX EXTRACTION SPECIALIST.
 
-Requirements:
-1. For EACH of the HS Codes, determine Duty Rate and VAT.
-2. Be precise with the rates.
+═══════════════════════════════════════════════════════════════════
+TARIFF-AI 2.0: RETRIEVE & DEDUCE PROTOCOL FOR TAX DATA
+═══════════════════════════════════════════════════════════════════
 
-Output JSON Schema:
-{
-  "tax_data": {
-    "primary": {
-      "duty_rate": "string",
-      "vat_rate": "string"
-    },
-    "alternatives": [
-      {
-        "hs_code": "string",
-        "duty_rate": "string",
-        "vat_rate": "string"
-      }
-    ]
-  }
-}
+CRITICAL INSTRUCTION: You have been provided with TAX_LEGAL_CONTEXT containing:
+- Retrieved tariff data from official customs sources
+- Trade agreement preferential rates
+- Country-specific tax information
+
+YOUR EXTRACTION MUST:
+1. EXTRACT rates ONLY from the TAX_LEGAL_CONTEXT provided
+2. Cite the exact source for each rate
+3. If rate not found in context, mark as "NOT_FOUND_IN_CONTEXT" (do NOT estimate)
+4. Flag any data gaps clearly
+
+═══════════════════════════════════════════════════════════════════
+EXTRACTION TASK:
+═══════════════════════════════════════════════════════════════════
+
+For destination country: ${report.destination_country}
+For HS Codes: ${codesToCheck.join(', ')}
+
+Extract:
+1. DUTY RATE - Must cite source (e.g., "Per TARIC: 0%", "Per Israel Customs Tariff 2025: 12%")
+2. VAT RATE - Standard VAT for destination country
+3. EXCISE TAX - If applicable for this product category
+4. ANTI-DUMPING DUTY - If any applies
+5. PREFERENTIAL RATES - From trade agreements if origin qualifies
+
+CITATION FORMAT REQUIRED:
+"Rate: [X]% - Source: [Exact source from TAX_LEGAL_CONTEXT]"
+
+If not found:
+"Rate: NOT_FOUND_IN_CONTEXT - Requires manual lookup at [suggested source]"
+
+═══════════════════════════════════════════════════════════════════
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nDATA:\n${context}`;
+    const fullPrompt = `${systemPrompt}\n\n${taxLegalContext}\n\nCASE DATA:\n${context}`;
 
     const result = await invokeSpecializedLLM({
         prompt: fullPrompt,
@@ -125,9 +228,27 @@ Output JSON Schema:
                         primary: {
                             type: "object",
                             properties: {
-                                duty_rate: { type: "string" },
-                                vat_rate: { type: "string" }
+                                duty_rate: { type: "string", description: "Duty rate with source citation" },
+                                duty_rate_source: { type: "string", description: "Exact source from TAX_LEGAL_CONTEXT" },
+                                vat_rate: { type: "string", description: "VAT rate with source citation" },
+                                vat_rate_source: { type: "string", description: "Exact source for VAT" },
+                                excise_taxes: { type: "string", description: "Excise tax if applicable" },
+                                anti_dumping_duty: { type: "string", description: "Anti-dumping duty if applicable" },
+                                other_fees: { type: "string", description: "Any other fees" }
                             }
+                        },
+                        preferential_rates: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    trade_agreement: { type: "string" },
+                                    preferential_duty: { type: "string" },
+                                    origin_requirement: { type: "string" },
+                                    source_citation: { type: "string" }
+                                }
+                            },
+                            description: "Preferential rates from trade agreements"
                         },
                         alternatives: {
                             type: "array",
@@ -136,9 +257,20 @@ Output JSON Schema:
                                 properties: {
                                     hs_code: { type: "string" },
                                     duty_rate: { type: "string" },
+                                    duty_rate_source: { type: "string" },
                                     vat_rate: { type: "string" }
                                 }
                             }
+                        },
+                        data_gaps: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "List of rates NOT found in TAX_LEGAL_CONTEXT"
+                        },
+                        extraction_confidence: {
+                            type: "string",
+                            enum: ["high", "medium", "low"],
+                            description: "Confidence based on data availability in context"
                         }
                     }
                 }
@@ -147,43 +279,40 @@ Output JSON Schema:
         base44_client: base44
     });
 
-    // We'll update a new field 'tax_data' or merge into regulatory_data
-    // The previous agentRegulate updated 'regulatory_data'. 
-    // Since we split it, we should probably merge this into 'regulatory_data' or keep separate.
-    // The prompt asks for 'tax_data'. I'll update 'regulatory_data' partially or a new field.
-    // Let's assume we update a new field 'tax_calculation' to avoid overwriting compliance data yet, 
-    // OR we just map it to the existing structure. 
-    // The previous structure had 'duty_rate', 'vat_rate', 'import_requirements'.
-    // AgentTax provides rates. AgentCompliance provides requirements.
-    // I will update the rates part of 'regulatory_data' if it exists, or create it.
-    
-    // Fetch current regulatory_data to merge if exists (it might be empty)
-    const currentReg = report.regulatory_data || { primary: {}, alternatives: [] };
-    
-    // Merge logic
-    currentReg.primary = { ...currentReg.primary, ...result.tax_data.primary };
-    // Alternatives merge is trickier by index or code. Assuming order or mapping.
-    // Simpler: Just save tax_data. The orchestrator or UI can handle it. 
-    // But to keep UI working, I should try to populate regulatory_data.
-    
-    // Let's write to a temporary field 'tax_calculation_result' so we don't conflict, 
-    // and let the Orchestrator or a final merge step handle it? 
-    // Or just write to regulatory_data assuming Compliance will write to the other fields.
-    
-    // I'll write to 'regulatory_data' but carefully.
-    // Actually, simpler to just write it.
+    // Enrich with extraction metadata
+    const enrichedTaxData = {
+        ...result.tax_data,
+        extraction_metadata: {
+            legal_context_available: taxLegalContext.length > 100,
+            legal_context_chars: taxLegalContext.length,
+            extracted_from_retrieved_sources: true
+        }
+    };
     
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         regulatory_data: {
             ...report.regulatory_data,
-            primary: { ...(report.regulatory_data?.primary || {}), ...result.tax_data.primary },
-            alternatives: result.tax_data.alternatives // Simplified, ideally merge by code
+            primary: { 
+                ...(report.regulatory_data?.primary || {}), 
+                ...enrichedTaxData.primary,
+                preferential_rates: enrichedTaxData.preferential_rates
+            },
+            alternatives: enrichedTaxData.alternatives,
+            tax_extraction_metadata: enrichedTaxData.extraction_metadata
         },
         // Legacy support
-        tariff_description: `Duty: ${result.tax_data.primary.duty_rate}, VAT: ${result.tax_data.primary.vat_rate}`
+        tariff_description: `Duty: ${enrichedTaxData.primary.duty_rate}, VAT: ${enrichedTaxData.primary.vat_rate}`
     });
     
-    return Response.json({ success: true, status: 'tax_calculated', data: result.tax_data });
+    return Response.json({ 
+        success: true, 
+        status: 'tax_extracted', 
+        data: enrichedTaxData,
+        retrieval_metadata: {
+            legal_context_used: taxLegalContext.length > 0,
+            extraction_based: true
+        }
+    });
 
   } catch (error) {
     console.error('Agent Tax Error:', error);

@@ -51,6 +51,100 @@ async function invokeSpecializedLLM({ prompt, response_schema, base44_client }) 
 
 // --- END INLINED GATEWAY ---
 
+/**
+ * TARIFF-AI 2.0: Extract compliance-relevant data from retrieved legal text corpus
+ * This function builds the compliance context from previously scraped sources
+ */
+function buildComplianceLegalContext(researchFindings, structuralAnalysis) {
+  const sections = [];
+  
+  // 1. Raw Legal Text Corpus - extract compliance-specific content
+  if (researchFindings?.raw_legal_text_corpus) {
+    const legalText = researchFindings.raw_legal_text_corpus;
+    const complianceKeywords = [
+      'license', 'permit', 'standard', 'certification', 'label', 'require',
+      'prohibit', 'restrict', 'approval', 'regulation', 'compliance',
+      'רישיון', 'תקן', 'אישור', 'תקנות', 'יבוא'
+    ];
+    
+    const paragraphs = legalText.split(/\n\n+/);
+    const relevantParagraphs = paragraphs.filter(p => 
+      complianceKeywords.some(kw => p.toLowerCase().includes(kw))
+    ).slice(0, 25); // Max 25 relevant paragraphs
+    
+    if (relevantParagraphs.length > 0) {
+      sections.push(`
+═══════════════════════════════════════════════════════════════════
+REGULATORY DATA FROM LEGAL TEXT CORPUS
+(Extract requirements ONLY from this text - do not assume)
+═══════════════════════════════════════════════════════════════════
+${relevantParagraphs.join('\n\n')}
+═══════════════════════════════════════════════════════════════════`);
+    }
+  }
+  
+  // 2. Verified Sources with regulation links
+  if (researchFindings?.verified_sources?.length > 0) {
+    const regSources = researchFindings.verified_sources.filter(s =>
+      s.title?.toLowerCase().includes('regulation') ||
+      s.title?.toLowerCase().includes('standard') ||
+      s.title?.toLowerCase().includes('requirement') ||
+      s.authority_tier === '1' || s.authority_tier === '2'
+    );
+    
+    if (regSources.length > 0) {
+      const sourcesText = regSources.map(s => `
+Source: ${s.title}
+Authority: Tier ${s.authority_tier}
+Date: ${s.date}
+URL: ${s.url || 'N/A'}
+Excerpt: ${s.snippet || 'N/A'}
+`).join('\n');
+      
+      sections.push(`
+═══════════════════════════════════════════════════════════════════
+VERIFIED REGULATORY SOURCES
+═══════════════════════════════════════════════════════════════════
+${sourcesText}
+═══════════════════════════════════════════════════════════════════`);
+    }
+  }
+  
+  // 3. Legal Notes that may contain compliance info
+  if (researchFindings?.legal_notes_found?.length > 0) {
+    const complianceNotes = researchFindings.legal_notes_found.filter(n =>
+      n.toLowerCase().includes('require') ||
+      n.toLowerCase().includes('standard') ||
+      n.toLowerCase().includes('certif') ||
+      n.toLowerCase().includes('license')
+    );
+    
+    if (complianceNotes.length > 0) {
+      sections.push(`
+═══════════════════════════════════════════════════════════════════
+COMPLIANCE-RELATED LEGAL NOTES
+═══════════════════════════════════════════════════════════════════
+${complianceNotes.join('\n\n')}
+═══════════════════════════════════════════════════════════════════`);
+    }
+  }
+  
+  // 4. Industry-specific data that may affect compliance
+  if (structuralAnalysis?.industry_category) {
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+PRODUCT INDUSTRY CONTEXT
+═══════════════════════════════════════════════════════════════════
+Industry: ${structuralAnalysis.industry_category}
+Function: ${structuralAnalysis.function || 'N/A'}
+Material: ${structuralAnalysis.material_composition || 'N/A'}
+Essential Character: ${structuralAnalysis.essential_character || 'N/A'}
+═══════════════════════════════════════════════════════════════════`);
+  }
+  
+  return sections.join('\n\n');
+}
+
 export default Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -63,6 +157,13 @@ export default Deno.serve(async (req) => {
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
+
+    // ═══════════════════════════════════════════════════════════════════
+    // TARIFF-AI 2.0: Build COMPLIANCE_LEGAL_CONTEXT from retrieved sources
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('[AgentCompliance] Building compliance legal context from retrieved sources');
+    const complianceLegalContext = buildComplianceLegalContext(report.research_findings, report.structural_analysis);
+    console.log(`[AgentCompliance] Compliance legal context: ${complianceLegalContext.length} chars`);
 
     const kbContext = knowledgeBase ? `
 Knowledge Base for ${knowledgeBase.country}:
@@ -79,65 +180,67 @@ ${kbContext}
 `;
 
     const systemPrompt = `
-You are a REGULATORY COMPLIANCE EXPERT specializing in international trade and import requirements.
-
-YOUR MISSION: Find ALL official regulatory requirements for importing this product.
+You are a REGULATORY COMPLIANCE EXTRACTION SPECIALIST.
 
 ═══════════════════════════════════════════════════════════════════
-RESEARCH AREAS - CHECK ALL:
+TARIFF-AI 2.0: RETRIEVE & DEDUCE PROTOCOL FOR COMPLIANCE DATA
 ═══════════════════════════════════════════════════════════════════
+
+CRITICAL INSTRUCTION: You have been provided with COMPLIANCE_LEGAL_CONTEXT containing:
+- Retrieved regulatory text from official sources
+- Verified regulatory sources with URLs
+- Legal notes with compliance requirements
+
+YOUR EXTRACTION MUST:
+1. EXTRACT requirements ONLY from the COMPLIANCE_LEGAL_CONTEXT provided
+2. Cite the exact source for each requirement
+3. If requirement not found in context, mark as "NOT_FOUND_IN_CONTEXT - Requires verification"
+4. Flag any data gaps clearly
+5. Do NOT assume or invent requirements not in the context
+
+═══════════════════════════════════════════════════════════════════
+
+EXTRACTION TASK:
+═══════════════════════════════════════════════════════════════════
+
+For destination country: ${report.destination_country}
+For product: ${report.product_name}
+For HS Code: ${report.classification_results?.primary?.hs_code}
+
+Extract from COMPLIANCE_LEGAL_CONTEXT:
 
 **1. IMPORT LICENSES & PERMITS**
-- Does this product require an import license?
-- Which government ministry/agency issues permits?
-- Is this a "controlled" or "restricted" item?
-- Automatic vs. non-automatic licensing
+- Extract any license requirements mentioned in the legal text
+- Cite source: "Per [Source]: '[exact quote]'"
 
 **2. MANDATORY STANDARDS**
-- Local standards (ISO, CE, local standards institute)
-- Safety certifications required
-- Testing/certification bodies recognized
-- Standard numbers (e.g., "SI 900" for Israel, "EN 60950" for EU)
+- Extract standard numbers mentioned (ISO, CE, SI, EN, etc.)
+- Cite source for each standard
 
 **3. LABELING REQUIREMENTS**
-- Language requirements (Hebrew, Arabic, local language)
-- Mandatory label content (origin, ingredients, warnings)
-- Energy efficiency labels
-- Size/placement requirements
+- Extract labeling rules from legal text
+- Cite source
 
-**4. HEALTH & SAFETY**
-- Food safety certifications (for food products)
-- Pharmaceutical approvals (for medical products)
-- Cosmetic regulations
-- Chemical safety (REACH, etc.)
+**4. CERTIFICATIONS**
+- Extract certification requirements
+- Cite testing bodies mentioned
 
-**5. ENVIRONMENTAL COMPLIANCE**
-- RoHS/WEEE (for electronics)
-- Packaging regulations
-- Recycling requirements
-- Carbon footprint declarations
-
-**6. SPECIAL SECTOR REQUIREMENTS**
-- Telecom equipment approvals
-- Radio frequency certifications
-- Encryption regulations
-- Dual-use goods controls
-
-**7. PROHIBITED/RESTRICTED ITEMS**
-- Outright bans
-- Quota restrictions
-- Seasonal restrictions
-- Country-of-origin restrictions
+**5. PROHIBITIONS/RESTRICTIONS**
+- Extract any bans or restrictions mentioned
+- Cite source
 
 ═══════════════════════════════════════════════════════════════════
-OUTPUT: Provide ACTIONABLE requirements with:
-- Specific standard/regulation numbers
-- Issuing authority
-- Verification URLs where possible
+CITATION FORMAT REQUIRED:
+"Requirement: [Description] - Source: [Exact source from COMPLIANCE_LEGAL_CONTEXT]"
+
+If not found in context:
+"Requirement: NOT_FOUND_IN_CONTEXT - Requires manual verification at [suggested authority]"
+
+IMPORTANT: Do NOT invent requirements. Only extract what is explicitly stated.
 ═══════════════════════════════════════════════════════════════════
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nDATA:\n${context}`;
+    const fullPrompt = `${systemPrompt}\n\n${complianceLegalContext}\n\nCASE DATA:\n${context}`;
 
     const result = await invokeSpecializedLLM({
         prompt: fullPrompt,
@@ -153,6 +256,7 @@ OUTPUT: Provide ACTIONABLE requirements with:
                                 type: "object",
                                 properties: {
                                     requirement: { type: "string" },
+                                    source_citation: { type: "string", description: "Exact source from COMPLIANCE_LEGAL_CONTEXT" },
                                     verification_url: { type: "string" }
                                 }
                             } 
@@ -163,19 +267,39 @@ OUTPUT: Provide ACTIONABLE requirements with:
                                 type: "object",
                                 properties: {
                                     standard: { type: "string" },
+                                    source_citation: { type: "string", description: "Exact source from context" },
                                     issuing_body: { type: "string" },
                                     verification_url: { type: "string" }
                                 }
                             } 
                         },
-                        labeling_laws: { type: "array", items: { type: "string" } },
-                        prohibitions: { type: "array", items: { type: "string" } },
+                        labeling_laws: { 
+                            type: "array", 
+                            items: { 
+                                type: "object",
+                                properties: {
+                                    requirement: { type: "string" },
+                                    source_citation: { type: "string" }
+                                }
+                            } 
+                        },
+                        prohibitions: { 
+                            type: "array", 
+                            items: { 
+                                type: "object",
+                                properties: {
+                                    prohibition: { type: "string" },
+                                    source_citation: { type: "string" }
+                                }
+                            } 
+                        },
                         licenses_required: {
                             type: "array",
                             items: {
                                 type: "object",
                                 properties: {
                                     license_type: { type: "string" },
+                                    source_citation: { type: "string" },
                                     issuing_authority: { type: "string" },
                                     application_url: { type: "string" }
                                 }
@@ -187,6 +311,7 @@ OUTPUT: Provide ACTIONABLE requirements with:
                                 type: "object",
                                 properties: {
                                     certification: { type: "string" },
+                                    source_citation: { type: "string" },
                                     testing_body: { type: "string" },
                                     validity_period: { type: "string" }
                                 }
@@ -194,8 +319,18 @@ OUTPUT: Provide ACTIONABLE requirements with:
                         },
                         import_legality: {
                             type: "string",
-                            enum: ["freely_importable", "requires_license", "restricted", "prohibited"],
-                            description: "Overall import legality status"
+                            enum: ["freely_importable", "requires_license", "restricted", "prohibited", "unknown"],
+                            description: "Overall import legality status based on extracted data"
+                        },
+                        data_gaps: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Requirements NOT found in COMPLIANCE_LEGAL_CONTEXT"
+                        },
+                        extraction_confidence: {
+                            type: "string",
+                            enum: ["high", "medium", "low"],
+                            description: "Confidence based on data availability in context"
                         }
                     }
                 }
@@ -204,23 +339,40 @@ OUTPUT: Provide ACTIONABLE requirements with:
         base44_client: base44
     });
 
-    // Merge into regulatory_data with enhanced structure
+    // Enrich with extraction metadata
     const complianceData = result.compliance_data || {};
+    const enrichedComplianceData = {
+        ...complianceData,
+        extraction_metadata: {
+            legal_context_available: complianceLegalContext.length > 100,
+            legal_context_chars: complianceLegalContext.length,
+            extracted_from_retrieved_sources: true
+        }
+    };
     
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         regulatory_data: {
             ...(report.regulatory_data || {}),
             primary: {
                 ...(report.regulatory_data?.primary || {}),
-                import_requirements: complianceData.import_requirements || [],
-                standards_requirements: complianceData.mandatory_standards || [],
-                import_legality: complianceData.import_legality || 'freely_importable'
+                import_requirements: enrichedComplianceData.import_requirements || [],
+                standards_requirements: enrichedComplianceData.mandatory_standards || [],
+                import_legality: enrichedComplianceData.import_legality || 'unknown'
             },
-            compliance_details: complianceData
+            compliance_details: enrichedComplianceData,
+            compliance_extraction_metadata: enrichedComplianceData.extraction_metadata
         }
     });
     
-    return Response.json({ success: true, status: 'compliance_checked', data: complianceData });
+    return Response.json({ 
+        success: true, 
+        status: 'compliance_extracted', 
+        data: enrichedComplianceData,
+        retrieval_metadata: {
+            legal_context_used: complianceLegalContext.length > 0,
+            extraction_based: true
+        }
+    });
 
   } catch (error) {
     console.error('Agent Compliance Error:', error);
