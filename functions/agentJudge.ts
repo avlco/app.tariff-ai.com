@@ -192,6 +192,115 @@ DECISION: RESOLVED at GRI 4 with the most akin heading.`
 
 // --- END GIR STATE MACHINE ---
 
+/**
+ * Extract and format legal text corpus for prompt injection
+ * This is the KEY to "Retrieve & Deduce" - we inject ACTUAL legal text
+ */
+function buildLegalTextContext(researchFindings, structuralAnalysis) {
+  const sections = [];
+  
+  // 1. Raw Legal Text Corpus (from WebScraper)
+  if (researchFindings?.raw_legal_text_corpus) {
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+LEGAL TEXT CORPUS (Retrieved from Official Sources)
+USE THIS AS PRIMARY REFERENCE. Quote from this text directly.
+═══════════════════════════════════════════════════════════════════
+${researchFindings.raw_legal_text_corpus.substring(0, 25000)}
+═══════════════════════════════════════════════════════════════════`);
+  }
+  
+  // 2. Candidate Headings with EN Summaries
+  if (researchFindings?.candidate_headings?.length > 0) {
+    const headingsText = researchFindings.candidate_headings.map(h => `
+HEADING ${h.code_4_digit}: ${h.description}
+Likelihood: ${h.likelihood}
+${h.explanatory_note_summary ? `Explanatory Notes: "${h.explanatory_note_summary}"` : ''}
+${h.section_chapter_notes?.length > 0 ? `Section/Chapter Notes: ${h.section_chapter_notes.join('; ')}` : ''}
+`).join('\n');
+    
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+CANDIDATE HEADINGS WITH EXPLANATORY NOTES
+═══════════════════════════════════════════════════════════════════
+${headingsText}`);
+  }
+  
+  // 3. WCO Precedents
+  if (researchFindings?.wco_precedents?.length > 0) {
+    const precedentsText = researchFindings.wco_precedents.map(p => `
+WCO Opinion ${p.opinion_number} (${p.date}):
+Product: ${p.product}
+Classification: ${p.classification}
+Reasoning: ${p.reasoning}
+Source: ${p.url || 'WCO CROSS Database'}
+`).join('\n');
+    
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+WCO CLASSIFICATION PRECEDENTS
+═══════════════════════════════════════════════════════════════════
+${precedentsText}`);
+  }
+  
+  // 4. BTI Cases
+  if (researchFindings?.bti_cases?.length > 0) {
+    const btiText = researchFindings.bti_cases.map(b => `
+BTI ${b.reference} (${b.country}, ${b.date}):
+Product: ${b.product_description}
+Classification: ${b.hs_code}
+`).join('\n');
+    
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+BINDING TARIFF INFORMATION (BTI) CASES
+═══════════════════════════════════════════════════════════════════
+${btiText}`);
+  }
+  
+  // 5. Section/Chapter Notes
+  if (researchFindings?.legal_notes_found?.length > 0) {
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+SECTION & CHAPTER NOTES
+═══════════════════════════════════════════════════════════════════
+${researchFindings.legal_notes_found.join('\n\n')}`);
+  }
+  
+  // 6. EN Exclusions
+  if (researchFindings?.en_exclusions?.length > 0) {
+    const exclusionsText = researchFindings.en_exclusions.map(e => 
+      `Heading ${e.heading}: "${e.exclusion_text}" → See ${e.redirect_heading}`
+    ).join('\n');
+    
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+EXPLANATORY NOTE EXCLUSIONS
+(These explicitly redirect products to other headings)
+═══════════════════════════════════════════════════════════════════
+${exclusionsText}`);
+  }
+  
+  // 7. Composite Analysis from Agent Analyze
+  if (structuralAnalysis?.composite_analysis?.is_composite) {
+    const ca = structuralAnalysis.composite_analysis;
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+COMPOSITE GOODS ANALYSIS (from Product Analyst)
+═══════════════════════════════════════════════════════════════════
+Composite Type: ${ca.composite_type}
+Essential Character Component: ${ca.essential_character_component}
+Reasoning: ${ca.essential_character_reasoning}
+Factors:
+- Value Dominant: ${ca.essential_character_factors?.value_dominant || 'N/A'}
+- Bulk Dominant: ${ca.essential_character_factors?.bulk_dominant || 'N/A'}
+- Function Dominant: ${ca.essential_character_factors?.function_dominant || 'N/A'}
+- User Perception: ${ca.essential_character_factors?.user_perception || 'N/A'}`);
+  }
+  
+  return sections.join('\n\n');
+}
+
 export default Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -212,6 +321,13 @@ export default Deno.serve(async (req) => {
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'classifying_hs'
     });
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // TARIFF-AI 2.0: Build LEGAL_TEXT_CONTEXT from retrieved sources
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('[AgentJudge] Building legal text context from retrieved sources');
+    const legalTextContext = buildLegalTextContext(report.research_findings, report.structural_analysis);
+    console.log(`[AgentJudge] Legal text context: ${legalTextContext.length} chars`);
     
     // Extract Explanatory Notes guidance from research findings
     const enGuidance = report.research_findings?.candidate_headings?.map(h =>
