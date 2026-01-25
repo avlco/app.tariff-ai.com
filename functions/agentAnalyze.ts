@@ -48,6 +48,121 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 
 // --- END INLINED GATEWAY ---
 
+// === Task 3.1: Validate composite analysis output ===
+function validateCompositeAnalysis(result) {
+  const issues = [];
+  const compositeAnalysis = result.composite_analysis;
+  const technicalSpec = result.technical_spec;
+  const girPath = result.potential_gir_path;
+  
+  // Rule 1: If is_composite=true, must have components_breakdown
+  if (compositeAnalysis?.is_composite === true) {
+    if (!technicalSpec?.components_breakdown || technicalSpec.components_breakdown.length < 2) {
+      issues.push({
+        type: 'composite_no_components',
+        severity: 'high',
+        description: 'Composite product detected but components_breakdown missing or has < 2 components'
+      });
+    }
+    
+    // Rule 2: If composite, must have essential_character_component
+    if (!compositeAnalysis.essential_character_component) {
+      issues.push({
+        type: 'composite_no_essential_char',
+        severity: 'high',
+        description: 'Composite product missing essential_character_component identification'
+      });
+    }
+    
+    // Rule 3: If composite, must have essential_character_reasoning
+    if (!compositeAnalysis.essential_character_reasoning || compositeAnalysis.essential_character_reasoning.length < 30) {
+      issues.push({
+        type: 'composite_weak_reasoning',
+        severity: 'medium',
+        description: 'Essential character reasoning is missing or too brief'
+      });
+    }
+  }
+  
+  // Rule 4: If GRI_3b predicted, composite_analysis must be complete
+  if (girPath === 'GRI_3b') {
+    if (!compositeAnalysis?.is_composite) {
+      issues.push({
+        type: 'gri3b_not_composite',
+        severity: 'high',
+        description: 'GRI_3b predicted but is_composite is false - inconsistent'
+      });
+    }
+    if (!compositeAnalysis?.essential_character_factors) {
+      issues.push({
+        type: 'gri3b_no_factors',
+        severity: 'medium',
+        description: 'GRI_3b requires essential_character_factors (value/bulk/function dominance)'
+      });
+    }
+  }
+  
+  // Rule 5: Components should have percentages if composite
+  if (compositeAnalysis?.is_composite && technicalSpec?.components_breakdown?.length >= 2) {
+    const hasPercentages = technicalSpec.components_breakdown.some(c => 
+      c.value_percent !== undefined || c.weight_percent !== undefined
+    );
+    if (!hasPercentages) {
+      issues.push({
+        type: 'components_no_percentages',
+        severity: 'medium',
+        description: 'Component breakdown should include value_percent and weight_percent'
+      });
+    }
+  }
+  
+  return issues;
+}
+
+// === Task 3.2: Generate feedback for self-healing retry ===
+function generateAnalysisFeedback(validationIssues) {
+  const feedbackLines = [
+    '\n═══════════════════════════════════════════════════════════════════',
+    'VALIDATION FAILED - SELF-HEALING RETRY',
+    '═══════════════════════════════════════════════════════════════════',
+    '',
+    'The following issues were detected in your analysis:'
+  ];
+  
+  for (const issue of validationIssues) {
+    feedbackLines.push(`❌ [${issue.severity.toUpperCase()}] ${issue.type}: ${issue.description}`);
+  }
+  
+  feedbackLines.push('');
+  feedbackLines.push('CORRECTIONS REQUIRED:');
+  
+  if (validationIssues.some(i => i.type === 'composite_no_components')) {
+    feedbackLines.push('- Provide components_breakdown array with AT LEAST 2 components');
+    feedbackLines.push('- Each component needs: name, material, value_percent, weight_percent, function');
+  }
+  
+  if (validationIssues.some(i => i.type === 'composite_no_essential_char')) {
+    feedbackLines.push('- Specify essential_character_component: which component gives essential character');
+  }
+  
+  if (validationIssues.some(i => i.type === 'gri3b_not_composite')) {
+    feedbackLines.push('- If GRI_3b is needed, is_composite MUST be true');
+    feedbackLines.push('- Reconsider: Is this truly a composite/mixed/set product?');
+  }
+  
+  if (validationIssues.some(i => i.type === 'gri3b_no_factors')) {
+    feedbackLines.push('- Provide essential_character_factors with value_dominant, bulk_dominant, function_dominant');
+  }
+  
+  if (validationIssues.some(i => i.type === 'components_no_percentages')) {
+    feedbackLines.push('- Add value_percent and weight_percent to each component');
+  }
+  
+  feedbackLines.push('═══════════════════════════════════════════════════════════════════');
+  
+  return feedbackLines.join('\n');
+}
+
 export default Deno.serve(async (req) => {
   const startTime = Date.now();
   console.log('[AgentAnalyze] ═══════════════════════════════════════════');
@@ -324,9 +439,30 @@ Return JSON with:
 - ALWAYS include search_queries object for research phase
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nINPUT DATA:\n${context}\n${kbContext}`;
+    // === Task 3.3a: Focus-specific prompt injection ===
+    let focusPrompt = '';
+    if (conversationContext?.focus === 'composite_analysis') {
+      focusPrompt = `
+═══════════════════════════════════════════════════════════════════
+⚠️ FOCUS: COMPOSITE ANALYSIS REQUIRED
+═══════════════════════════════════════════════════════════════════
+Previous analysis was insufficient for composite goods classification.
+You MUST provide:
+1. is_composite: true (if multiple components/materials)
+2. components_breakdown: Array with ALL components, each having value_percent and weight_percent
+3. essential_character_component: Which component dominates
+4. essential_character_reasoning: Detailed justification (cite value/bulk/function)
+5. essential_character_factors: { value_dominant, bulk_dominant, function_dominant, user_perception }
 
-    const result = await invokeSpecializedLLM({
+This is REQUIRED for proper GRI 3(b) classification.
+═══════════════════════════════════════════════════════════════════
+`;
+    }
+
+    const fullPrompt = `${systemPrompt}\n\n${focusPrompt}INPUT DATA:\n${context}\n${kbContext}`;
+
+    // Store response schema for retry
+    const responseSchema = {
         prompt: fullPrompt,
         task_type: 'analysis',
         response_schema: {
@@ -478,11 +614,82 @@ Return JSON with:
                 }
             },
             required: ["status"]
-        },
-        base44_client: base44
-    });
+        };
 
     const duration = Date.now() - startTime;
+    
+    // === Task 3.3b: Self-healing loop for composite analysis ===
+    let validationIssues = [];
+    let highSeverityIssues = [];
+    
+    if (result.status === 'success') {
+      validationIssues = validateCompositeAnalysis(result);
+      highSeverityIssues = validationIssues.filter(i => i.severity === 'high');
+      
+      console.log(`[AgentAnalyze] Validation: ${validationIssues.length} issues (${highSeverityIssues.length} critical)`);
+      
+      // Log validation issues
+      if (validationIssues.length > 0) {
+        const issuesSummary = validationIssues.map(i => `[${i.severity}] ${i.type}`).join(', ');
+        try {
+          const currentLog = report.processing_log || [];
+          await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+            processing_log: [...currentLog, {
+              timestamp: new Date().toISOString(),
+              stage: 'analyst_validation',
+              message: `Composite validation issues: ${issuesSummary}`,
+              status: highSeverityIssues.length > 0 ? 'warning' : 'info'
+            }]
+          });
+        } catch (logError) {
+          console.warn('[AgentAnalyze] Failed to log validation issues:', logError.message);
+        }
+      }
+      
+      // Self-healing: Retry if critical issues found (max 1 retry)
+      if (highSeverityIssues.length > 0) {
+        console.log('[AgentAnalyze] ⚠️ Critical validation issues - attempting self-healing retry');
+        
+        const selfHealFeedback = generateAnalysisFeedback(validationIssues);
+        const retryPrompt = fullPrompt + '\n\n' + selfHealFeedback;
+        
+        console.log(`[AgentAnalyze] Retry prompt length: ${retryPrompt.length} chars`);
+        
+        result = await invokeSpecializedLLM({
+          prompt: retryPrompt,
+          task_type: 'analysis',
+          response_schema: responseSchema,
+          base44_client: base44
+        });
+        
+        // Re-validate
+        validationIssues = validateCompositeAnalysis(result);
+        const remainingHighIssues = validationIssues.filter(i => i.severity === 'high');
+        
+        console.log(`[AgentAnalyze] Post-retry validation: ${validationIssues.length} issues (${remainingHighIssues.length} critical)`);
+        
+        // Log retry result
+        try {
+          const currentLog = report.processing_log || [];
+          await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+            processing_log: [...currentLog, {
+              timestamp: new Date().toISOString(),
+              stage: 'analyst_self_healing',
+              message: remainingHighIssues.length === 0 
+                ? 'Self-healing successful - composite analysis complete'
+                : `Self-healing partial - ${remainingHighIssues.length} critical issues remain`,
+              status: remainingHighIssues.length === 0 ? 'success' : 'warning'
+            }]
+          });
+        } catch (logError) {
+          console.warn('[AgentAnalyze] Failed to log self-healing result:', logError.message);
+        }
+        
+        // Update for final check
+        highSeverityIssues = remainingHighIssues;
+      }
+    }
+    // === END SELF-HEALING ===
     console.log(`[AgentAnalyze] LLM call completed in ${duration}ms`);
     
     if (result.status === 'insufficient_data') {
@@ -518,24 +725,30 @@ Return JSON with:
         console.log(`[AgentAnalyze] ═══════════════════════════════════════════`);
         return Response.json({ success: true, status: 'waiting_for_user', question: result.missing_info_question });
     } else {
-        // Enrich technical_spec with composite analysis and search queries
+        // === Task 3.4: Enrich technical_spec with validation metadata ===
         const enrichedSpec = {
             ...result.technical_spec,
             composite_analysis: result.composite_analysis || { is_composite: false, composite_type: 'single_component' },
             search_queries: result.search_queries || {},
             industry_category: result.industry_category,
             potential_gir_path: result.potential_gir_path,
-            classification_guidance_notes: result.classification_guidance_notes
+            classification_guidance_notes: result.classification_guidance_notes,
+            // Validation metadata
+            validation_issues_count: validationIssues.length,
+            self_healing_applied: highSeverityIssues.length > 0
         };
         
-        // Log analysis results
+        // === Task 3.5: Updated console logs ===
         console.log(`[AgentAnalyze] ✓ Analysis complete:`);
         console.log(`[AgentAnalyze]   - Standardized name: ${enrichedSpec.standardized_name}`);
         console.log(`[AgentAnalyze]   - Industry: ${enrichedSpec.industry_category}`);
         console.log(`[AgentAnalyze]   - Composite: ${enrichedSpec.composite_analysis?.is_composite ? 'YES - ' + enrichedSpec.composite_analysis.composite_type : 'NO'}`);
-        console.log(`[AgentAnalyze]   - Essential character: ${enrichedSpec.essential_character || 'N/A'}`);
+        console.log(`[AgentAnalyze]   - Essential character: ${enrichedSpec.composite_analysis?.essential_character_component || enrichedSpec.essential_character || 'N/A'}`);
+        console.log(`[AgentAnalyze]   - Components: ${enrichedSpec.components_breakdown?.length || 0}`);
         console.log(`[AgentAnalyze]   - GIR path prediction: ${enrichedSpec.potential_gir_path || 'GRI_1'}`);
         console.log(`[AgentAnalyze]   - Readiness score: ${enrichedSpec.readiness_score || 'N/A'}`);
+        console.log(`[AgentAnalyze]   - Self-Healing: ${enrichedSpec.self_healing_applied ? 'YES' : 'NO'}`);
+        console.log(`[AgentAnalyze]   - Validation Issues: ${enrichedSpec.validation_issues_count}`);
         console.log(`[AgentAnalyze]   - Duration: ${duration}ms`);
         console.log(`[AgentAnalyze] ═══════════════════════════════════════════`);
         
