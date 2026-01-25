@@ -704,6 +704,17 @@ OUTPUT: Return comprehensive JSON with all research findings.
         base44_client: base44
     });
 
+    // === DATA NORMALIZATION ===
+    // LLM may return objects instead of strings for legal_notes_found - normalize them
+    const normalizedLegalNotes = (result.legal_notes_found || []).map(note => {
+      if (typeof note === 'string') return note;
+      if (typeof note === 'object' && note !== null) {
+        // Convert object to string representation
+        return note.exclusion_text || note.text || note.note || JSON.stringify(note);
+      }
+      return String(note);
+    }).filter(Boolean);
+
     // Task 5.4: Extract structured EN data for candidate headings
     const candidateHeadingsWithEN = (result.candidate_headings || []).map(heading => {
       const enData = extractStructuredEN(processedCorpus, heading.code_4_digit);
@@ -721,6 +732,8 @@ OUTPUT: Return comprehensive JSON with all research findings.
       ...result,
       // Override candidate_headings with EN-enriched version
       candidate_headings: candidateHeadingsWithEN,
+      // Override legal_notes_found with normalized strings
+      legal_notes_found: normalizedLegalNotes,
       // Tariff-AI 2.0 metadata
       retrieval_metadata: {
         country_validated: officialSources.country_validated,
