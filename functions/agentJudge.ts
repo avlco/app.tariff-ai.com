@@ -798,10 +798,8 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
     
     console.log(`[AgentJudge] Full prompt length: ${fullPrompt.length} chars`);
 
-    const result = await invokeSpecializedLLM({
-        prompt: fullPrompt,
-        task_type: 'reasoning',
-        response_schema: {
+    // Response schema for LLM
+    const responseSchema = {
             type: "object",
             properties: {
                 classification_results: {
