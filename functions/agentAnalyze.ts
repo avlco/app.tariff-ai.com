@@ -275,6 +275,35 @@ Questions should be SPECIFIC, not generic:
 ✗ "Can you provide more details?" (too vague)
 
 ═══════════════════════════════════════════════════════════════════
+SEARCH QUERY GENERATION (Multi-Lingual):
+═══════════════════════════════════════════════════════════════════
+
+Generate targeted search queries in MULTIPLE LANGUAGES for research phase:
+
+1. **English (International)** - Always include
+   Format: "[product type] HS classification [specific attribute]"
+   Example: "laptop computer HS classification data processing machine"
+
+2. **Destination Country Language** - Required
+   For Israel: Hebrew queries
+   For EU: English + French/German if relevant
+   For China: Simplified Chinese + English
+   
+   Example for Israel destination:
+   - Hebrew: "מחשב נייד סיווג מכס קוד HS"
+   - Hebrew: "ציוד עיבוד נתונים אוטומטי פרק 84"
+
+3. **WCO/Trade Terms** - Technical queries
+   Format: "[HS heading] explanatory notes [product feature]"
+   Example: "8471 explanatory notes portable computer"
+
+Query Categories:
+- hs_search_queries: Direct HS lookup queries
+- legal_notes_queries: Explanatory notes searches
+- precedent_queries: BTI/ruling searches
+- country_specific_queries: National tariff queries
+
+═══════════════════════════════════════════════════════════════════
 OUTPUT REQUIREMENTS:
 ═══════════════════════════════════════════════════════════════════
 
@@ -282,6 +311,7 @@ Return JSON with:
 - status: "success" or "insufficient_data"
 - If insufficient: specific question in user's language
 - If success: complete technical_spec with industry-specific details
+- ALWAYS include search_queries object for research phase
 `;
 
     const fullPrompt = `${systemPrompt}\n\nINPUT DATA:\n${context}\n${kbContext}`;
