@@ -721,4 +721,470 @@ export function validateHsCodeInContent(content, hsCode) {
   };
 }
 
+// ============================================================================
+// Task 5.1: Source Authority Classification (5.2a.1)
+// ============================================================================
+
+/**
+ * Tier 1: Official government customs authorities and WCO
+ */
+const TIER1_DOMAINS = [
+  // International organizations
+  'wcoomd.org', 'wto.org', 'wcotradetools.org',
+  // Israel
+  'gov.il', 'customs.gov.il', 'mof.gov.il', 'taxes.gov.il', 'shaarolami',
+  // USA
+  'cbp.gov', 'usitc.gov', 'trade.gov',
+  // EU
+  'ec.europa.eu', 'taxation_customs',
+  // UK
+  'gov.uk', 'hmrc.gov.uk',
+  // China
+  'customs.gov.cn', 'mofcom.gov.cn',
+  // Japan
+  'customs.go.jp', 'meti.go.jp',
+  // Germany
+  'zoll.de', 'bmwk.de',
+  // France
+  'douane.gouv.fr',
+  // Canada
+  'cbsa-asfc.gc.ca',
+  // Australia
+  'abf.gov.au', 'homeaffairs.gov.au'
+];
+
+/**
+ * Tier 2: Official government trade/commerce departments
+ */
+const TIER2_DOMAINS = [
+  'eur-lex.europa.eu', 'legislation.gov',
+  'export.gov', 'commerce.gov',
+  'trade.ec.europa.eu',
+  'wipo.int', 'unctad.org',
+  'itamaraty.gov.br', 'economia.gob.mx'
+];
+
+/**
+ * Classify source authority based on URL domain
+ * @param {string} url - URL to classify
+ * @returns {string} Authority tier: '1' (highest), '2' (medium), '3' (reference only)
+ */
+export function classifySourceAuthority(url) {
+  if (!url) return '3';
+  const urlLower = url.toLowerCase();
+  
+  // Check Tier 1 domains
+  if (TIER1_DOMAINS.some(d => urlLower.includes(d))) return '1';
+  
+  // Check Tier 2 domains
+  if (TIER2_DOMAINS.some(d => urlLower.includes(d))) return '2';
+  
+  // Default to Tier 3 (reference only)
+  return '3';
+}
+
+/**
+ * Filter sources by minimum authority tier
+ * @param {Array} sources - Array of source objects with url property
+ * @param {string} minTier - Minimum tier ('1', '2', or '3')
+ * @returns {Array} Filtered sources
+ */
+export function filterSourcesByTier(sources, minTier = '2') {
+  if (!Array.isArray(sources)) return [];
+  
+  return sources.filter(s => {
+    const tier = classifySourceAuthority(s.url);
+    return parseInt(tier) <= parseInt(minTier);
+  });
+}
+
+// ============================================================================
+// Task 5.2: Enhanced Deep Link Scraping (5.2b.1)
+// ============================================================================
+
+/**
+ * Extract internal links from HTML content
+ * @param {string} html - HTML content
+ * @param {string} baseDomain - Base domain to filter internal links
+ * @returns {Array<string>} Array of internal URLs
+ */
+function extractInternalLinks(html, baseDomain) {
+  if (!html || !baseDomain) return [];
+  
+  const linkPattern = /href=["']([^"'#]+)["']/gi;
+  const links = [];
+  let match;
+  
+  while ((match = linkPattern.exec(html)) !== null) {
+    try {
+      const href = match[1];
+      // Only include http links from same domain
+      if (href.startsWith('http') && href.includes(baseDomain)) {
+        // Filter out common non-content links
+        if (!href.includes('login') && 
+            !href.includes('signup') && 
+            !href.includes('contact') &&
+            !href.includes('cookie') &&
+            !href.includes('privacy') &&
+            !href.includes('.pdf') &&
+            !href.includes('.zip')) {
+          links.push(href);
+        }
+      }
+    } catch (e) {
+      // Skip invalid URLs
+    }
+  }
+  
+  return [...new Set(links)]; // Remove duplicates
+}
+
+/**
+ * Scrape URL with recursive depth following internal links
+ * Used when expand_search is enabled for richer legal text corpus
+ * 
+ * @param {string} url - Starting URL to scrape
+ * @param {object} options - Scraping options
+ * @param {number} options.maxDepth - Maximum link depth to follow (default: 1)
+ * @param {number} options.maxLinks - Maximum links to follow per page (default: 3)
+ * @param {Set} options.visitedUrls - Already visited URLs (for recursion)
+ * @returns {object} Scraping result with combined content
+ */
+export async function scrapeWithDepth(url, options = {}) {
+  const {
+    maxDepth = 1,
+    currentDepth = 0,
+    visitedUrls = new Set(),
+    maxLinks = 3,
+    hsCode = null,
+    searchTerms = [],
+    preserveStructure = true,
+    maxLength = 20000
+  } = options;
+
+  // Prevent infinite loops and respect depth limit
+  if (currentDepth > maxDepth || visitedUrls.has(url)) {
+    return { 
+      success: true, 
+      raw_legal_text: '', 
+      depth_reached: currentDepth,
+      skipped: true,
+      reason: visitedUrls.has(url) ? 'already_visited' : 'max_depth_reached'
+    };
+  }
+  
+  visitedUrls.add(url);
+  
+  // Scrape the current URL
+  const result = await scrapeTargetedUrl(url, {
+    hsCode,
+    searchTerms,
+    preserveStructure,
+    maxLength: maxLength / (currentDepth + 1) // Reduce length for deeper pages
+  });
+  
+  if (!result.success) {
+    return result;
+  }
+  
+  // If we've reached max depth or got little content, stop here
+  if (currentDepth >= maxDepth || result.raw_legal_text.length < 200) {
+    return {
+      ...result,
+      depth_reached: currentDepth,
+      links_followed: 0
+    };
+  }
+  
+  // Extract internal links from same domain
+  let baseDomain;
+  try {
+    baseDomain = new URL(url).hostname;
+  } catch (e) {
+    return { ...result, depth_reached: currentDepth, links_followed: 0 };
+  }
+  
+  const internalLinks = extractInternalLinks(result.raw_legal_text, baseDomain)
+    .slice(0, maxLinks);
+  
+  if (internalLinks.length === 0) {
+    return { ...result, depth_reached: currentDepth, links_followed: 0 };
+  }
+  
+  console.log(`[WebScraper] Depth ${currentDepth}: Following ${internalLinks.length} internal links from ${baseDomain}`);
+  
+  // Recursively scrape relevant internal links
+  let combinedText = result.raw_legal_text;
+  let linksFollowed = 0;
+  
+  for (const link of internalLinks) {
+    // Only follow links that seem relevant to customs/tariffs
+    const linkLower = link.toLowerCase();
+    const isRelevant = linkLower.includes('tariff') || 
+                       linkLower.includes('customs') || 
+                       linkLower.includes('import') ||
+                       linkLower.includes('hs') ||
+                       linkLower.includes('code') ||
+                       linkLower.includes('chapter') ||
+                       linkLower.includes('heading') ||
+                       (hsCode && linkLower.includes(hsCode.substring(0, 4)));
+    
+    if (!isRelevant && currentDepth > 0) continue;
+    
+    const subResult = await scrapeWithDepth(link, {
+      maxDepth,
+      currentDepth: currentDepth + 1,
+      visitedUrls,
+      maxLinks: Math.max(1, maxLinks - 1), // Reduce for deeper levels
+      hsCode,
+      searchTerms,
+      preserveStructure,
+      maxLength
+    });
+    
+    if (subResult.success && subResult.raw_legal_text && !subResult.skipped) {
+      combinedText += `\n\n--- LINKED PAGE (depth ${currentDepth + 1}): ${link} ---\n${subResult.raw_legal_text}`;
+      linksFollowed++;
+    }
+  }
+  
+  return { 
+    ...result, 
+    raw_legal_text: combinedText.substring(0, maxLength * 2), // Allow some overflow for deep scraping
+    depth_reached: currentDepth,
+    links_followed: linksFollowed,
+    total_visited: visitedUrls.size
+  };
+}
+
+// ============================================================================
+// Task 5.3: LLM Context Extraction (5.2b.2)
+// ============================================================================
+
+/**
+ * Use LLM to extract only relevant customs/legal content from raw scraped text
+ * This optimizes the context window by removing irrelevant content
+ * 
+ * @param {string} rawText - Raw scraped text (may contain navigation, ads, etc.)
+ * @param {object} productSpec - Product specification for context
+ * @param {object} base44Client - Base44 SDK client for LLM invocation
+ * @returns {string} Filtered relevant content
+ */
+export async function extractRelevantContextWithLLM(rawText, productSpec, base44Client) {
+  // Skip if text is already short enough
+  if (!rawText || rawText.length < 1000) return rawText;
+  
+  // Skip if no client provided
+  if (!base44Client) {
+    console.warn('[WebScraper] No base44Client provided for LLM extraction');
+    return rawText.substring(0, 15000);
+  }
+  
+  const productContext = [
+    productSpec?.standardized_name,
+    productSpec?.material_composition,
+    productSpec?.function
+  ].filter(Boolean).join(', ');
+
+  const prompt = `You are a customs legal text extractor. Extract ONLY sections relevant to customs classification from the following text.
+
+KEEP:
+- HS code definitions and descriptions
+- Tariff rates and duty percentages
+- Section/Chapter/Heading notes
+- Import requirements and regulations
+- Legal definitions and exclusions
+- Classification criteria and rules
+- BTI/Advance Ruling references
+
+REMOVE:
+- Website navigation and menus
+- Advertisements and promotions
+- Cookie notices and privacy policies
+- Contact information and addresses
+- User interface elements
+- Unrelated content
+
+PRODUCT CONTEXT: ${productContext || 'General customs classification'}
+
+SOURCE TEXT (extract relevant parts only):
+${rawText.substring(0, 30000)}
+
+Return ONLY the extracted legal/regulatory text. No explanations or commentary.`;
+
+  try {
+    const extracted = await base44Client.integrations.Core.InvokeLLM({
+      prompt,
+      response_json_schema: null
+    });
+    
+    if (extracted && typeof extracted === 'string' && extracted.length > 100) {
+      console.log(`[WebScraper] LLM extraction: ${rawText.length} -> ${extracted.length} chars`);
+      return extracted;
+    }
+    
+    return rawText.substring(0, 15000);
+  } catch (e) {
+    console.warn('[WebScraper] LLM extraction failed:', e.message);
+    return rawText.substring(0, 15000);
+  }
+}
+
+// ============================================================================
+// Task 5.4: Structured EN Extraction (5.2c.1)
+// ============================================================================
+
+/**
+ * Extract structured Explanatory Notes data from text
+ * Parses scope, inclusions, exclusions, criteria, and redirect headings
+ * 
+ * @param {string} text - Text containing EN information
+ * @param {string} headingCode - 4-digit heading code
+ * @returns {object} Structured EN data
+ */
+export function extractStructuredEN(text, headingCode) {
+  const result = {
+    heading: headingCode,
+    scope: null,
+    inclusions: [],
+    exclusions: [],
+    criteria: [],
+    redirect_headings: [],
+    raw_en_text: null
+  };
+  
+  if (!text || !headingCode) return result;
+  
+  // Try to find the EN section for this heading
+  const headingPattern = new RegExp(
+    `(?:heading\\s*${headingCode}|${headingCode}[\\s\\-:]+)[\\s\\S]{0,5000}?(?=heading\\s*\\d{4}|$)`,
+    'i'
+  );
+  const headingMatch = text.match(headingPattern);
+  const relevantText = headingMatch ? headingMatch[0] : text.substring(0, 5000);
+  result.raw_en_text = relevantText.substring(0, 2000);
+  
+  // Scope extraction ("This heading covers...")
+  const scopePatterns = [
+    /(?:this heading covers?)[:\s]*([^.]{30,500})/i,
+    /(?:scope)[:\s]*([^.]{30,500})/i,
+    /(?:this heading includes?)[:\s]*([^.]{30,500})/i
+  ];
+  
+  for (const pattern of scopePatterns) {
+    const scopeMatch = relevantText.match(pattern);
+    if (scopeMatch) {
+      result.scope = scopeMatch[1].trim();
+      break;
+    }
+  }
+  
+  // Inclusions extraction
+  const inclusionPatterns = [
+    /(?:includes?|also covers?|comprising)[:\s]*([^.]{20,300})/gi,
+    /(?:the heading covers)[:\s]*([^.]{20,300})/gi
+  ];
+  
+  for (const pattern of inclusionPatterns) {
+    const matches = relevantText.matchAll(pattern);
+    for (const m of matches) {
+      const inclusion = m[1].trim();
+      if (!result.inclusions.includes(inclusion)) {
+        result.inclusions.push(inclusion);
+      }
+    }
+  }
+  
+  // Exclusions extraction with redirect headings
+  const exclusionPatterns = [
+    /(?:excludes?|does not cover|not included)[:\s]*([^.]{20,300})(?:[^.]*?(?:see|classified under|heading)\s*(\d{4}))?/gi,
+    /(?:however,?\s*(?:this heading )?does not (?:cover|include))[:\s]*([^.]{20,300})/gi
+  ];
+  
+  for (const pattern of exclusionPatterns) {
+    const matches = relevantText.matchAll(pattern);
+    for (const m of matches) {
+      const exclusionText = m[1].trim();
+      const redirectHeading = m[2] || null;
+      
+      result.exclusions.push({
+        text: exclusionText,
+        redirect_heading: redirectHeading
+      });
+      
+      if (redirectHeading && !result.redirect_headings.includes(redirectHeading)) {
+        result.redirect_headings.push(redirectHeading);
+      }
+    }
+  }
+  
+  // Also look for explicit redirects
+  const redirectPattern = /(?:see|classified under|falls under)\s*(?:heading\s*)?(\d{4})/gi;
+  const redirectMatches = relevantText.matchAll(redirectPattern);
+  for (const m of redirectMatches) {
+    if (!result.redirect_headings.includes(m[1])) {
+      result.redirect_headings.push(m[1]);
+    }
+  }
+  
+  // Classification criteria extraction (numbered or lettered lists)
+  const criteriaPatterns = [
+    /\(([a-z])\)\s*([^;)(]{20,200})/gi,  // (a) criteria text
+    /\((\d+)\)\s*([^;)(]{20,200})/gi,    // (1) criteria text
+    /(?:must|shall|should)\s+([^.]{20,150})/gi  // must/shall requirements
+  ];
+  
+  for (const pattern of criteriaPatterns) {
+    const matches = relevantText.matchAll(pattern);
+    for (const m of matches) {
+      const criterion = m[2] ? `(${m[1]}) ${m[2].trim()}` : m[1].trim();
+      if (criterion.length > 20 && !result.criteria.some(c => c.includes(criterion.substring(0, 30)))) {
+        result.criteria.push(criterion);
+      }
+    }
+  }
+  
+  // Limit arrays
+  result.inclusions = result.inclusions.slice(0, 10);
+  result.exclusions = result.exclusions.slice(0, 10);
+  result.criteria = result.criteria.slice(0, 10);
+  result.redirect_headings = result.redirect_headings.slice(0, 5);
+  
+  return result;
+}
+
+/**
+ * Cross-reference EN exclusions with product description
+ * Returns potential conflicts that should be reviewed
+ * 
+ * @param {object} enData - Structured EN data from extractStructuredEN
+ * @param {string} productDescription - Product description to check
+ * @returns {Array} Array of potential conflicts
+ */
+export function checkENExclusionConflicts(enData, productDescription) {
+  if (!enData || !productDescription) return [];
+  
+  const conflicts = [];
+  const productLower = productDescription.toLowerCase();
+  
+  for (const exclusion of enData.exclusions || []) {
+    const exclusionLower = exclusion.text.toLowerCase();
+    
+    // Check for keyword overlap
+    const exclusionKeywords = exclusionLower.split(/\s+/).filter(w => w.length > 4);
+    const matchingKeywords = exclusionKeywords.filter(kw => productLower.includes(kw));
+    
+    if (matchingKeywords.length >= 2) {
+      conflicts.push({
+        exclusion_text: exclusion.text,
+        redirect_heading: exclusion.redirect_heading,
+        matching_keywords: matchingKeywords,
+        confidence: matchingKeywords.length >= 3 ? 'high' : 'medium'
+      });
+    }
+  }
+  
+  return conflicts;
+}
+
 export { SOURCES, ContentType, extractTextFromHtml, extractTextFromPdf, extractRelevantSection };

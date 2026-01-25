@@ -17,7 +17,13 @@ import {
   scrapeTargetedUrl, 
   scrapeMultipleUrls,
   scrapeEuTaric,
-  scrapeEuBti
+  scrapeEuBti,
+  scrapeWithDepth,
+  classifySourceAuthority,
+  filterSourcesByTier,
+  extractRelevantContextWithLLM,
+  extractStructuredEN,
+  checkENExclusionConflicts
 } from './utils/webScraper.js';
 
 // --- INLINED GATEWAY LOGIC (RESEARCHER SPECIFIC) ---
@@ -106,27 +112,61 @@ async function retrieveOfficialSources(base44, destCountry, spec) {
   results.metadata = allSources.metadata;
   
   // Prepare search options based on product spec
+  // Task 5.5: Enhanced options for expand_search mode
+  const baseSearchTerms = [
+    spec.standardized_name,
+    spec.material_composition,
+    spec.function
+  ].filter(Boolean);
+  
+  // Add focus areas to search terms if provided
+  const focusSearchTerms = focusAreas 
+    ? focusAreas.split(';').map(s => s.trim()).filter(Boolean)
+    : [];
+  
   const scrapeOptions = {
     hsCode: spec.industry_specific_data?.suggested_hs_code || null,
-    searchTerms: [
-      spec.standardized_name,
-      spec.material_composition,
-      spec.function
-    ].filter(Boolean),
+    searchTerms: [...baseSearchTerms, ...focusSearchTerms],
     preserveStructure: true,
-    maxLength: 12000
+    maxLength: expandSearch ? 20000 : 12000,  // Larger corpus for expand mode
+    maxDepth: expandSearch ? 2 : 0,           // Enable deep scraping for expand mode
+    maxLinks: expandSearch ? 3 : 0            // Follow internal links in expand mode
   };
   
   // Scrape customs links (primary priority)
+  // Task 5.5: Use deep scraping for expand_search mode
   if (allSources.sources.customs?.length > 0) {
-    console.log(`[AgentResearch] Scraping ${allSources.sources.customs.length} customs URLs`);
-    const customsResults = await scrapeMultipleUrls(allSources.sources.customs.slice(0, 3), scrapeOptions);
+    const customsUrls = allSources.sources.customs.slice(0, expandSearch ? 5 : 3);
+    console.log(`[AgentResearch] Scraping ${customsUrls.length} customs URLs ${expandSearch ? '(EXPAND MODE)' : ''}`);
     
-    if (customsResults.success) {
-      results.sources_retrieved.push(...customsResults.results.filter(r => r.success));
-      results.raw_legal_text += customsResults.combined_legal_text || '';
+    if (expandSearch && scrapeOptions.maxDepth > 0) {
+      // Use deep scraping with link following
+      for (const url of customsUrls) {
+        const deepResult = await scrapeWithDepth(url, scrapeOptions);
+        if (deepResult.success) {
+          results.sources_retrieved.push({
+            ...deepResult,
+            authority_tier: classifySourceAuthority(url)
+          });
+          results.raw_legal_text += deepResult.raw_legal_text || '';
+          console.log(`[AgentResearch] Deep scraped ${url}: ${deepResult.raw_legal_text?.length || 0} chars, depth ${deepResult.depth_reached}, links ${deepResult.links_followed || 0}`);
+        } else {
+          results.scrape_errors.push(deepResult.error);
+        }
+      }
+    } else {
+      // Standard scraping
+      const customsResults = await scrapeMultipleUrls(customsUrls, scrapeOptions);
+      
+      if (customsResults.success) {
+        results.sources_retrieved.push(...customsResults.results.filter(r => r.success).map(r => ({
+          ...r,
+          authority_tier: classifySourceAuthority(r.url)
+        })));
+        results.raw_legal_text += customsResults.combined_legal_text || '';
+      }
+      results.scrape_errors.push(...customsResults.results.filter(r => !r.success).map(r => r.error));
     }
-    results.scrape_errors.push(...customsResults.results.filter(r => !r.success).map(r => r.error));
   }
   
   // Scrape trade agreement links
@@ -151,8 +191,14 @@ export default Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, knowledgeBase } = await req.json();
+    const { reportId, knowledgeBase, expandSearch, focusAreas } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
+    
+    // Task 5.5: Log expand search parameters
+    if (expandSearch) {
+      console.log(`[AgentResearch] ═══ EXPAND SEARCH MODE ENABLED ═══`);
+      console.log(`[AgentResearch] Focus areas: ${focusAreas || 'none specified'}`);
+    }
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
@@ -206,6 +252,19 @@ export default Deno.serve(async (req) => {
     
     console.log(`[AgentResearch] Total LEGAL_TEXT_CORPUS: ${legalTextCorpus.length} chars`);
     
+    // Task 5.3: Use LLM to extract relevant context if corpus is large
+    let processedCorpus = legalTextCorpus;
+    if (legalTextCorpus.length > 25000) {
+      console.log(`[AgentResearch] Corpus too large (${legalTextCorpus.length}), using LLM extraction`);
+      try {
+        processedCorpus = await extractRelevantContextWithLLM(legalTextCorpus, spec, base44);
+        console.log(`[AgentResearch] LLM extracted corpus: ${processedCorpus.length} chars`);
+      } catch (e) {
+        console.warn(`[AgentResearch] LLM extraction failed, using truncated corpus`);
+        processedCorpus = legalTextCorpus.substring(0, 30000);
+      }
+    }
+    
     const context = `
 Destination Country: ${officialSources.normalized_country || destCountry}
 HS Code Structure: ${officialSources.hs_structure || 'Unknown'} digits
@@ -221,13 +280,14 @@ Technical Specification:
 ${spec.components_breakdown ? `- Components: ${JSON.stringify(spec.components_breakdown)}` : ''}
 `;
 
-    // Include retrieved legal text as primary context
-    const retrievedContext = legalTextCorpus ? `
+    // Include retrieved legal text as primary context (use processed corpus)
+    const retrievedContext = processedCorpus ? `
 ═══════════════════════════════════════════════════════════════════
 RETRIEVED LEGAL TEXT CORPUS (from Official Sources)
 Use this as PRIMARY reference. Do NOT contradict this information.
+${expandSearch ? '⚠️ EXPANDED SEARCH MODE - Additional sources retrieved' : ''}
 ═══════════════════════════════════════════════════════════════════
-${legalTextCorpus.substring(0, 30000)}
+${processedCorpus.substring(0, 35000)}
 ═══════════════════════════════════════════════════════════════════
 ` : '';
 
@@ -642,9 +702,23 @@ OUTPUT: Return comprehensive JSON with all research findings.
         base44_client: base44
     });
 
-    // Enrich result with retrieval metadata
+    // Task 5.4: Extract structured EN data for candidate headings
+    const candidateHeadingsWithEN = (result.candidate_headings || []).map(heading => {
+      const enData = extractStructuredEN(processedCorpus, heading.code_4_digit);
+      const conflicts = checkENExclusionConflicts(enData, spec.standardized_name);
+      
+      return {
+        ...heading,
+        structured_en: enData.scope || enData.inclusions.length > 0 ? enData : null,
+        exclusion_conflicts: conflicts.length > 0 ? conflicts : null
+      };
+    });
+
+    // Task 5.6: Enrich result with retrieval metadata and source authority
     const enrichedResult = {
       ...result,
+      // Override candidate_headings with EN-enriched version
+      candidate_headings: candidateHeadingsWithEN,
       // Tariff-AI 2.0 metadata
       retrieval_metadata: {
         country_validated: officialSources.country_validated,
@@ -652,18 +726,31 @@ OUTPUT: Return comprehensive JSON with all research findings.
         hs_structure: officialSources.hs_structure,
         sources_retrieved_count: officialSources.sources_retrieved?.length || 0,
         legal_text_corpus_length: legalTextCorpus.length,
-        retrieval_errors: officialSources.scrape_errors
+        processed_corpus_length: processedCorpus.length,
+        retrieval_errors: officialSources.scrape_errors,
+        expand_search_used: expandSearch || false,
+        focus_areas_used: focusAreas || null,
+        llm_extraction_used: legalTextCorpus.length > 25000
       },
       // Include raw legal text for downstream agents (Judge, Tax)
-      raw_legal_text_corpus: legalTextCorpus.substring(0, 50000),
+      raw_legal_text_corpus: processedCorpus.substring(0, 50000),
       // BTI results for precedent analysis
       bti_cases: result.bti_cases || (euBtiResult?.bti_references?.map(ref => ({
         reference: ref,
         source: 'EU_BTI_DATABASE'
       })) || []),
       // Confirmed HS structure from CountryTradeResource
-      confirmed_hs_structure: officialSources.hs_structure || result.confirmed_hs_structure
+      confirmed_hs_structure: officialSources.hs_structure || result.confirmed_hs_structure,
+      // Task 5.6: Classify source authority for all verified sources
+      verified_sources: (result.verified_sources || []).map(s => ({
+        ...s,
+        authority_tier: s.authority_tier || classifySourceAuthority(s.url)
+      }))
     };
+    
+    // Log Tier 1 sources count
+    const tier1Count = enrichedResult.verified_sources.filter(s => s.authority_tier === '1').length;
+    console.log(`[AgentResearch] Verified sources: ${enrichedResult.verified_sources.length} total, ${tier1Count} Tier 1`);
 
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         processing_status: 'research_completed',
@@ -677,7 +764,10 @@ OUTPUT: Return comprehensive JSON with all research findings.
       retrieval_summary: {
         official_sources_used: officialSources.sources_retrieved?.length || 0,
         legal_text_available: legalTextCorpus.length > 0,
-        country_in_knowledge_base: officialSources.country_validated
+        processed_corpus_length: processedCorpus.length,
+        country_in_knowledge_base: officialSources.country_validated,
+        expand_search_mode: expandSearch || false,
+        tier1_sources_count: tier1Count
       }
     });
 
