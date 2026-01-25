@@ -291,16 +291,29 @@ Add citations from different source types (EN, HEADING_TEXT, WCO_OPINION, etc.)`
     };
   }
   
-  // Legal context issues - re-run Research to get more data
-  if (firstIssue.type?.includes('legal_context') || firstIssue.type?.includes('context_gap')) {
+  // Legal context issues OR research completeness issues - re-run Research (Task 4.2c.3)
+  if (firstIssue.type?.includes('legal_context') || 
+      firstIssue.type?.includes('context_gap') ||
+      firstIssue.type?.includes('research_no_corpus') ||
+      firstIssue.type?.includes('research_corpus_insufficient') ||
+      firstIssue.type?.includes('research_no_candidates') ||
+      firstIssue.type?.includes('research_no_sources') ||
+      firstIssue.action_needed === 'expand_search') {
+    
+    // Collect all research-related issues for focused expansion
+    const researchIssueDescriptions = validationResult.issues
+      ?.filter(i => i.type?.includes('research'))
+      ?.map(i => i.description)
+      ?.join('; ') || firstIssue.description;
+    
     return { 
       action: ACTIONS.FETCH_LEGAL_SOURCES, 
       agent: 'HSLegalExpert', 
       specific_request: { 
         expand_search: true,
-        focus_areas: firstIssue.description
+        focus_areas: researchIssueDescriptions
       }, 
-      reason: `Legal context gap: ${firstIssue.description}` 
+      reason: `Research data insufficient: ${firstIssue.description}` 
     };
   }
   
@@ -754,6 +767,12 @@ export default Deno.serve(async (req) => {
             allIssues.push(...audit.pre_validation_issues);
           }
 
+          // Task 4.2c.3: Track if research needs expansion
+          const researchNeedsExpansion = audit.research_needs_expansion || 
+            retrievalMetadata.research_needs_expansion || false;
+          
+          console.log(`[Orchestrator] Research needs expansion: ${researchNeedsExpansion}`);
+
           newStateUpdates = {
             validation_result: {
               passed: auditStatus === 'passed',
@@ -763,7 +782,9 @@ export default Deno.serve(async (req) => {
               citation_validation: audit.citation_validation || null,
               extraction_validation: audit.extraction_validation || null,
               retrieval_quality_score: audit.retrieval_quality_score || retrievalMetadata.retrieval_quality_score || null,
-              retrieve_deduce_compliant: audit.retrieve_deduce_compliant || false
+              retrieve_deduce_compliant: audit.retrieve_deduce_compliant || false,
+              research_needs_expansion: researchNeedsExpansion,
+              detailed_fix_instructions: audit.detailed_fix_instructions || null
             }
           };
 
