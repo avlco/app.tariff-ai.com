@@ -252,13 +252,38 @@ function generateSelfHealingAction(validationResult, state) {
   
   // TARIFF-AI 2.0: Enhanced self-healing for Retrieve & Deduce issues
   
-  // Citation issues - re-run Judge with citation enforcement
+  // Citation issues - re-run Judge with detailed citation enforcement (Task 3.2d)
   if (firstIssue.type?.includes('citation') || firstIssue.type?.includes('no_citations')) {
+    let citationFeedback = `CITATION VALIDATION FAILED: ${firstIssue.description}\n\n`;
+    
+    // Add specific guidance based on issue type
+    if (firstIssue.type === 'no_citations' || firstIssue.type === 'empty_citation_quotes') {
+      citationFeedback += `REQUIRED FORMAT FOR EACH CITATION:
+{
+  "source_type": "EN" | "HEADING_TEXT" | "WCO_OPINION" | "BTI" | etc.,
+  "source_reference": "Heading 8471" | "WCO Opinion 8471.30/1" | etc.,
+  "exact_quote": "[COPY THE ACTUAL TEXT from LEGAL_TEXT_CONTEXT - minimum 20 characters]",
+  "relevance": "Why this citation supports the classification"
+}
+
+You MUST provide at least 2 citations, including at least one EN or HEADING_TEXT citation.`;
+    } else if (firstIssue.type === 'citations_not_in_corpus') {
+      citationFeedback += `Your citations could not be verified against the retrieved legal text.
+DO NOT fabricate citations. Only quote text that ACTUALLY appears in the LEGAL_TEXT_CONTEXT provided.
+If you cannot find supporting text, add it to context_gaps array instead.`;
+    } else if (firstIssue.type === 'en_heading_not_researched') {
+      citationFeedback += `You cited an EN for a heading that was not in the research candidates.
+Only cite ENs for headings that appear in the candidate_headings from research.`;
+    } else if (firstIssue.type === 'insufficient_citations') {
+      citationFeedback += `Only ${issues.length} citation provided. Robust classification requires at least 2 citations.
+Add citations from different source types (EN, HEADING_TEXT, WCO_OPINION, etc.)`;
+    }
+    
     return { 
       action: ACTIONS.CLASSIFY, 
       agent: 'GIRStateMachine', 
       specific_request: { 
-        feedback: `CITATION REQUIRED: ${firstIssue.description}. You MUST cite from LEGAL_TEXT_CONTEXT with exact quotes.`,
+        feedback: citationFeedback,
         enforce_hierarchy: true,
         enforce_citations: true
       }, 
