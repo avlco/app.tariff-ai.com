@@ -51,6 +51,10 @@ CRITICAL INSTRUCTIONS:
 2. Distinguish between CRITICAL FAILURES and QUALITY IMPROVEMENTS:
    - CRITICAL FAILURES: Missing HS code, invalid format, completely wrong classification, processing errors
    - QUALITY IMPROVEMENTS: Minor details missing, could be more explicit, suggestions for better wording
+3. TARIFF-AI 2.0 Checks:
+   - Check if classification_results.primary has legal_citations (Retrieve & Deduce compliance)
+   - Check if tax_data and compliance_data have source citations
+   - Check retrieval_quality_score if available in qa_audit
 
 QUALITY CHECKS:
 1. Is the HS code present and in a valid format?
