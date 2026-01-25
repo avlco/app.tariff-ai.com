@@ -207,14 +207,29 @@ export default Deno.serve(async (req) => {
     console.log(`[AgentResearch] Total LEGAL_TEXT_CORPUS: ${legalTextCorpus.length} chars`);
     
     const context = `
-Destination Country: ${destCountry}
+Destination Country: ${officialSources.normalized_country || destCountry}
+HS Code Structure: ${officialSources.hs_structure || 'Unknown'} digits
+Tax Method: ${officialSources.metadata?.tax_method || 'CIF'}
+Regional Agreements: ${officialSources.metadata?.regional_agreements || 'None identified'}
+
 Technical Specification:
 - Name: ${spec.standardized_name}
 - Material: ${spec.material_composition}
 - Function: ${spec.function}
 - State: ${spec.state}
 - Essential Character: ${spec.essential_character}
+${spec.components_breakdown ? `- Components: ${JSON.stringify(spec.components_breakdown)}` : ''}
 `;
+
+    // Include retrieved legal text as primary context
+    const retrievedContext = legalTextCorpus ? `
+═══════════════════════════════════════════════════════════════════
+RETRIEVED LEGAL TEXT CORPUS (from Official Sources)
+Use this as PRIMARY reference. Do NOT contradict this information.
+═══════════════════════════════════════════════════════════════════
+${legalTextCorpus.substring(0, 30000)}
+═══════════════════════════════════════════════════════════════════
+` : '';
 
     const kbContext = knowledgeBase ? `
 Knowledge Base for ${knowledgeBase.country}:
