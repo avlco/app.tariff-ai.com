@@ -1,11 +1,20 @@
 /**
- * Web Scraper Utilities - Direct access to authoritative HS classification sources
+ * Web Scraper Utilities - Tariff-AI 2.0 "Retrieve & Deduce" Architecture
  * 
- * Replaces Perplexity-based research with targeted scraping of:
+ * UPGRADED: From "Search & Guess" to targeted retrieval from pre-approved sources.
+ * 
+ * This module now:
+ * 1. Accepts specific URLs from ResourceManager (not free-form search)
+ * 2. Extracts raw legal text for context injection into LLM
+ * 3. Handles PDF documents via external API (PDFShift)
+ * 4. Optimizes context window by extracting relevant sections
+ * 
+ * Sources:
  * - WCO ECICS (EN database)
  * - EU TARIC
  * - Israel Customs (Shaar Olami)
  * - BTI databases
+ * - Any URL from CountryTradeResource
  */
 
 const SOURCES = {
@@ -15,6 +24,39 @@ const SOURCES = {
   US_HTSUS: 'https://hts.usitc.gov/',
   EU_BTI: 'https://ec.europa.eu/taxation_customs/dds2/ebti/ebti_consultation.jsp'
 };
+
+/**
+ * Content type detection
+ */
+const ContentType = {
+  HTML: 'html',
+  PDF: 'pdf',
+  JSON: 'json',
+  XML: 'xml',
+  UNKNOWN: 'unknown'
+};
+
+/**
+ * Detect content type from response headers or URL
+ */
+function detectContentType(response, url) {
+  const contentType = response.headers.get('content-type') || '';
+  
+  if (contentType.includes('application/pdf') || url.toLowerCase().endsWith('.pdf')) {
+    return ContentType.PDF;
+  }
+  if (contentType.includes('application/json')) {
+    return ContentType.JSON;
+  }
+  if (contentType.includes('text/xml') || contentType.includes('application/xml')) {
+    return ContentType.XML;
+  }
+  if (contentType.includes('text/html')) {
+    return ContentType.HTML;
+  }
+  
+  return ContentType.UNKNOWN;
+}
 
 /**
  * Fetch with retry and timeout
