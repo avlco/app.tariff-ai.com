@@ -478,21 +478,42 @@ to which they are MOST AKIN (most similar)."
 "Apply GRI 1-5 AGAIN for subheadings within the determined heading."
 
 ═══════════════════════════════════════════════════════════════════
-EXPLANATORY NOTES REQUIREMENT:
+MANDATORY CITATION REQUIREMENTS (Retrieve & Deduce):
 ═══════════════════════════════════════════════════════════════════
 
-You MUST reference the HS 2022 Explanatory Notes for the selected heading (from research findings).
+For EVERY classification decision, you MUST include:
 
-Required format in your reasoning:
-"HS 2022 Explanatory Note to Heading [XXXX]:
-'[Quote relevant portion from research findings]'
+1. **HEADING TEXT CITATION**
+   Quote the exact heading text from LEGAL_TEXT_CONTEXT:
+   "Heading [XXXX]: '[exact text from context]'"
 
-Product alignment analysis:
-✓ [Criterion 1 from EN] - Product satisfies because [reason]
-✓ [Criterion 2 from EN] - Product satisfies because [reason]
-✗ [Exclusion from EN] - Does NOT apply because [reason]
+2. **EXPLANATORY NOTES CITATION**
+   Quote the EN summary from candidate_headings:
+   "Per EN to Heading [XXXX]: '[quote from explanatory_note_summary]'"
 
-Conclusion: Product IS/IS NOT covered by heading [XXXX] per Explanatory Notes."
+3. **SECTION/CHAPTER NOTES CITATION** (if applicable)
+   Quote from legal_notes_found:
+   "Per [Section/Chapter] Note [X]: '[exact quote]'"
+
+4. **PRECEDENT CITATION** (if applicable)
+   Quote from wco_precedents or bti_cases:
+   "Per WCO Opinion [number]: '[quote]'"
+   "Per BTI [reference]: '[quote]'"
+
+5. **ALIGNMENT ANALYSIS** (Required Format):
+   Based on [Source Citation]:
+   ✓ [Criterion from EN] - Product satisfies because [reason with evidence]
+   ✓ [Criterion from EN] - Product satisfies because [reason with evidence]
+   ✗ [Exclusion from EN] - Does NOT apply because [reason]
+   
+   Conclusion: Product IS/IS NOT covered by heading [XXXX].
+
+6. **CONTEXT SUFFICIENCY FLAG**
+   If the LEGAL_TEXT_CONTEXT does not contain sufficient information:
+   "⚠️ CONTEXT GAP: [Specific information missing]. Classification based on available context only."
+
+CRITICAL: If you cannot find a citation in the provided context, do NOT make up citations.
+Instead, note: "No explicit citation available in retrieved context for [X]."
 
 ═══════════════════════════════════════════════════════════════════
 ALTERNATIVE CLASSIFICATIONS:
