@@ -183,29 +183,74 @@ If instruments, determine:
 Specific to category
 
 ═══════════════════════════════════════════════════════════════════
-ESSENTIAL CHARACTER DETERMINATION (Critical for GRI 3(b)):
+COMPOSITE GOODS DETECTION & ESSENTIAL CHARACTER (GRI 3 Analysis):
 ═══════════════════════════════════════════════════════════════════
 
-For composite goods (multiple materials/components):
+**STEP 1: Is this a COMPOSITE GOOD?**
 
-Analyze EACH component:
-1. Component name
-2. Material
-3. % of total value (estimate if unknown)
-4. % of total weight/bulk
-5. Function it provides
+A composite good exists when:
+• Multiple materials are physically combined (e.g., wood + steel furniture)
+• Multiple components form a set (e.g., first-aid kit)
+• Multiple items sold together as one SKU (e.g., laptop + charger + case)
+• The product spans multiple potential HS headings
 
-Then determine Essential Character by:
-• Which component gives the product its FUNDAMENTAL identity?
-• If sold without component X, would it still be this product?
-• What is the PRIMARY commercial purpose?
+Classification: 
+- is_composite: true/false
+- composite_type: "mixture" | "set" | "combined_article" | "retail_set" | "single_component"
 
-Example:
-Product: "Gaming laptop in carrying case, sold together"
+**STEP 2: ESSENTIAL CHARACTER MATRIX (if composite)**
+
+Analyze EACH component using the WCO Essential Character factors:
+
+| Factor | Component A | Component B | Component C |
+|--------|-------------|-------------|-------------|
+| Value % | | | |
+| Weight/Bulk % | | | |
+| Functional Role | primary/secondary/auxiliary | | |
+| User Perception | "What would buyer call this?" | | |
+| Marketing Emphasis | | | |
+
+**STEP 3: ESSENTIAL CHARACTER DETERMINATION**
+
+Apply WCO criteria in order:
+1. NATURE OF THE MATERIAL - what material dominates by nature?
+2. BULK/QUANTITY - which component is largest by volume/weight?
+3. VALUE - which component represents most of the cost?
+4. ROLE IN RELATION TO USE - which component is essential for the intended use?
+
+Conclusion format:
+"Essential Character: [COMPONENT NAME] because it provides [VALUE/BULK/FUNCTION] dominance ([X]% of total). 
+Without [COMPONENT], the product would not function as a [PRODUCT TYPE]."
+
+**STEP 4: GRI PATH PREDICTION**
+
+Based on composite analysis:
+- GRI 1: Unambiguous single-heading product
+- GRI 2(a): Incomplete/unfinished goods
+- GRI 2(b): Mixtures/combinations
+- GRI 3(a): Most specific description wins
+- GRI 3(b): Essential character determines heading
+- GRI 3(c): Last in numerical order
+- GRI 4: Most akin goods
+- GRI 5: Packaging
+- GRI 6: Subheading level
+
+Example Analysis:
+Product: "Gaming laptop with external GPU dock, sold as bundle"
 Components:
-1. Laptop: 95% value, 80% weight, data processing function
-2. Case: 5% value, 20% weight, protection function
-Essential Character: LAPTOP → Classification direction: Chapter 84
+1. Laptop: 70% value, 40% weight, primary data processing
+2. GPU Dock: 25% value, 55% weight, enhances graphics processing
+3. Cables: 5% value, 5% weight, connectivity
+
+Essential Character Matrix:
+- Value dominance: Laptop (70%)
+- Bulk dominance: GPU Dock (55%)
+- Functional role: Laptop is PRIMARY (can work standalone)
+- User perception: "Gaming laptop" (not "GPU dock with laptop")
+
+ESSENTIAL CHARACTER: LAPTOP
+GRI Path: GRI 3(b) → Classify by laptop (Chapter 84)
+Reasoning: Laptop provides primary function; GPU dock is accessory
 
 ═══════════════════════════════════════════════════════════════════
 FAIL-FAST with GUIDED QUESTIONS:
