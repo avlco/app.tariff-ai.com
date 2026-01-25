@@ -1017,7 +1017,7 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
 
     const duration = Date.now() - startTime;
     
-    // Enrich results with citation metadata
+    // Enrich results with citation metadata and validation info
     const enrichedResults = {
         ...result.classification_results,
         primary: {
@@ -1025,7 +1025,10 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
             // Add metadata about legal text usage
             legal_text_based: legalTextContext.length > 1000,
             legal_text_length: legalTextContext.length,
-            citation_count: result.classification_results.primary.legal_citations?.length || 0
+            citation_count: result.classification_results.primary?.legal_citations?.length || 0,
+            // Add validation metadata
+            validation_issues_count: validationIssues.length,
+            self_healing_applied: highSeverityIssues.length > 0
         }
     };
 
