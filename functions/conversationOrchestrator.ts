@@ -86,31 +86,94 @@ function generateEscalationSummary(state) {
 }
 
 // --- Confidence Calculator ---
-const WEIGHTS = { PRODUCT: 0.20, LEGAL: 0.25, GIR: 0.30, PRECEDENT: 0.15, VALIDATION: 0.10 };
+// TARIFF-AI 2.0: Updated weights to emphasize legal text retrieval quality
+const WEIGHTS = { 
+  PRODUCT: 0.15,      // Product understanding
+  LEGAL: 0.25,        // Legal text corpus quality  
+  GIR: 0.25,          // GIR classification strength
+  CITATION: 0.15,     // NEW: Citation quality (Retrieve & Deduce)
+  PRECEDENT: 0.10,    // Precedent support
+  VALIDATION: 0.10    // QA validation
+};
 const GIR_STRENGTH = { 'GIR1': 95, 'GRI 1': 95, 'GIR3a': 85, 'GRI 3(a)': 85, 'GIR3b': 75, 'GRI 3(b)': 75, 'GIR3c': 60, 'GRI 3(c)': 60, 'GIR4': 55 };
 
 function calculateConfidence(state) {
   const cs = state.current_state;
   
-  const productScore = cs.product_profile ? Math.min(100, (cs.product_readiness || 50) + (cs.product_profile.essential_character ? 10 : 0)) : 0;
-  const legalScore = cs.legal_research ? Math.min(100, 40 + (cs.legal_research.en_documents?.length ? 20 : 0) + (cs.legal_research.notes?.length ? 15 : 0)) : 0;
+  // Product Score - includes composite analysis from agentAnalyze
+  const hasCompositeAnalysis = cs.product_profile?.composite_analysis?.is_composite !== undefined;
+  const productScore = cs.product_profile 
+    ? Math.min(100, (cs.product_readiness || 50) + (cs.product_profile.essential_character ? 10 : 0) + (hasCompositeAnalysis ? 10 : 0)) 
+    : 0;
   
+  // Legal Score - emphasize raw_legal_text_corpus from agentResearch
+  let legalScore = 0;
+  if (cs.legal_research) {
+    legalScore = 40;
+    if (cs.legal_research.raw_legal_text_corpus_length > 1000) legalScore += 25;  // Rich legal text
+    if (cs.legal_research.en_documents?.length > 0) legalScore += 15;
+    if (cs.legal_research.notes?.length > 0) legalScore += 10;
+    if (cs.legal_research.verified_sources?.some(s => s.authority_tier === '1')) legalScore += 10;
+    legalScore = Math.min(100, legalScore);
+  }
+  
+  // GIR Score
   let girScore = 70;
   if (cs.gir_decision) {
     const girApplied = cs.gir_decision.gir_applied || cs.gir_decision.gri_applied || '';
     for (const [rule, score] of Object.entries(GIR_STRENGTH)) {
       if (girApplied.includes(rule)) { girScore = score; break; }
     }
+    // Bonus for complete essential character analysis
+    if (cs.gir_decision.essential_character_analysis?.components?.length > 0) {
+      girScore = Math.min(100, girScore + 5);
+    }
   } else { girScore = 0; }
   
-  const precedentScore = cs.precedents ? Math.min(100, 50 + (cs.precedents.wco_opinions?.length ? 30 : 0) + (cs.precedents.bti_cases?.length ? 10 : 0)) : 70;
-  const validationScore = cs.validation_result ? (cs.validation_result.passed ? (cs.validation_result.score || 80) : 20) : 50;
+  // NEW: Citation Score (Retrieve & Deduce compliance)
+  let citationScore = 50; // Default
+  if (cs.gir_decision?.legal_citations) {
+    const citations = cs.gir_decision.legal_citations;
+    citationScore = 30;
+    if (citations.length >= 3) citationScore += 20;
+    if (citations.length >= 5) citationScore += 15;
+    if (citations.some(c => c.source_type === 'EN')) citationScore += 15;
+    if (citations.some(c => c.source_type === 'WCO_OPINION')) citationScore += 10;
+    if (citations.every(c => c.exact_quote?.length > 10)) citationScore += 10;
+    citationScore = Math.min(100, citationScore);
+  } else if (cs.gir_decision) {
+    citationScore = 30; // Penalty for no citations
+  }
   
+  // Precedent Score
+  const precedentScore = cs.precedents 
+    ? Math.min(100, 50 + (cs.precedents.wco_opinions?.length ? 30 : 0) + (cs.precedents.bti_cases?.length ? 10 : 0)) 
+    : 70;
+  
+  // Validation Score - include retrieval quality
+  let validationScore = 50;
+  if (cs.validation_result) {
+    validationScore = cs.validation_result.passed ? (cs.validation_result.score || 80) : 20;
+    // Factor in retrieval quality score from QA
+    if (cs.validation_result.retrieval_quality_score) {
+      validationScore = (validationScore + cs.validation_result.retrieval_quality_score) / 2;
+    }
+  }
+  
+  // Penalties
   let penalty = 0;
   if (cs.precedents?.consensus?.conflicting_cases?.length > 0) penalty += 10;
   if (cs.gir_decision?.gir_applied?.includes('3c')) penalty += 10;
+  if (cs.gir_decision?.context_gaps?.length > 3) penalty += 5; // Penalty for too many context gaps
   
-  const weighted = productScore * WEIGHTS.PRODUCT + legalScore * WEIGHTS.LEGAL + girScore * WEIGHTS.GIR + precedentScore * WEIGHTS.PRECEDENT + validationScore * WEIGHTS.VALIDATION;
+  const weighted = 
+    productScore * WEIGHTS.PRODUCT + 
+    legalScore * WEIGHTS.LEGAL + 
+    girScore * WEIGHTS.GIR + 
+    citationScore * WEIGHTS.CITATION +
+    precedentScore * WEIGHTS.PRECEDENT + 
+    validationScore * WEIGHTS.VALIDATION;
+    
   return Math.round(Math.max(0, Math.min(100, weighted - penalty)));
 }
 
@@ -187,16 +250,108 @@ function generateSelfHealingAction(validationResult, state) {
     return { action: ACTIONS.CLASSIFY, agent: 'GIRStateMachine', specific_request: { feedback: 'QA failed - please re-analyze' }, reason: 'Generic validation failure' };
   }
   
+  // TARIFF-AI 2.0: Enhanced self-healing for Retrieve & Deduce issues
+  
+  // Citation issues - re-run Judge with citation enforcement
+  if (firstIssue.type?.includes('citation') || firstIssue.type?.includes('no_citations')) {
+    return { 
+      action: ACTIONS.CLASSIFY, 
+      agent: 'GIRStateMachine', 
+      specific_request: { 
+        feedback: `CITATION REQUIRED: ${firstIssue.description}. You MUST cite from LEGAL_TEXT_CONTEXT with exact quotes.`,
+        enforce_hierarchy: true,
+        enforce_citations: true
+      }, 
+      reason: `Citation issue: ${firstIssue.description}` 
+    };
+  }
+  
+  // Legal context issues - re-run Research to get more data
+  if (firstIssue.type?.includes('legal_context') || firstIssue.type?.includes('context_gap')) {
+    return { 
+      action: ACTIONS.FETCH_LEGAL_SOURCES, 
+      agent: 'HSLegalExpert', 
+      specific_request: { 
+        expand_search: true,
+        focus_areas: firstIssue.description
+      }, 
+      reason: `Legal context gap: ${firstIssue.description}` 
+    };
+  }
+  
+  // Tax extraction issues - re-run Tax agent
+  if (firstIssue.type?.includes('tax_no_citation') || firstIssue.type?.includes('tax_data_gap')) {
+    return { 
+      action: ACTIONS.CALCULATE_TAX, 
+      agent: 'TaxAgent', 
+      specific_request: { 
+        feedback: `TAX SOURCE REQUIRED: ${firstIssue.description}. Cite duty/VAT sources explicitly.`
+      }, 
+      reason: `Tax extraction issue: ${firstIssue.description}` 
+    };
+  }
+  
+  // Compliance extraction issues - re-run Compliance agent
+  if (firstIssue.type?.includes('compliance_no_context')) {
+    return { 
+      action: ACTIONS.CHECK_COMPLIANCE, 
+      agent: 'ComplianceAgent', 
+      specific_request: { 
+        feedback: `COMPLIANCE SOURCE REQUIRED: ${firstIssue.description}. Cite requirement sources explicitly.`
+      }, 
+      reason: `Compliance extraction issue: ${firstIssue.description}` 
+    };
+  }
+  
+  // GIR hierarchy issues
   if (firstIssue.type?.includes('gir') || firstIssue.type?.includes('hierarchy')) {
-    return { action: ACTIONS.CLASSIFY, agent: 'GIRStateMachine', specific_request: { feedback: firstIssue.description, enforce_hierarchy: true }, reason: `GIR issue: ${firstIssue.description}` };
+    return { 
+      action: ACTIONS.CLASSIFY, 
+      agent: 'GIRStateMachine', 
+      specific_request: { 
+        feedback: firstIssue.description, 
+        enforce_hierarchy: true 
+      }, 
+      reason: `GIR issue: ${firstIssue.description}` 
+    };
   }
   
-  if (firstIssue.type?.includes('product') || firstIssue.type?.includes('essential')) {
-    return { action: ACTIONS.REFINE_PRODUCT, agent: 'ProductAnalyst', specific_request: { focus: 'materials', reason: firstIssue.description }, reason: 'Product data insufficient for classification' };
+  // Essential character issues - need more product analysis
+  if (firstIssue.type?.includes('essential_character')) {
+    return { 
+      action: ACTIONS.REFINE_PRODUCT, 
+      agent: 'ProductAnalyst', 
+      specific_request: { 
+        focus: 'composite_analysis', 
+        reason: firstIssue.description 
+      }, 
+      reason: 'Need detailed composite analysis for essential character' 
+    };
   }
   
-  // Default: re-run classification with feedback
-  return { action: ACTIONS.CLASSIFY, agent: 'GIRStateMachine', specific_request: { feedback: firstIssue.description }, reason: `Validation issue: ${firstIssue.description}` };
+  // Product data issues
+  if (firstIssue.type?.includes('product')) {
+    return { 
+      action: ACTIONS.REFINE_PRODUCT, 
+      agent: 'ProductAnalyst', 
+      specific_request: { 
+        focus: 'materials', 
+        reason: firstIssue.description 
+      }, 
+      reason: 'Product data insufficient for classification' 
+    };
+  }
+  
+  // Default: re-run classification with feedback and citation enforcement
+  return { 
+    action: ACTIONS.CLASSIFY, 
+    agent: 'GIRStateMachine', 
+    specific_request: { 
+      feedback: firstIssue.description,
+      enforce_citations: true
+    }, 
+    reason: `Validation issue: ${firstIssue.description}` 
+  };
 }
 
 // ============== MAIN HANDLER ==============
@@ -335,20 +490,32 @@ export default Deno.serve(async (req) => {
         case ACTIONS.IDENTIFY_CANDIDATES:
         case ACTIONS.SEARCH_PRECEDENTS: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'researching' });
-          const res = await base44.functions.invoke('agentResearch', { reportId, knowledgeBase });
+          const res = await base44.functions.invoke('agentResearch', { 
+            reportId, 
+            knowledgeBase,
+            expandSearch: decision.specific_request?.expand_search,
+            focusAreas: decision.specific_request?.focus_areas
+          });
           actionOutput = res.data;
           
           const findings = res.data.findings || {};
+          
+          // TARIFF-AI 2.0: Track raw legal text corpus quality
+          const rawCorpusLength = findings.raw_legal_text_corpus?.length || 0;
+          console.log(`[Orchestrator] Raw legal text corpus: ${rawCorpusLength} chars`);
+          
           newStateUpdates = {
             candidate_headings: findings.candidate_headings?.map(h => h.code_4_digit) || [],
             legal_research: {
               en_documents: findings.candidate_headings || [],
               notes: findings.legal_notes_found || [],
-              verified_sources: findings.verified_sources || []
+              verified_sources: findings.verified_sources || [],
+              raw_legal_text_corpus_length: rawCorpusLength, // Track for confidence calc
+              retrieval_metadata: res.data.retrieval_metadata || {}
             },
             precedents: {
-              bti_cases: findings.wco_precedents || [],
-              wco_opinions: [],
+              bti_cases: findings.bti_cases || [],
+              wco_opinions: findings.wco_precedents || [],
               consensus: { agreement_rate: findings.wco_precedents?.length > 0 ? 0.7 : 0 }
             }
           };
@@ -361,18 +528,30 @@ export default Deno.serve(async (req) => {
             reportId, 
             intendedUse,
             feedback: decision.specific_request?.feedback,
-            enforceHierarchy: decision.specific_request?.enforce_hierarchy
+            enforceHierarchy: decision.specific_request?.enforce_hierarchy,
+            enforceCitations: decision.specific_request?.enforce_citations
           });
           actionOutput = res.data;
           
           const results = res.data.results || res.data.classification_results;
+          
+          // TARIFF-AI 2.0: Track citation and retrieval metadata
+          const citationCount = results?.primary?.legal_citations?.length || 0;
+          const contextGaps = results?.primary?.context_gaps || [];
+          console.log(`[Orchestrator] Classification with ${citationCount} citations, ${contextGaps.length} context gaps`);
+          
           newStateUpdates = {
             gir_decision: {
               hs_code: results?.primary?.hs_code,
               gir_applied: results?.primary?.gri_applied || results?.primary?.gir_applied,
               confidence: results?.primary?.confidence_score,
               reasoning: results?.primary?.reasoning,
-              audit_trail: [{ state: results?.primary?.gri_applied, result: 'resolved', timestamp: new Date().toISOString() }]
+              audit_trail: results?.primary?.gir_state_log || [{ state: results?.primary?.gri_applied, result: 'resolved', timestamp: new Date().toISOString() }],
+              // TARIFF-AI 2.0: New fields from Judge
+              essential_character_analysis: results?.primary?.essential_character_analysis,
+              legal_citations: results?.primary?.legal_citations || [],
+              context_gaps: contextGaps,
+              legal_text_based: results?.primary?.legal_text_based || false
             }
           };
           break;
@@ -384,11 +563,34 @@ export default Deno.serve(async (req) => {
           actionOutput = res.data;
           
           const audit = res.data.audit || res.data.qa_audit;
+          
+          // TARIFF-AI 2.0: Extract all QA validation results including R&D checks
+          const retrievalMetadata = res.data.retrieval_metadata || {};
+          console.log(`[Orchestrator] QA Retrieval Score: ${retrievalMetadata.retrieval_quality_score}, Citation Issues: ${retrievalMetadata.citation_issues_count}`);
+          
+          // Collect all issues from QA including pre-validation
+          const allIssues = [];
+          if (audit?.status !== 'passed' && audit?.fix_instructions) {
+            allIssues.push({ type: 'qa_failed', description: audit.fix_instructions, severity: 'high' });
+          }
+          if (audit?.issues_found?.length > 0) {
+            allIssues.push(...audit.issues_found);
+          }
+          if (audit?.pre_validation_issues?.length > 0) {
+            allIssues.push(...audit.pre_validation_issues);
+          }
+          
           newStateUpdates = {
             validation_result: {
               passed: audit?.status === 'passed',
               score: audit?.score,
-              issues: audit?.status !== 'passed' ? [{ type: 'qa_failed', description: audit?.fix_instructions }] : []
+              issues: allIssues,
+              // TARIFF-AI 2.0: New validation fields
+              gir_compliance: audit?.gir_compliance,
+              citation_validation: audit?.citation_validation,
+              extraction_validation: audit?.extraction_validation,
+              retrieval_quality_score: audit?.retrieval_quality_score || retrievalMetadata.retrieval_quality_score,
+              retrieve_deduce_compliant: audit?.retrieve_deduce_compliant
             }
           };
           
@@ -400,17 +602,45 @@ export default Deno.serve(async (req) => {
 
         case ACTIONS.CALCULATE_TAX: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'calculating_duties' });
-          const res = await base44.functions.invoke('agentTax', { reportId, knowledgeBase });
+          const res = await base44.functions.invoke('agentTax', { 
+            reportId, 
+            knowledgeBase,
+            feedback: decision.specific_request?.feedback
+          });
           actionOutput = res.data;
-          newStateUpdates = { tax_data: res.data };
+          
+          // TARIFF-AI 2.0: Track extraction metadata
+          const taxData = res.data.data || res.data;
+          console.log(`[Orchestrator] Tax extraction confidence: ${taxData?.extraction_confidence}`);
+          
+          newStateUpdates = { 
+            tax_data: {
+              ...taxData,
+              extraction_metadata: taxData?.extraction_metadata || res.data.retrieval_metadata
+            }
+          };
           break;
         }
 
         case ACTIONS.CHECK_COMPLIANCE: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'checking_regulations' });
-          const res = await base44.functions.invoke('agentCompliance', { reportId, knowledgeBase });
+          const res = await base44.functions.invoke('agentCompliance', { 
+            reportId, 
+            knowledgeBase,
+            feedback: decision.specific_request?.feedback
+          });
           actionOutput = res.data;
-          newStateUpdates = { compliance_data: res.data };
+          
+          // TARIFF-AI 2.0: Track extraction metadata
+          const complianceData = res.data.data || res.data;
+          console.log(`[Orchestrator] Compliance extraction confidence: ${complianceData?.extraction_confidence}`);
+          
+          newStateUpdates = { 
+            compliance_data: {
+              ...complianceData,
+              extraction_metadata: complianceData?.extraction_metadata || res.data.retrieval_metadata
+            }
+          };
           break;
         }
 
