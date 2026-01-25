@@ -705,15 +705,31 @@ OUTPUT: Return comprehensive JSON with all research findings.
     });
 
     // === DATA NORMALIZATION ===
-    // LLM may return objects instead of strings for legal_notes_found - normalize them
-    const normalizedLegalNotes = (result.legal_notes_found || []).map(note => {
-      if (typeof note === 'string') return note;
-      if (typeof note === 'object' && note !== null) {
+    // LLM may return objects or nested arrays instead of strings for legal_notes_found
+    const normalizedLegalNotes = [];
+    const rawNotes = result.legal_notes_found || [];
+    
+    for (const note of rawNotes) {
+      if (typeof note === 'string') {
+        normalizedLegalNotes.push(note);
+      } else if (Array.isArray(note)) {
+        // Handle nested arrays - flatten and convert each item
+        for (const subNote of note) {
+          if (typeof subNote === 'string') {
+            normalizedLegalNotes.push(subNote);
+          } else if (typeof subNote === 'object' && subNote !== null) {
+            normalizedLegalNotes.push(subNote.exclusion_text || subNote.text || subNote.note || JSON.stringify(subNote));
+          }
+        }
+      } else if (typeof note === 'object' && note !== null) {
         // Convert object to string representation
-        return note.exclusion_text || note.text || note.note || JSON.stringify(note);
+        normalizedLegalNotes.push(note.exclusion_text || note.text || note.note || JSON.stringify(note));
+      } else if (note !== null && note !== undefined) {
+        normalizedLegalNotes.push(String(note));
       }
-      return String(note);
-    }).filter(Boolean);
+    }
+    
+    console.log(`[AgentResearch] Normalized ${rawNotes.length} raw notes to ${normalizedLegalNotes.length} string notes`);
 
     // Task 5.4: Extract structured EN data for candidate headings
     const candidateHeadingsWithEN = (result.candidate_headings || []).map(heading => {
