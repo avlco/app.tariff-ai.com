@@ -1,6 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import OpenAI from 'npm:openai@^4.28.0';
 
+// --- TARIFF-AI 2.0: JURIST - GRI STATE MACHINE WITH LEGAL TEXT INJECTION ---
+// This agent now operates on RETRIEVED legal text, not general AI knowledge.
+// All citations must reference the LEGAL_TEXT_CORPUS provided.
+
 // --- INLINED GATEWAY LOGIC (JUDGE SPECIFIC) ---
 
 function cleanJson(text) {
