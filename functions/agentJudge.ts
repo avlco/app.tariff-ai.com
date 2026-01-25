@@ -577,7 +577,13 @@ STATE TRANSITION LOG (you must fill this):
 CRITICAL: If GRI 3(b) is reached, you MUST provide:
 - Component breakdown table with Nature/Bulk/Value/Role
 - Clear justification for essential character determination
-` : '';
+
+${isComposite ? `
+⚠️ COMPOSITE PRODUCT DETECTED: "${compositeType}"
+Product Analyst has pre-analyzed this as composite. You will likely need GRI 3(b).
+Essential Character pre-analysis: ${report.structural_analysis?.composite_analysis?.essential_character_component || 'See composite_analysis'}
+` : ''}
+`;
 
     const context = `
 Product Spec: ${JSON.stringify(report.structural_analysis, null, 2)}
