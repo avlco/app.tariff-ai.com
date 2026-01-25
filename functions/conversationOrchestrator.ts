@@ -445,17 +445,32 @@ export default Deno.serve(async (req) => {
         case ACTIONS.ANALYZE_PRODUCT:
         case ACTIONS.REFINE_PRODUCT: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'analyzing_data' });
-          const res = await base44.functions.invoke('agentAnalyze', { 
-            reportId, 
-            knowledgeBase, 
-            feedback: decision.specific_request?.reason,
-            conversationContext: { round: conversationState.current_round, focus: decision.specific_request?.focus }
-          });
+          
+          let res;
+          try {
+            res = await base44.functions.invoke('agentAnalyze', { 
+              reportId, 
+              knowledgeBase, 
+              feedback: decision.specific_request?.reason,
+              conversationContext: { round: conversationState.current_round, focus: decision.specific_request?.focus }
+            });
+          } catch (invokeError) {
+            console.error('[Orchestrator] agentAnalyze invocation failed:', invokeError.message);
+            await logProgress('error', `agentAnalyze invocation failed: ${invokeError.message}`);
+            actionOutput = { error: invokeError.message };
+            break;
+          }
 
           // Null safety: validate response
-          if (!res.data || res.data.error) {
-            await logProgress('error', `agentAnalyze returned error: ${res.data?.error || 'No data returned'}`);
-            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+          if (!res || !res.data) {
+            await logProgress('error', 'agentAnalyze returned null/undefined response');
+            actionOutput = { error: 'Agent returned no data' };
+            break;
+          }
+          
+          if (res.data.error) {
+            await logProgress('error', `agentAnalyze returned error: ${res.data.error}`);
+            actionOutput = { error: res.data.error };
             break;
           }
 
@@ -466,10 +481,27 @@ export default Deno.serve(async (req) => {
           }
 
           actionOutput = res.data;
+          
+          // Defensive access to spec with fallbacks
           const spec = res.data.spec || res.data.technical_spec || {};
+          const readinessScore = typeof spec.readiness_score === 'number' ? spec.readiness_score : 85;
+          
           newStateUpdates = { 
-            product_profile: spec,
-            product_readiness: spec.readiness_score || 85
+            product_profile: {
+              standardized_name: spec.standardized_name || null,
+              material_composition: spec.material_composition || null,
+              function: spec.function || null,
+              state: spec.state || null,
+              essential_character: spec.essential_character || null,
+              industry_specific_data: spec.industry_specific_data || {},
+              components_breakdown: spec.components_breakdown || [],
+              composite_analysis: spec.composite_analysis || { is_composite: false },
+              search_queries: spec.search_queries || {},
+              industry_category: spec.industry_category || null,
+              potential_gir_path: spec.potential_gir_path || null,
+              classification_guidance_notes: spec.classification_guidance_notes || null
+            },
+            product_readiness: readinessScore
           };
           break;
         }
@@ -578,45 +610,67 @@ export default Deno.serve(async (req) => {
           });
 
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'classifying_hs' });
-          const res = await base44.functions.invoke('agentJudge', { 
-            reportId, 
-            intendedUse,
-            feedback: decision.specific_request?.feedback,
-            enforceHierarchy: decision.specific_request?.enforce_hierarchy,
-            enforceCitations: decision.specific_request?.enforce_citations
-          });
+          
+          let res;
+          try {
+            res = await base44.functions.invoke('agentJudge', { 
+              reportId, 
+              intendedUse,
+              feedback: decision.specific_request?.feedback,
+              enforceHierarchy: decision.specific_request?.enforce_hierarchy,
+              enforceCitations: decision.specific_request?.enforce_citations
+            });
+          } catch (invokeError) {
+            console.error('[Orchestrator] agentJudge invocation failed:', invokeError.message);
+            await logProgress('error', `agentJudge invocation failed: ${invokeError.message}`);
+            actionOutput = { error: invokeError.message };
+            break;
+          }
 
           // Null safety: validate response
-          if (!res.data || res.data.error) {
-            await logProgress('error', `agentJudge returned error: ${res.data?.error || 'No data returned'}`);
-            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+          if (!res || !res.data) {
+            await logProgress('error', 'agentJudge returned null/undefined response');
+            actionOutput = { error: 'Agent returned no data' };
+            break;
+          }
+          
+          if (res.data.error) {
+            await logProgress('error', `agentJudge returned error: ${res.data.error}`);
+            actionOutput = { error: res.data.error };
             break;
           }
 
           actionOutput = res.data;
 
+          // Defensive access to results with fallbacks
           const results = res.data.results || res.data.classification_results || {};
           const primary = results.primary || {};
+          const hsCode = primary.hs_code || null;
+          const girApplied = primary.gri_applied || primary.gir_applied || null;
+          const confidenceScore = typeof primary.confidence_score === 'number' ? primary.confidence_score : 0;
 
           // Validate critical field
-          if (!primary.hs_code) {
+          if (!hsCode) {
             await logProgress('warning', 'agentJudge returned no HS code');
           }
 
           // TARIFF-AI 2.0: Track citation and retrieval metadata
-          const citationCount = primary.legal_citations?.length || 0;
-          const contextGaps = primary.context_gaps || [];
-          console.log(`[Orchestrator] Classification with ${citationCount} citations, ${contextGaps.length} context gaps`);
+          const legalCitations = Array.isArray(primary.legal_citations) ? primary.legal_citations : [];
+          const contextGaps = Array.isArray(primary.context_gaps) ? primary.context_gaps : [];
+          const girStateLog = Array.isArray(primary.gir_state_log) ? primary.gir_state_log : [];
+          
+          console.log(`[Orchestrator] HS Code: ${hsCode || 'N/A'}, GIR: ${girApplied || 'N/A'}`);
+          console.log(`[Orchestrator] Classification with ${legalCitations.length} citations, ${contextGaps.length} context gaps`);
 
           newStateUpdates = {
             gir_decision: {
-              hs_code: primary.hs_code || null,
-              gir_applied: primary.gri_applied || primary.gir_applied || null,
-              confidence: primary.confidence_score || 0,
+              hs_code: hsCode,
+              gir_applied: girApplied,
+              confidence: confidenceScore,
               reasoning: primary.reasoning || '',
-              audit_trail: primary.gir_state_log || [{ state: primary.gri_applied || 'unknown', result: 'resolved', timestamp: new Date().toISOString() }],
+              audit_trail: girStateLog.length > 0 ? girStateLog : [{ state: girApplied || 'unknown', result: 'resolved', timestamp: new Date().toISOString() }],
               essential_character_analysis: primary.essential_character_analysis || null,
-              legal_citations: primary.legal_citations || [],
+              legal_citations: legalCitations,
               context_gaps: contextGaps,
               legal_text_based: primary.legal_text_based || false
             }
