@@ -192,13 +192,103 @@ DECISION: RESOLVED at GRI 4 with the most akin heading.`
 
 // --- END GIR STATE MACHINE ---
 
+// --- HS CODE FORMAT VALIDATION (TARIFF-AI 2.0 - Task 2.4) ---
+
+/**
+ * Get expected HS code length for a destination country
+ * Based on CountryTradeResource.hs_structure or defaults
+ */
+function getExpectedHsCodeLength(destinationCountry, hsStructure) {
+  // Parse hs_structure if provided (e.g., "10 digits", "8 digits")
+  if (hsStructure) {
+    const match = hsStructure.match(/(\d+)\s*digit/i);
+    if (match) return parseInt(match[1], 10);
+  }
+  
+  // Country-specific defaults
+  const countryDefaults = {
+    'Israel': 10,
+    'ישראל': 10,
+    'United States': 10,
+    'USA': 10,
+    'China': 10,
+    'European Union': 10,
+    'EU': 10,
+    'Germany': 10,
+    'France': 10,
+    'United Kingdom': 10,
+    'UK': 10,
+    'Japan': 9,
+    'Canada': 10,
+    'Australia': 8,
+    'India': 8
+  };
+  
+  // Try to match country name
+  for (const [country, digits] of Object.entries(countryDefaults)) {
+    if (destinationCountry?.toLowerCase().includes(country.toLowerCase())) {
+      return digits;
+    }
+  }
+  
+  // International default (WCO standard)
+  return 6;
+}
+
+/**
+ * Validate HS code format for destination country
+ * Returns validation result with warnings (not failures)
+ */
+function validateHsCodeFormat(hsCode, destinationCountry, hsStructure) {
+  const result = {
+    valid: true,
+    warnings: [],
+    expected_length: getExpectedHsCodeLength(destinationCountry, hsStructure),
+    actual_length: hsCode?.replace(/\D/g, '').length || 0
+  };
+  
+  if (!hsCode) {
+    result.valid = false;
+    result.warnings.push('HS code is missing');
+    return result;
+  }
+  
+  // Clean HS code (remove dots, spaces)
+  const cleanCode = hsCode.replace(/[\s.]/g, '');
+  result.actual_length = cleanCode.length;
+  
+  // Check minimum length (international standard)
+  if (cleanCode.length < 6) {
+    result.valid = false;
+    result.warnings.push(`HS code "${hsCode}" is too short (${cleanCode.length} digits). Minimum is 6 digits.`);
+  }
+  
+  // Check if matches expected country-specific length
+  if (cleanCode.length < result.expected_length) {
+    result.warnings.push(
+      `HS code "${hsCode}" has ${cleanCode.length} digits but ${destinationCountry || 'destination country'} typically uses ${result.expected_length} digits. ` +
+      `Consider providing full national tariff code for accurate duty calculation.`
+    );
+  }
+  
+  // Check for valid characters (only digits allowed)
+  if (!/^\d+$/.test(cleanCode)) {
+    result.valid = false;
+    result.warnings.push(`HS code "${hsCode}" contains invalid characters. Only digits are allowed.`);
+  }
+  
+  return result;
+}
+
+// --- END HS CODE FORMAT VALIDATION ---
+
 // --- GIR OUTPUT VALIDATION (TARIFF-AI 2.0) ---
 
 /**
  * Validate GIR State Machine output for compliance
  * Returns array of issues found - used for self-healing
  */
-function validateGirOutput(results) {
+function validateGirOutput(results, destinationCountry, hsStructure) {
   const issues = [];
   const primary = results?.primary || {};
   const girApplied = primary.gri_applied || primary.gir_applied || '';
@@ -241,7 +331,7 @@ function validateGirOutput(results) {
     }
   }
   
-  // Check 3: GRI 3(b) REQUIRES essential_character_analysis
+  // Check 3: GRI 3(b) REQUIRES essential_character_analysis with COMPLETE component table
   if (girApplied.includes('3(b)') || girApplied.includes('3b') || girApplied.includes('3B')) {
     const ec = primary.essential_character_analysis;
     
@@ -249,46 +339,119 @@ function validateGirOutput(results) {
       issues.push({
         type: 'missing_essential_character',
         severity: 'high',
-        description: 'GRI 3(b) claims Essential Character but essential_character_analysis object is missing. You MUST provide component breakdown.'
+        description: 'GRI 3(b) claims Essential Character but essential_character_analysis object is missing. You MUST provide the ESSENTIAL CHARACTER TABLE with all components.'
       });
     } else {
-      // Validate components exist
+      // Validate components exist and have minimum count
       if (!ec.components || ec.components.length === 0) {
         issues.push({
           type: 'empty_components',
           severity: 'high',
-          description: 'essential_character_analysis.components array is empty. List ALL major components with Nature/Bulk/Value/Role.'
+          description: 'essential_character_analysis.components array is empty. GRI 3(b) requires listing ALL major components with Nature/Bulk%/Value%/Role.'
+        });
+      } else if (ec.components.length < 2) {
+        issues.push({
+          type: 'insufficient_components',
+          severity: 'high',
+          description: `Only ${ec.components.length} component listed. GRI 3(b) applies to COMPOSITE goods with at least 2 components. Provide complete breakdown.`
         });
       } else {
-        // Validate each component has required fields
+        // Validate EACH component has ALL required fields (Task 2.2b - strict validation)
+        const requiredFields = ['name', 'nature', 'bulk_percent', 'value_percent', 'functional_role'];
+        let incompleteComponents = [];
+        let missingPercentages = false;
+        
         for (const comp of ec.components) {
-          if (!comp.name || !comp.functional_role) {
-            issues.push({
-              type: 'incomplete_component',
-              severity: 'medium',
-              description: `Component "${comp.name || 'unnamed'}" missing required fields. Each component needs: name, nature, bulk_percent, value_percent, functional_role.`
+          const missingFields = requiredFields.filter(field => {
+            if (field === 'bulk_percent' || field === 'value_percent') {
+              return typeof comp[field] !== 'number';
+            }
+            return !comp[field];
+          });
+          
+          if (missingFields.length > 0) {
+            incompleteComponents.push({
+              name: comp.name || 'unnamed',
+              missing: missingFields
             });
-            break; // Only report once
           }
+          
+          // Check if percentages are provided
+          if (typeof comp.bulk_percent !== 'number' || typeof comp.value_percent !== 'number') {
+            missingPercentages = true;
+          }
+        }
+        
+        if (incompleteComponents.length > 0) {
+          const details = incompleteComponents.map(c => `"${c.name}" missing: ${c.missing.join(', ')}`).join('; ');
+          issues.push({
+            type: 'incomplete_component_table',
+            severity: 'high',
+            description: `Essential Character Table incomplete. ${details}. Each component MUST have: name, nature, bulk_percent (number), value_percent (number), functional_role.`
+          });
+        }
+        
+        if (missingPercentages) {
+          issues.push({
+            type: 'missing_percentages',
+            severity: 'medium',
+            description: 'Component percentages (bulk_percent, value_percent) must be numbers. These are required to determine which component dominates by bulk or value.'
+          });
+        }
+        
+        // Validate percentages sum to approximately 100%
+        const totalBulk = ec.components.reduce((sum, c) => sum + (c.bulk_percent || 0), 0);
+        const totalValue = ec.components.reduce((sum, c) => sum + (c.value_percent || 0), 0);
+        
+        if (totalBulk > 0 && (totalBulk < 90 || totalBulk > 110)) {
+          issues.push({
+            type: 'bulk_percent_mismatch',
+            severity: 'low',
+            description: `Component bulk_percent totals ${totalBulk}%, should be close to 100%. Review component breakdown.`
+          });
+        }
+        
+        if (totalValue > 0 && (totalValue < 90 || totalValue > 110)) {
+          issues.push({
+            type: 'value_percent_mismatch',
+            severity: 'low',
+            description: `Component value_percent totals ${totalValue}%, should be close to 100%. Review component breakdown.`
+          });
         }
       }
       
-      // Validate justification
-      if (!ec.justification || ec.justification.length < 50) {
+      // Validate justification with minimum detail
+      if (!ec.justification) {
+        issues.push({
+          type: 'no_justification',
+          severity: 'high',
+          description: 'essential_character_analysis.justification is missing. You MUST explain WHY the identified component gives essential character, citing Nature/Bulk/Value/Role factors.'
+        });
+      } else if (ec.justification.length < 100) {
         issues.push({
           type: 'weak_justification',
           severity: 'medium',
-          description: 'essential_character_analysis.justification is missing or too brief. Explain WHY this component gives essential character.'
+          description: `Justification is too brief (${ec.justification.length} chars). Provide detailed reasoning citing which WCO factor (Nature, Bulk, Value, or Role) determines essential character.`
         });
       }
       
-      // Validate essential_component is identified
+      // Validate essential_component is identified AND matches a component in the table
       if (!ec.essential_component) {
         issues.push({
           type: 'no_essential_component',
           severity: 'high',
           description: 'essential_character_analysis.essential_component not specified. Which component gives the product its essential character?'
         });
+      } else if (ec.components?.length > 0) {
+        // Check that essential_component matches one of the listed components
+        const componentNames = ec.components.map(c => c.name?.toLowerCase());
+        if (!componentNames.includes(ec.essential_component.toLowerCase())) {
+          issues.push({
+            type: 'essential_component_mismatch',
+            severity: 'medium',
+            description: `essential_component "${ec.essential_component}" doesn't match any component in the table (${componentNames.join(', ')}). Use exact component name.`
+          });
+        }
       }
     }
   }
@@ -322,13 +485,23 @@ function validateGirOutput(results) {
     }
   }
   
-  // Check 5: HS code format validation
+  // Check 5: HS code format validation (Task 2.4 - enhanced)
   const hsCode = primary.hs_code || '';
-  if (hsCode.length < 6) {
+  const hsValidation = validateHsCodeFormat(hsCode, destinationCountry, hsStructure);
+  
+  if (!hsValidation.valid) {
     issues.push({
       type: 'invalid_hs_code',
       severity: 'high',
-      description: `HS code "${hsCode}" is too short. Provide at least 6 digits (8-10 preferred for country-specific).`
+      description: hsValidation.warnings.join(' ')
+    });
+  } else if (hsValidation.warnings.length > 0) {
+    // Add warnings as context_gaps instead of validation failures
+    // This allows classification to proceed but flags the issue
+    issues.push({
+      type: 'hs_code_length_warning',
+      severity: 'low',
+      description: hsValidation.warnings.join(' ')
     });
   }
   
@@ -378,13 +551,53 @@ You MUST fix the following issues:
     });
   }
   
+  // Task 2.2c: Enhanced feedback for Essential Character issues
+  const ecIssues = issues.filter(i => 
+    i.type.includes('essential_character') || 
+    i.type.includes('component') || 
+    i.type.includes('justification') ||
+    i.type.includes('percentages')
+  );
+  
+  if (ecIssues.length > 0) {
+    feedback += `
+═══════════════════════════════════════════════════════════════════
+ESSENTIAL CHARACTER TABLE - MANDATORY FORMAT FOR GRI 3(b):
+═══════════════════════════════════════════════════════════════════
+
+You MUST provide the following table in essential_character_analysis.components:
+
+| Component    | Nature        | Bulk % | Value % | Functional Role          |
+|--------------|---------------|--------|---------|--------------------------|
+| [Component1] | [Material]    | [XX]   | [XX]    | primary/secondary/auxiliary |
+| [Component2] | [Material]    | [XX]   | [XX]    | primary/secondary/auxiliary |
+| [Component3] | [Material]    | [XX]   | [XX]    | primary/secondary/auxiliary |
+
+REQUIRED FIELDS (all must be present):
+- name: Component name (string)
+- nature: Material/type description (string)
+- bulk_percent: Percentage by weight/volume (NUMBER, not string)
+- value_percent: Percentage of total cost (NUMBER, not string)
+- functional_role: "primary", "secondary", or "auxiliary"
+
+Percentages should sum to approximately 100%.
+
+After the table, provide:
+- essential_component: Name of the component that gives essential character
+- justification: 100+ chars explaining WHY, citing Nature/Bulk/Value/Role
+
+═══════════════════════════════════════════════════════════════════
+`;
+  }
+
   feedback += `
 ═══════════════════════════════════════════════════════════════════
 RETRY INSTRUCTIONS:
 - Review your GRI analysis and ensure hierarchy is followed
-- If GRI 3(b) is used, provide COMPLETE essential_character_analysis
+- If GRI 3(b) is used, provide COMPLETE essential_character_analysis with component table
 - Include legal_citations with EXACT quotes from the LEGAL_TEXT_CONTEXT
 - Do not skip any required fields
+- Ensure HS code has sufficient digits for the destination country
 ═══════════════════════════════════════════════════════════════════
 `;
 
@@ -585,11 +798,41 @@ Essential Character pre-analysis: ${report.structural_analysis?.composite_analys
 ` : ''}
 `;
 
+    // Task 2.4b: Get HS structure from CountryTradeResource if available
+    let hsStructure = null;
+    try {
+      const countryResources = await base44.asServiceRole.entities.CountryTradeResource.filter({ 
+        country_name: report.destination_country 
+      });
+      if (countryResources.length > 0) {
+        hsStructure = countryResources[0].hs_structure;
+        console.log(`[AgentJudge] HS Structure for ${report.destination_country}: ${hsStructure}`);
+      }
+    } catch (e) {
+      console.warn('[AgentJudge] Could not fetch CountryTradeResource:', e.message);
+    }
+
+    // Calculate expected HS code length
+    const expectedHsLength = getExpectedHsCodeLength(report.destination_country, hsStructure);
+    console.log(`[AgentJudge] Expected HS code length: ${expectedHsLength} digits`);
+
     const context = `
 Product Spec: ${JSON.stringify(report.structural_analysis, null, 2)}
 Research Findings: ${JSON.stringify(report.research_findings, null, 2)}
 Intended Use: ${intendedUse || 'General purpose'}
 Destination Country: ${report.destination_country}
+
+═══════════════════════════════════════════════════════════════════
+HS CODE FORMAT REQUIREMENT:
+═══════════════════════════════════════════════════════════════════
+Destination: ${report.destination_country}
+Expected HS Code Length: ${expectedHsLength} digits
+${hsStructure ? `Country Tariff Structure: ${hsStructure}` : ''}
+
+IMPORTANT: Provide the FULL national tariff code (${expectedHsLength} digits) for accurate
+duty rate lookup. International HS codes (6 digits) are insufficient for country-specific
+tariff calculations.
+═══════════════════════════════════════════════════════════════════
 
 EXPLANATORY NOTES AVAILABLE:
 ${enGuidance}
@@ -681,7 +924,28 @@ CRITICAL: How to determine Essential Character:
 3. VALUE (which component costs most)
 4. ROLE the material plays in relation to the use of the goods
 
-You MUST analyze ALL components and justify which gives Essential Character.
+═══════════════════════════════════════════════════════════════════
+MANDATORY ESSENTIAL CHARACTER TABLE (required for GRI 3(b)):
+═══════════════════════════════════════════════════════════════════
+
+You MUST fill this table in essential_character_analysis.components:
+
+| Component    | Nature        | Bulk % | Value % | Functional Role          |
+|--------------|---------------|--------|---------|--------------------------|
+| [Fill]       | [Fill]        | [NUM]  | [NUM]   | primary/secondary/auxiliary |
+| [Fill]       | [Fill]        | [NUM]  | [NUM]   | primary/secondary/auxiliary |
+
+REQUIREMENTS:
+- List ALL major components (minimum 2)
+- bulk_percent and value_percent MUST be numbers (not strings)
+- Percentages should sum to ~100%
+- functional_role: "primary" = main function, "secondary" = supporting, "auxiliary" = minor
+
+After table, specify:
+- essential_component: Which component gives essential character
+- justification: Detailed reasoning (100+ chars) citing which factor dominates
+
+═══════════════════════════════════════════════════════════════════
 
 If GRI 3(b) resolves → Document and STOP.
 If not (equal essential character) → Proceed to GRI 3(c).
@@ -949,7 +1213,8 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
     });
 
     // === SELF-HEALING: Validate GIR output and retry if needed ===
-    let validationIssues = validateGirOutput(result.classification_results);
+    // Task 2.4: Pass destination country and HS structure for format validation
+    let validationIssues = validateGirOutput(result.classification_results, report.destination_country, hsStructure);
     const highSeverityIssues = validationIssues.filter(i => i.severity === 'high');
     
     console.log(`[AgentJudge] Validation: ${validationIssues.length} issues (${highSeverityIssues.length} critical)`);
@@ -990,7 +1255,7 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
       });
       
       // Re-validate
-      validationIssues = validateGirOutput(result.classification_results);
+      validationIssues = validateGirOutput(result.classification_results, report.destination_country, hsStructure);
       const remainingHighIssues = validationIssues.filter(i => i.severity === 'high');
       
       console.log(`[AgentJudge] Post-retry validation: ${validationIssues.length} issues (${remainingHighIssues.length} critical)`);
