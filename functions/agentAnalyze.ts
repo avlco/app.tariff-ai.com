@@ -49,17 +49,27 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 // --- END INLINED GATEWAY ---
 
 export default Deno.serve(async (req) => {
+  const startTime = Date.now();
+  console.log('[AgentAnalyze] ═══════════════════════════════════════════');
+  console.log('[AgentAnalyze] Starting Product Analysis (TARIFF-AI 2.0)');
+  
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, knowledgeBase } = await req.json();
+    const { reportId, knowledgeBase, feedback, conversationContext } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
+    
+    console.log(`[AgentAnalyze] Report: ${reportId}`);
+    if (feedback) console.log(`[AgentAnalyze] Feedback received: ${feedback.substring(0, 100)}...`);
+    if (conversationContext) console.log(`[AgentAnalyze] Conversation round: ${conversationContext.round}, focus: ${conversationContext.focus}`);
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
+    
+    console.log(`[AgentAnalyze] Product: ${report.product_name}, Destination: ${report.destination_country}`);
     
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'analyzing_data'
@@ -472,7 +482,11 @@ Return JSON with:
         base44_client: base44
     });
 
+    const duration = Date.now() - startTime;
+    console.log(`[AgentAnalyze] LLM call completed in ${duration}ms`);
+    
     if (result.status === 'insufficient_data') {
+        console.log(`[AgentAnalyze] ⚠️ Insufficient data - asking user: ${result.missing_info_question?.substring(0, 80)}...`);
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             status: 'waiting_for_user',
             processing_status: 'waiting_for_user',
@@ -501,6 +515,7 @@ Return JSON with:
             console.error('Failed to send notification:', notifError);
         }
         
+        console.log(`[AgentAnalyze] ═══════════════════════════════════════════`);
         return Response.json({ success: true, status: 'waiting_for_user', question: result.missing_info_question });
     } else {
         // Enrich technical_spec with composite analysis and search queries
@@ -513,6 +528,17 @@ Return JSON with:
             classification_guidance_notes: result.classification_guidance_notes
         };
         
+        // Log analysis results
+        console.log(`[AgentAnalyze] ✓ Analysis complete:`);
+        console.log(`[AgentAnalyze]   - Standardized name: ${enrichedSpec.standardized_name}`);
+        console.log(`[AgentAnalyze]   - Industry: ${enrichedSpec.industry_category}`);
+        console.log(`[AgentAnalyze]   - Composite: ${enrichedSpec.composite_analysis?.is_composite ? 'YES - ' + enrichedSpec.composite_analysis.composite_type : 'NO'}`);
+        console.log(`[AgentAnalyze]   - Essential character: ${enrichedSpec.essential_character || 'N/A'}`);
+        console.log(`[AgentAnalyze]   - GIR path prediction: ${enrichedSpec.potential_gir_path || 'GRI_1'}`);
+        console.log(`[AgentAnalyze]   - Readiness score: ${enrichedSpec.readiness_score || 'N/A'}`);
+        console.log(`[AgentAnalyze]   - Duration: ${duration}ms`);
+        console.log(`[AgentAnalyze] ═══════════════════════════════════════════`);
+        
         await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
             processing_status: 'analyzing_completed',
             structural_analysis: enrichedSpec
@@ -523,12 +549,15 @@ Return JSON with:
             status: 'analyzing_completed', 
             spec: enrichedSpec,
             composite_detected: result.composite_analysis?.is_composite || false,
-            gir_path: result.potential_gir_path
+            gir_path: result.potential_gir_path,
+            duration_ms: duration
         });
     }
 
   } catch (error) {
-    console.error('Agent A (Analyst) Error:', error);
+    console.error('[AgentAnalyze] ❌ ERROR:', error.message);
+    console.error('[AgentAnalyze] Stack:', error.stack);
+    console.log(`[AgentAnalyze] ═══════════════════════════════════════════`);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });

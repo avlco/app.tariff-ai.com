@@ -302,21 +302,33 @@ Factors:
 }
 
 export default Deno.serve(async (req) => {
+  const startTime = Date.now();
+  console.log('[AgentJudge] ═══════════════════════════════════════════');
+  console.log('[AgentJudge] Starting GIR Classification (TARIFF-AI 2.0)');
+  
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, intendedUse, feedback, enforceHierarchy } = await req.json();
+    const { reportId, intendedUse, feedback, enforceHierarchy, enforceCitations } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
+    
+    console.log(`[AgentJudge] Report: ${reportId}`);
+    console.log(`[AgentJudge] Options: enforceHierarchy=${enforceHierarchy}, enforceCitations=${enforceCitations}`);
+    if (feedback) console.log(`[AgentJudge] Feedback: ${feedback.substring(0, 100)}...`);
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
     
     if (!report.structural_analysis || !report.research_findings) {
+        console.log('[AgentJudge] ❌ Prerequisites missing');
         return Response.json({ error: 'Prerequisites missing. Run Agent A & B first.' }, { status: 400 });
     }
+    
+    console.log(`[AgentJudge] Product: ${report.structural_analysis?.standardized_name}`);
+    console.log(`[AgentJudge] Candidates: ${report.research_findings?.candidate_headings?.map(h => h.code_4_digit).join(', ')}`);
     
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'classifying_hs'
@@ -721,6 +733,8 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
         base44_client: base44
     });
 
+    const duration = Date.now() - startTime;
+    
     // Enrich results with citation metadata
     const enrichedResults = {
         ...result.classification_results,
@@ -732,6 +746,18 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
             citation_count: result.classification_results.primary.legal_citations?.length || 0
         }
     };
+
+    // Log classification results
+    console.log(`[AgentJudge] ✓ Classification complete:`);
+    console.log(`[AgentJudge]   - HS Code: ${enrichedResults.primary.hs_code}`);
+    console.log(`[AgentJudge]   - Confidence: ${enrichedResults.primary.confidence_score}`);
+    console.log(`[AgentJudge]   - GRI Applied: ${enrichedResults.primary.gri_applied || enrichedResults.primary.gir_applied}`);
+    console.log(`[AgentJudge]   - Citations: ${enrichedResults.primary.citation_count}`);
+    console.log(`[AgentJudge]   - Context Gaps: ${enrichedResults.primary.context_gaps?.length || 0}`);
+    console.log(`[AgentJudge]   - Legal Text Chars: ${legalTextContext.length}`);
+    console.log(`[AgentJudge]   - Alternatives: ${enrichedResults.alternatives?.map(a => a.hs_code).join(', ')}`);
+    console.log(`[AgentJudge]   - Duration: ${duration}ms`);
+    console.log(`[AgentJudge] ═══════════════════════════════════════════`);
 
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         classification_results: enrichedResults,
@@ -748,11 +774,14 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
             legal_text_injected: legalTextContext.length > 0,
             legal_text_chars: legalTextContext.length,
             citations_required: true
-        }
+        },
+        duration_ms: duration
     });
 
   } catch (error) {
-    console.error('Agent C (Judge) Error:', error);
+    console.error('[AgentJudge] ❌ ERROR:', error.message);
+    console.error('[AgentJudge] Stack:', error.stack);
+    console.log(`[AgentJudge] ═══════════════════════════════════════════`);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });

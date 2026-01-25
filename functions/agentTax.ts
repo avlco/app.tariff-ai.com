@@ -133,17 +133,27 @@ ${rateCitations.map(c => `[${c.source_type}] ${c.source_reference}: "${c.exact_q
 }
 
 export default Deno.serve(async (req) => {
+  const startTime = Date.now();
+  console.log('[AgentTax] ═══════════════════════════════════════════');
+  console.log('[AgentTax] Starting Tax Extraction (TARIFF-AI 2.0)');
+  
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, knowledgeBase } = await req.json();
+    const { reportId, knowledgeBase, feedback } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
+    
+    console.log(`[AgentTax] Report: ${reportId}`);
+    if (feedback) console.log(`[AgentTax] Feedback: ${feedback.substring(0, 100)}...`);
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
+    
+    console.log(`[AgentTax] HS Code: ${report.classification_results?.primary?.hs_code}`);
+    console.log(`[AgentTax] Destination: ${report.destination_country}`);
 
     if (!report.classification_results) {
         return Response.json({ error: 'Classification results missing.' }, { status: 400 });
@@ -315,7 +325,9 @@ If not found:
     });
 
   } catch (error) {
-    console.error('Agent Tax Error:', error);
+    console.error('[AgentTax] ❌ ERROR:', error.message);
+    console.error('[AgentTax] Stack:', error.stack);
+    console.log(`[AgentTax] ═══════════════════════════════════════════`);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });

@@ -146,17 +146,27 @@ Essential Character: ${structuralAnalysis.essential_character || 'N/A'}
 }
 
 export default Deno.serve(async (req) => {
+  const startTime = Date.now();
+  console.log('[AgentCompliance] ═══════════════════════════════════════════');
+  console.log('[AgentCompliance] Starting Compliance Extraction (TARIFF-AI 2.0)');
+  
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const { reportId, knowledgeBase } = await req.json();
+    const { reportId, knowledgeBase, feedback } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
+    
+    console.log(`[AgentCompliance] Report: ${reportId}`);
+    if (feedback) console.log(`[AgentCompliance] Feedback: ${feedback.substring(0, 100)}...`);
     
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
+    
+    console.log(`[AgentCompliance] Product: ${report.product_name}`);
+    console.log(`[AgentCompliance] HS Code: ${report.classification_results?.primary?.hs_code}`);
 
     // ═══════════════════════════════════════════════════════════════════
     // TARIFF-AI 2.0: Build COMPLIANCE_LEGAL_CONTEXT from retrieved sources
@@ -339,6 +349,8 @@ IMPORTANT: Do NOT invent requirements. Only extract what is explicitly stated.
         base44_client: base44
     });
 
+    const duration = Date.now() - startTime;
+    
     // Enrich with extraction metadata
     const complianceData = result.compliance_data || {};
     const enrichedComplianceData = {
@@ -349,6 +361,18 @@ IMPORTANT: Do NOT invent requirements. Only extract what is explicitly stated.
             extracted_from_retrieved_sources: true
         }
     };
+    
+    // Log compliance extraction results
+    console.log(`[AgentCompliance] ✓ Compliance extraction complete:`);
+    console.log(`[AgentCompliance]   - Import Requirements: ${enrichedComplianceData.import_requirements?.length || 0}`);
+    console.log(`[AgentCompliance]   - Standards: ${enrichedComplianceData.mandatory_standards?.length || 0}`);
+    console.log(`[AgentCompliance]   - Licenses: ${enrichedComplianceData.licenses_required?.length || 0}`);
+    console.log(`[AgentCompliance]   - Import Legality: ${enrichedComplianceData.import_legality || 'unknown'}`);
+    console.log(`[AgentCompliance]   - Data Gaps: ${enrichedComplianceData.data_gaps?.length || 0}`);
+    console.log(`[AgentCompliance]   - Confidence: ${enrichedComplianceData.extraction_confidence || 'N/A'}`);
+    console.log(`[AgentCompliance]   - Legal Context Chars: ${complianceLegalContext.length}`);
+    console.log(`[AgentCompliance]   - Duration: ${duration}ms`);
+    console.log(`[AgentCompliance] ═══════════════════════════════════════════`);
     
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         regulatory_data: {
@@ -371,11 +395,14 @@ IMPORTANT: Do NOT invent requirements. Only extract what is explicitly stated.
         retrieval_metadata: {
             legal_context_used: complianceLegalContext.length > 0,
             extraction_based: true
-        }
+        },
+        duration_ms: duration
     });
 
   } catch (error) {
-    console.error('Agent Compliance Error:', error);
+    console.error('[AgentCompliance] ❌ ERROR:', error.message);
+    console.error('[AgentCompliance] Stack:', error.stack);
+    console.log(`[AgentCompliance] ═══════════════════════════════════════════`);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });

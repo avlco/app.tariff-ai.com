@@ -344,6 +344,10 @@ function calculateRetrievalScore(researchFindings, classificationResults) {
 // --- END INLINED GATEWAY ---
 
 export default Deno.serve(async (req) => {
+  const startTime = Date.now();
+  console.log('[AgentQA] ═══════════════════════════════════════════');
+  console.log('[AgentQA] Starting QA Audit (TARIFF-AI 2.0)');
+  
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
@@ -352,10 +356,15 @@ export default Deno.serve(async (req) => {
     const { reportId } = await req.json();
     if (!reportId) return Response.json({ error: 'Report ID is required' }, { status: 400 });
     
+    console.log(`[AgentQA] Report: ${reportId}`);
+    
     const reports = await base44.entities.ClassificationReport.filter({ id: reportId });
     const report = reports[0];
     if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
+    console.log(`[AgentQA] HS Code: ${report.classification_results?.primary?.hs_code}`);
+    console.log(`[AgentQA] Citations: ${report.classification_results?.primary?.legal_citations?.length || 0}`);
+    
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
       processing_status: 'qa_pending'
     });
@@ -757,6 +766,8 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
         base44_client: base44
     });
 
+    const duration = Date.now() - startTime;
+    
     const audit = result.qa_audit;
     
     // Enrich audit with pre-validation results
@@ -775,6 +786,22 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
         processingStatus = 'failed';
     }
 
+    // Log QA results
+    console.log(`[AgentQA] ✓ QA Audit complete:`);
+    console.log(`[AgentQA]   - Status: ${enrichedAudit.status?.toUpperCase()}`);
+    console.log(`[AgentQA]   - Score: ${enrichedAudit.score}/100`);
+    console.log(`[AgentQA]   - Retrieval Quality: ${enrichedAudit.retrieval_quality_score}/100`);
+    console.log(`[AgentQA]   - R&D Compliant: ${enrichedAudit.retrieve_deduce_compliant ? 'YES' : 'NO'}`);
+    console.log(`[AgentQA]   - Pre-validation Issues: ${preValidationIssues.length}`);
+    console.log(`[AgentQA]   - Citation Issues: ${citationIssues.length}`);
+    console.log(`[AgentQA]   - Extraction Issues: ${extractionIssues.length}`);
+    if (enrichedAudit.status === 'failed') {
+        console.log(`[AgentQA]   - Faulty Agent: ${enrichedAudit.faulty_agent}`);
+        console.log(`[AgentQA]   - Fix Instructions: ${enrichedAudit.fix_instructions?.substring(0, 100)}...`);
+    }
+    console.log(`[AgentQA]   - Duration: ${duration}ms`);
+    console.log(`[AgentQA] ═══════════════════════════════════════════`);
+
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
         qa_audit: enrichedAudit,
         status: finalStatus,
@@ -791,11 +818,14 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
             retrieval_quality_score: retrievalScore,
             citation_issues_count: citationIssues.length,
             extraction_issues_count: extractionIssues.length
-        }
+        },
+        duration_ms: duration
     });
 
   } catch (error) {
-    console.error('Agent E (QA) Error:', error);
+    console.error('[AgentQA] ❌ ERROR:', error.message);
+    console.error('[AgentQA] Stack:', error.stack);
+    console.log(`[AgentQA] ═══════════════════════════════════════════`);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 });
