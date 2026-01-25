@@ -987,6 +987,17 @@ export default Deno.serve(async (req) => {
     const enIssues = validateEnAlignment(report.classification_results, report.research_findings);
     const precedentIssues = validatePrecedentConsistency(report.classification_results, report.research_findings);
     
+    // Task 2.2: Essential Character Table validation
+    const ecValidation = validateEssentialCharacter(report.classification_results);
+    const ecIssues = ecValidation.issues || [];
+    
+    // Task 2.4: HS Code Format validation per country
+    const hsFormatValidation = validateHsCodeFormat(
+      report.classification_results?.primary?.hs_code,
+      report.destination_country
+    );
+    const hsFormatIssues = hsFormatValidation.issues || [];
+    
     // TARIFF-AI 2.0: Citation validation
     const citationIssues = validateCitations(report.classification_results, report.research_findings);
     // Task 4.1: Use tax_data and compliance_data instead of regulatory_data
@@ -997,6 +1008,8 @@ export default Deno.serve(async (req) => {
     
     // Task 4.5: Enhanced logging
     console.log(`[AgentQA] GIR issues: ${girIssues.length}, EN issues: ${enIssues.length}`);
+    console.log(`[AgentQA] Essential Character validation: required=${ecValidation.required}, valid=${ecValidation.valid}, issues=${ecIssues.length}`);
+    console.log(`[AgentQA] HS Format validation: valid=${hsFormatValidation.valid}, digits=${hsFormatValidation.actual_digits}/${hsFormatValidation.expected_digits}`);
     console.log(`[AgentQA] Citation issues: ${citationIssues.length}, Extraction issues: ${extractionIssues.length}`);
     console.log(`[AgentQA] Composite consistency issues: ${compositeIssues.length}`);
     console.log(`[AgentQA] Retrieval quality score: ${retrievalScore}`);
