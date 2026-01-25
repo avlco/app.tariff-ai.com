@@ -418,7 +418,7 @@ Be thorough. Prioritize official sources. Document everything.
 OUTPUT: Return comprehensive JSON with all research findings.
 `;
 
-    const fullPrompt = `${systemPrompt}\n\nDATA TO RESEARCH:\n${context}\n${kbContext}`;
+    const fullPrompt = `${systemPrompt}\n\nDATA TO RESEARCH:\n${context}\n${kbContext}\n${retrievedContext}`;
 
     const result = await invokeSpecializedLLM({
         prompt: fullPrompt,
