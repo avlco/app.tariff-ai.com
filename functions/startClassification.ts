@@ -53,6 +53,15 @@ export default Deno.serve(async (req) => {
             return Response.json({ error: 'Report ID is required' }, { status: 400 });
         }
 
+        // Verify report exists before proceeding
+        console.log(`[startClassification] Looking for report with id: ${reportId}`);
+        const existingReports = await base44.entities.ClassificationReport.filter({ id: reportId });
+        if (!existingReports || existingReports.length === 0) {
+            console.error(`[startClassification] Report not found: ${reportId}`);
+            return Response.json({ error: `Report not found: ${reportId}` }, { status: 404 });
+        }
+        console.log(`[startClassification] Found report: ${existingReports[0].product_name}`);
+
         // === NEW: Use Conversation-Based Orchestrator ===
         if (USE_CONVERSATION_ORCHESTRATOR) {
             await logProgress(reportId, 'initialization', 'Starting Conversation-Based Classification (v2.0)');
