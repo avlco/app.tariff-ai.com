@@ -576,11 +576,14 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
 ═══════════════════════════════════════════════════════════════════
 `;
 
-    let fullPrompt = `${systemPrompt}\n\n${girStateContext}\n\nCASE EVIDENCE:\n${context}`;
+    // Inject the LEGAL_TEXT_CONTEXT at the beginning for maximum visibility
+    let fullPrompt = `${systemPrompt}\n\n${legalTextContext}\n\n${girStateContext}\n\nCASE EVIDENCE:\n${context}`;
     
     if (feedback) {
-      fullPrompt += `\n\nIMPORTANT - PREVIOUS ATTEMPT FEEDBACK:\nThe QA Auditor rejected the previous classification with these instructions:\n${feedback}\nPlease correct the analysis based on this feedback. Pay special attention to GRI hierarchy compliance.`;
+      fullPrompt += `\n\nIMPORTANT - PREVIOUS ATTEMPT FEEDBACK:\nThe QA Auditor rejected the previous classification with these instructions:\n${feedback}\nPlease correct the analysis based on this feedback. Pay special attention to GRI hierarchy compliance and CITATION REQUIREMENTS.`;
     }
+    
+    console.log(`[AgentJudge] Full prompt length: ${fullPrompt.length} chars`);
 
     const result = await invokeSpecializedLLM({
         prompt: fullPrompt,
