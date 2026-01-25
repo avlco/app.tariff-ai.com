@@ -169,6 +169,43 @@ export default Deno.serve(async (req) => {
     const spec = report.structural_analysis;
     const destCountry = report.destination_country;
     
+    // ═══════════════════════════════════════════════════════════════════
+    // TARIFF-AI 2.0: PHASE 0 - Retrieve from CountryTradeResource
+    // ═══════════════════════════════════════════════════════════════════
+    console.log('[AgentResearch] Starting RETRIEVE & DEDUCE workflow');
+    
+    const officialSources = await retrieveOfficialSources(base44, destCountry, spec);
+    
+    // Also scrape standard sources (EU TARIC, BTI) for supplementary data
+    const standardSourcesTasks = [
+      scrapeEuTaric(spec.industry_specific_data?.suggested_hs_code || '0000'),
+      scrapeEuBti(spec.standardized_name || report.product_name)
+    ];
+    
+    const standardResults = await Promise.allSettled(standardSourcesTasks);
+    const euTaricResult = standardResults[0].status === 'fulfilled' ? standardResults[0].value : null;
+    const euBtiResult = standardResults[1].status === 'fulfilled' ? standardResults[1].value : null;
+    
+    // Build the LEGAL_TEXT_CORPUS for context injection
+    let legalTextCorpus = '';
+    
+    if (officialSources.raw_legal_text) {
+      legalTextCorpus += `\n\n=== OFFICIAL SOURCES (${officialSources.normalized_country || destCountry}) ===\n`;
+      legalTextCorpus += officialSources.raw_legal_text;
+    }
+    
+    if (euTaricResult?.success && euTaricResult.raw_excerpt) {
+      legalTextCorpus += `\n\n=== EU TARIC DATABASE ===\n`;
+      legalTextCorpus += euTaricResult.raw_excerpt;
+    }
+    
+    if (euBtiResult?.success && euBtiResult.raw_excerpt) {
+      legalTextCorpus += `\n\n=== EU BTI PRECEDENTS ===\n`;
+      legalTextCorpus += euBtiResult.raw_excerpt;
+    }
+    
+    console.log(`[AgentResearch] Total LEGAL_TEXT_CORPUS: ${legalTextCorpus.length} chars`);
+    
     const context = `
 Destination Country: ${destCountry}
 Technical Specification:
