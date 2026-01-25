@@ -1,6 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 
 Deno.serve(async (req) => {
+  let reportId = null; // Store reportId for use in catch block
+  
   try {
     const base44 = createClientFromRequest(req);
     
@@ -10,7 +12,8 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const { reportId } = await req.json();
+    const body = await req.json();
+    reportId = body.reportId;
     
     if (!reportId) {
       return Response.json({ error: 'Report ID is required' }, { status: 400 });
@@ -130,18 +133,18 @@ Provide:
   } catch (error) {
     console.error('Error generating final report:', error);
     
-    // Update report status to failed
-    try {
-      const body = await req.json();
-      if (body.reportId) {
-        await base44.asServiceRole.entities.ClassificationReport.update(body.reportId, {
+    // Update report status to failed using the already-parsed reportId
+    if (reportId) {
+      try {
+        const base44 = createClientFromRequest(req);
+        await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
           processing_status: 'failed',
           status: 'failed',
           error_details: error.message || 'שגיאה לא צפויה ביצירת הדוח הסופי'
         });
+      } catch (e) {
+        console.error('Failed to update report status:', e.message);
       }
-    } catch (e) {
-      // Ignore if can't parse request body
     }
     
     return Response.json({ 

@@ -412,7 +412,7 @@ export default Deno.serve(async (req) => {
     try {
       const reportData = await base44.entities.ClassificationReport.filter({ id: reportId });
       if (reportData[0]?.destination_country) {
-        const kb = await base44.asServiceRole.entities.CountryKnowledgeBase.filter({ country: reportData[0].destination_country });
+        const kb = await base44.asServiceRole.entities.CountryTradeResource.filter({ country_name: reportData[0].destination_country });
         knowledgeBase = kb[0] || null;
       }
     } catch (e) { console.warn('KB fetch failed:', e); }
