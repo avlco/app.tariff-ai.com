@@ -241,6 +241,320 @@ function validatePrecedentConsistency(classificationResults, researchFindings) {
   return issues;
 }
 
+// --- TASK 2.2: ESSENTIAL CHARACTER TABLE VALIDATION ---
+
+/**
+ * Validate Essential Character analysis when GRI 3(b) is used
+ * This is the comprehensive validation per WCO guidelines
+ */
+function validateEssentialCharacter(classificationResults) {
+  const girApplied = classificationResults?.primary?.gri_applied || classificationResults?.primary?.gir_applied || '';
+  
+  // Check if GRI 3(b) was applied
+  const isGRI3b = girApplied.includes('3(b)') || girApplied.includes('3b') || girApplied.includes('3B');
+  
+  if (!isGRI3b) {
+    return { required: false, valid: true, issues: [] };
+  }
+  
+  const issues = [];
+  const ecAnalysis = classificationResults?.primary?.essential_character_analysis;
+  
+  // Check 1: Essential character analysis object exists
+  if (!ecAnalysis) {
+    issues.push({
+      type: 'ec_missing',
+      severity: 'high',
+      description: 'GRI 3(b) used but essential_character_analysis object is completely missing'
+    });
+    return { required: true, valid: false, issues };
+  }
+  
+  // Check 2: Components array exists with at least 2 components
+  if (!ecAnalysis.components || !Array.isArray(ecAnalysis.components)) {
+    issues.push({
+      type: 'ec_no_components_array',
+      severity: 'high',
+      description: 'Essential character requires components array'
+    });
+  } else if (ecAnalysis.components.length < 2) {
+    issues.push({
+      type: 'ec_insufficient_components',
+      severity: 'high',
+      description: `Essential character requires at least 2 components, found ${ecAnalysis.components.length}`
+    });
+  } else {
+    // Validate each component has required fields
+    let missingFields = [];
+    let totalBulk = 0;
+    let totalValue = 0;
+    let hasBulkPercent = false;
+    let hasValuePercent = false;
+    
+    for (let i = 0; i < ecAnalysis.components.length; i++) {
+      const comp = ecAnalysis.components[i];
+      
+      // Check name
+      if (!comp.name) {
+        missingFields.push(`Component ${i + 1}: missing name`);
+      }
+      
+      // Check functional_role
+      if (!comp.functional_role) {
+        missingFields.push(`Component ${i + 1} (${comp.name || 'unnamed'}): missing functional_role`);
+      }
+      
+      // Check bulk_percent
+      if (comp.bulk_percent !== undefined && comp.bulk_percent !== null) {
+        hasBulkPercent = true;
+        totalBulk += Number(comp.bulk_percent) || 0;
+      }
+      
+      // Check value_percent
+      if (comp.value_percent !== undefined && comp.value_percent !== null) {
+        hasValuePercent = true;
+        totalValue += Number(comp.value_percent) || 0;
+      }
+    }
+    
+    if (missingFields.length > 0) {
+      issues.push({
+        type: 'ec_incomplete_components',
+        severity: 'medium',
+        description: `Component fields missing: ${missingFields.join('; ')}`
+      });
+    }
+    
+    // Check percentages exist
+    if (!hasBulkPercent) {
+      issues.push({
+        type: 'ec_no_bulk_percent',
+        severity: 'medium',
+        description: 'Essential character analysis should include bulk_percent for components'
+      });
+    }
+    
+    if (!hasValuePercent) {
+      issues.push({
+        type: 'ec_no_value_percent',
+        severity: 'medium',
+        description: 'Essential character analysis should include value_percent for components'
+      });
+    }
+    
+    // Check percentages sum to ~100%
+    if (hasBulkPercent && (totalBulk < 90 || totalBulk > 110)) {
+      issues.push({
+        type: 'ec_bulk_sum_invalid',
+        severity: 'medium',
+        description: `Bulk percentages sum to ${totalBulk.toFixed(1)}%, expected ~100%`
+      });
+    }
+    
+    if (hasValuePercent && (totalValue < 90 || totalValue > 110)) {
+      issues.push({
+        type: 'ec_value_sum_invalid',
+        severity: 'medium',
+        description: `Value percentages sum to ${totalValue.toFixed(1)}%, expected ~100%`
+      });
+    }
+  }
+  
+  // Check 3: Essential component identified
+  if (!ecAnalysis.essential_component) {
+    issues.push({
+      type: 'ec_no_conclusion',
+      severity: 'high',
+      description: 'essential_character_analysis.essential_component not specified - which component gives essential character?'
+    });
+  }
+  
+  // Check 4: Justification provided
+  if (!ecAnalysis.justification) {
+    issues.push({
+      type: 'ec_no_justification',
+      severity: 'high',
+      description: 'essential_character_analysis.justification is missing - must explain why this component gives essential character'
+    });
+  } else if (ecAnalysis.justification.length < 50) {
+    issues.push({
+      type: 'ec_weak_justification',
+      severity: 'medium',
+      description: `Justification too brief (${ecAnalysis.justification.length} chars) - should cite value/bulk/function dominance`
+    });
+  }
+  
+  // Check 5: Verify essential_component matches one of the components
+  if (ecAnalysis.essential_component && ecAnalysis.components?.length > 0) {
+    const essentialLower = ecAnalysis.essential_component.toLowerCase();
+    const matchFound = ecAnalysis.components.some(c => 
+      c.name?.toLowerCase().includes(essentialLower) || 
+      essentialLower.includes(c.name?.toLowerCase())
+    );
+    
+    if (!matchFound) {
+      issues.push({
+        type: 'ec_component_mismatch',
+        severity: 'medium',
+        description: `essential_component "${ecAnalysis.essential_component}" doesn't match any component name in the list`
+      });
+    }
+  }
+  
+  const highSeverityCount = issues.filter(i => i.severity === 'high').length;
+  
+  return { 
+    required: true, 
+    valid: highSeverityCount === 0,
+    issues,
+    summary: {
+      components_count: ecAnalysis.components?.length || 0,
+      has_essential_component: !!ecAnalysis.essential_component,
+      has_justification: !!ecAnalysis.justification,
+      justification_length: ecAnalysis.justification?.length || 0
+    }
+  };
+}
+
+// --- TASK 2.4: HS CODE FORMAT VALIDATION PER COUNTRY ---
+
+/**
+ * HS Code format specifications per country
+ */
+const HS_FORMATS = {
+  'IL': { 
+    digits: 10, 
+    pattern: /^\d{4}[.\s]?\d{2}[.\s]?\d{2}[.\s]?\d{2}$/, 
+    example: '8471.30.00.10',
+    description: 'Israel uses 10-digit codes'
+  },
+  'US': { 
+    digits: 10, 
+    pattern: /^\d{4}[.\s]?\d{2}[.\s]?\d{4}$/, 
+    example: '8471.30.0150',
+    description: 'US HTS uses 10-digit codes'
+  },
+  'EU': { 
+    digits: 8, 
+    pattern: /^\d{4}[.\s]?\d{2}[.\s]?\d{2}$/, 
+    example: '8471.30.00',
+    description: 'EU TARIC uses 8-digit codes'
+  },
+  'UK': { 
+    digits: 10, 
+    pattern: /^\d{4}[.\s]?\d{2}[.\s]?\d{2}[.\s]?\d{2}$/, 
+    example: '8471.30.00.00',
+    description: 'UK uses 10-digit codes'
+  },
+  'CN': { 
+    digits: 10, 
+    pattern: /^\d{4}[.\s]?\d{2}[.\s]?\d{2}[.\s]?\d{2}$/, 
+    example: '8471.30.00.10',
+    description: 'China uses 10-digit codes'
+  },
+  'JP': { 
+    digits: 9, 
+    pattern: /^\d{4}[.\s]?\d{2}[.\s]?\d{3}$/, 
+    example: '8471.30.000',
+    description: 'Japan uses 9-digit codes'
+  },
+  'AU': { 
+    digits: 8, 
+    pattern: /^\d{4}[.\s]?\d{2}[.\s]?\d{2}$/, 
+    example: '8471.30.00',
+    description: 'Australia uses 8-digit codes'
+  },
+  'DEFAULT': { 
+    digits: 6, 
+    pattern: /^\d{4}[.\s]?\d{2}$/, 
+    example: '8471.30',
+    description: 'International HS uses 6-digit codes'
+  }
+};
+
+/**
+ * Validate HS code format for destination country
+ */
+function validateHsCodeFormat(hsCode, destinationCountry) {
+  const issues = [];
+  
+  if (!hsCode) {
+    issues.push({
+      type: 'hs_code_missing',
+      severity: 'high',
+      description: 'HS code is missing from classification'
+    });
+    return { valid: false, issues };
+  }
+  
+  // Normalize the HS code (remove dots and spaces for digit counting)
+  const cleanCode = hsCode.replace(/[.\s]/g, '');
+  
+  // Check it contains only digits
+  if (!/^\d+$/.test(cleanCode)) {
+    issues.push({
+      type: 'hs_code_invalid_chars',
+      severity: 'high',
+      description: `HS code "${hsCode}" contains non-numeric characters`
+    });
+    return { valid: false, issues };
+  }
+  
+  // Get format for destination country
+  const countryCode = (destinationCountry || '').toUpperCase();
+  const format = HS_FORMATS[countryCode] || HS_FORMATS['DEFAULT'];
+  
+  // Check minimum length (at least 6 digits for international)
+  if (cleanCode.length < 6) {
+    issues.push({
+      type: 'hs_code_too_short',
+      severity: 'high',
+      description: `HS code "${hsCode}" has only ${cleanCode.length} digits, minimum is 6`
+    });
+    return { valid: false, issues };
+  }
+  
+  // Check against country-specific format
+  if (cleanCode.length < format.digits) {
+    issues.push({
+      type: 'hs_code_insufficient_digits',
+      severity: 'medium',
+      description: `HS code for ${countryCode || 'destination'} requires ${format.digits} digits, got ${cleanCode.length}. Expected format: ${format.example}`
+    });
+  }
+  
+  // Check first 4 digits are valid chapter/heading (01-99 for chapter)
+  const chapter = parseInt(cleanCode.substring(0, 2), 10);
+  if (chapter < 1 || chapter > 99) {
+    issues.push({
+      type: 'hs_code_invalid_chapter',
+      severity: 'high',
+      description: `HS code chapter "${cleanCode.substring(0, 2)}" is invalid (must be 01-99)`
+    });
+  }
+  
+  // Common chapter validations
+  const heading = cleanCode.substring(0, 4);
+  if (heading === '0000' || heading === '9999') {
+    issues.push({
+      type: 'hs_code_placeholder',
+      severity: 'high',
+      description: `HS code heading "${heading}" appears to be a placeholder, not a real classification`
+    });
+  }
+  
+  const highSeverityCount = issues.filter(i => i.severity === 'high').length;
+  
+  return { 
+    valid: highSeverityCount === 0, 
+    issues,
+    normalized_code: cleanCode,
+    expected_digits: format.digits,
+    actual_digits: cleanCode.length,
+    country_format: format.description
+  };
+}
+
 // --- END GIR VALIDATION LOGIC ---
 
 // --- TARIFF-AI 2.0: CITATION VALIDATION LOGIC ---
