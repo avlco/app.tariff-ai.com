@@ -507,41 +507,64 @@ export default Deno.serve(async (req) => {
         case ACTIONS.IDENTIFY_CANDIDATES:
         case ACTIONS.SEARCH_PRECEDENTS: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'researching' });
-          const res = await base44.functions.invoke('agentResearch', { 
-            reportId, 
-            knowledgeBase,
-            expandSearch: decision.specific_request?.expand_search,
-            focusAreas: decision.specific_request?.focus_areas
-          });
+          
+          let res;
+          try {
+            res = await base44.functions.invoke('agentResearch', { 
+              reportId, 
+              knowledgeBase,
+              expandSearch: decision.specific_request?.expand_search,
+              focusAreas: decision.specific_request?.focus_areas
+            });
+          } catch (invokeError) {
+            console.error('[Orchestrator] agentResearch invocation failed:', invokeError.message);
+            await logProgress('error', `agentResearch invocation failed: ${invokeError.message}`);
+            actionOutput = { error: invokeError.message };
+            break;
+          }
 
           // Null safety: validate response
-          if (!res.data || res.data.error) {
-            await logProgress('error', `agentResearch returned error: ${res.data?.error || 'No data returned'}`);
-            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+          if (!res || !res.data) {
+            await logProgress('error', 'agentResearch returned null/undefined response');
+            actionOutput = { error: 'Agent returned no data' };
+            break;
+          }
+          
+          if (res.data.error) {
+            await logProgress('error', `agentResearch returned error: ${res.data.error}`);
+            actionOutput = { error: res.data.error };
             break;
           }
 
           actionOutput = res.data;
 
-          const findings = res.data.findings || {};
+          // Defensive access to findings with fallbacks
+          const findings = res.data.findings || res.data.research_findings || {};
+          const candidateHeadings = findings.candidate_headings || [];
+          const legalNotesFound = findings.legal_notes_found || [];
+          const verifiedSources = findings.verified_sources || [];
+          const btiCases = findings.bti_cases || [];
+          const wcoPrecedents = findings.wco_precedents || [];
 
           // TARIFF-AI 2.0: Track raw legal text corpus quality
           const rawCorpusLength = findings.raw_legal_text_corpus?.length || 0;
           console.log(`[Orchestrator] Raw legal text corpus: ${rawCorpusLength} chars`);
+          console.log(`[Orchestrator] Candidate headings: ${candidateHeadings.length}`);
+          console.log(`[Orchestrator] Verified sources: ${verifiedSources.length}`);
 
           newStateUpdates = {
-            candidate_headings: (findings.candidate_headings || []).map(h => h.code_4_digit || h).filter(Boolean),
+            candidate_headings: candidateHeadings.map(h => h.code_4_digit || h).filter(Boolean),
             legal_research: {
-              en_documents: findings.candidate_headings || [],
-              notes: findings.legal_notes_found || [],
-              verified_sources: findings.verified_sources || [],
+              en_documents: candidateHeadings,
+              notes: legalNotesFound,
+              verified_sources: verifiedSources,
               raw_legal_text_corpus_length: rawCorpusLength,
               retrieval_metadata: res.data.retrieval_metadata || {}
             },
             precedents: {
-              bti_cases: findings.bti_cases || [],
-              wco_opinions: findings.wco_precedents || [],
-              consensus: { agreement_rate: (findings.wco_precedents?.length || 0) > 0 ? 0.7 : 0 }
+              bti_cases: btiCases,
+              wco_opinions: wcoPrecedents,
+              consensus: { agreement_rate: wcoPrecedents.length > 0 ? 0.7 : 0 }
             }
           };
           break;
@@ -653,28 +676,49 @@ export default Deno.serve(async (req) => {
 
         case ACTIONS.CALCULATE_TAX: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'calculating_duties' });
-          const res = await base44.functions.invoke('agentTax', { 
-            reportId, 
-            knowledgeBase,
-            feedback: decision.specific_request?.feedback
-          });
+          
+          let res;
+          try {
+            res = await base44.functions.invoke('agentTax', { 
+              reportId, 
+              knowledgeBase,
+              feedback: decision.specific_request?.feedback
+            });
+          } catch (invokeError) {
+            console.error('[Orchestrator] agentTax invocation failed:', invokeError.message);
+            await logProgress('error', `agentTax invocation failed: ${invokeError.message}`);
+            actionOutput = { error: invokeError.message };
+            break;
+          }
 
           // Null safety: validate response
-          if (!res.data || res.data.error) {
-            await logProgress('error', `agentTax returned error: ${res.data?.error || 'No data returned'}`);
-            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+          if (!res || !res.data) {
+            await logProgress('error', 'agentTax returned null/undefined response');
+            actionOutput = { error: 'Agent returned no data' };
+            break;
+          }
+          
+          if (res.data.error) {
+            await logProgress('error', `agentTax returned error: ${res.data.error}`);
+            actionOutput = { error: res.data.error };
             break;
           }
 
           actionOutput = res.data;
 
-          // TARIFF-AI 2.0: Track extraction metadata
-          const taxData = res.data.data || res.data || {};
+          // TARIFF-AI 2.0: Track extraction metadata with defensive access
+          const taxData = res.data.data || res.data.tax_data || {};
+          const taxPrimary = taxData.primary || {};
           console.log(`[Orchestrator] Tax extraction confidence: ${taxData.extraction_confidence || 'N/A'}`);
+          console.log(`[Orchestrator] Duty rate: ${taxPrimary.duty_rate || 'N/A'}`);
 
           newStateUpdates = { 
             tax_data: {
-              ...taxData,
+              primary: taxPrimary,
+              preferential_rates: taxData.preferential_rates || [],
+              alternatives: taxData.alternatives || [],
+              data_gaps: taxData.data_gaps || [],
+              extraction_confidence: taxData.extraction_confidence || 'unknown',
               extraction_metadata: taxData.extraction_metadata || res.data.retrieval_metadata || {}
             }
           };
@@ -683,28 +727,52 @@ export default Deno.serve(async (req) => {
 
         case ACTIONS.CHECK_COMPLIANCE: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'checking_regulations' });
-          const res = await base44.functions.invoke('agentCompliance', { 
-            reportId, 
-            knowledgeBase,
-            feedback: decision.specific_request?.feedback
-          });
+          
+          let res;
+          try {
+            res = await base44.functions.invoke('agentCompliance', { 
+              reportId, 
+              knowledgeBase,
+              feedback: decision.specific_request?.feedback
+            });
+          } catch (invokeError) {
+            console.error('[Orchestrator] agentCompliance invocation failed:', invokeError.message);
+            await logProgress('error', `agentCompliance invocation failed: ${invokeError.message}`);
+            actionOutput = { error: invokeError.message };
+            break;
+          }
 
           // Null safety: validate response
-          if (!res.data || res.data.error) {
-            await logProgress('error', `agentCompliance returned error: ${res.data?.error || 'No data returned'}`);
-            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+          if (!res || !res.data) {
+            await logProgress('error', 'agentCompliance returned null/undefined response');
+            actionOutput = { error: 'Agent returned no data' };
+            break;
+          }
+          
+          if (res.data.error) {
+            await logProgress('error', `agentCompliance returned error: ${res.data.error}`);
+            actionOutput = { error: res.data.error };
             break;
           }
 
           actionOutput = res.data;
 
-          // TARIFF-AI 2.0: Track extraction metadata
-          const complianceData = res.data.data || res.data || {};
+          // TARIFF-AI 2.0: Track extraction metadata with defensive access
+          const complianceData = res.data.data || res.data.compliance_data || {};
           console.log(`[Orchestrator] Compliance extraction confidence: ${complianceData.extraction_confidence || 'N/A'}`);
+          console.log(`[Orchestrator] Import legality: ${complianceData.import_legality || 'N/A'}`);
 
           newStateUpdates = { 
             compliance_data: {
-              ...complianceData,
+              import_requirements: complianceData.import_requirements || [],
+              mandatory_standards: complianceData.mandatory_standards || [],
+              labeling_laws: complianceData.labeling_laws || [],
+              prohibitions: complianceData.prohibitions || [],
+              licenses_required: complianceData.licenses_required || [],
+              certifications_needed: complianceData.certifications_needed || [],
+              import_legality: complianceData.import_legality || 'unknown',
+              data_gaps: complianceData.data_gaps || [],
+              extraction_confidence: complianceData.extraction_confidence || 'unknown',
               extraction_metadata: complianceData.extraction_metadata || res.data.retrieval_metadata || {}
             }
           };
