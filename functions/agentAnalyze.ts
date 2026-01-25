@@ -379,7 +379,7 @@ Return JSON with:
                                     material: { type: "string" },
                                     value_percent: { type: "number" },
                                     weight_percent: { type: "number" },
-                                    function: { type: "string" }
+                                    function: { type: "string", enum: ["primary", "secondary", "auxiliary"] }
                                 }
                             },
                             description: "Component breakdown for composite goods (required for GRI 3(b) analysis)"
@@ -387,9 +387,45 @@ Return JSON with:
                         readiness_score: {
                             type: "number",
                             description: "Data completeness score 0-100"
+                        },
+                        suggested_hs_code: {
+                            type: "string",
+                            description: "Initial 4-digit HS heading suggestion based on analysis (e.g., '8471')"
                         }
                     },
                     description: "Complete technical specification - only if status is success"
+                },
+                composite_analysis: {
+                    type: "object",
+                    properties: {
+                        is_composite: {
+                            type: "boolean",
+                            description: "True if product consists of multiple materials/components"
+                        },
+                        composite_type: {
+                            type: "string",
+                            enum: ["single_component", "mixture", "set", "combined_article", "retail_set"],
+                            description: "Type of composite if applicable"
+                        },
+                        essential_character_component: {
+                            type: "string",
+                            description: "Name of component providing essential character"
+                        },
+                        essential_character_reasoning: {
+                            type: "string",
+                            description: "Detailed reasoning citing value/bulk/function dominance"
+                        },
+                        essential_character_factors: {
+                            type: "object",
+                            properties: {
+                                value_dominant: { type: "string" },
+                                bulk_dominant: { type: "string" },
+                                function_dominant: { type: "string" },
+                                user_perception: { type: "string" }
+                            }
+                        }
+                    },
+                    description: "Composite goods analysis per WCO guidelines"
                 },
                 industry_category: {
                     type: "string",
@@ -401,7 +437,34 @@ Return JSON with:
                 },
                 potential_gir_path: {
                     type: "string",
-                    description: "Likely GIR rule needed (e.g., 'GRI 1 - unambiguous' or 'GRI 3(b) - composite goods')"
+                    enum: ["GRI_1", "GRI_2a", "GRI_2b", "GRI_3a", "GRI_3b", "GRI_3c", "GRI_4", "GRI_5", "GRI_6"],
+                    description: "Likely GIR rule needed for classification"
+                },
+                search_queries: {
+                    type: "object",
+                    properties: {
+                        hs_search_queries: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Queries for HS code lookup (English)"
+                        },
+                        legal_notes_queries: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Queries for Explanatory Notes"
+                        },
+                        precedent_queries: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Queries for BTI/WCO rulings"
+                        },
+                        country_specific_queries: {
+                            type: "array",
+                            items: { type: "string" },
+                            description: "Queries in destination country language"
+                        }
+                    },
+                    description: "Multi-lingual search queries for research phase"
                 }
             },
             required: ["status"]
