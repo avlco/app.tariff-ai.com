@@ -520,4 +520,205 @@ export async function scrapeAllSources(hsCode, productDescription, destinationCo
   };
 }
 
-export { SOURCES };
+// ============================================================================
+// NEW: Targeted URL Scraping (Tariff-AI 2.0)
+// ============================================================================
+
+/**
+ * Scrape content from a specific URL (from ResourceManager)
+ * This is the primary method for the new architecture
+ * 
+ * @param {string} url - Specific URL to scrape
+ * @param {object} options - Scraping options
+ * @param {string} options.hsCode - HS code to focus extraction on
+ * @param {string[]} options.searchTerms - Terms to look for in the content
+ * @param {boolean} options.preserveStructure - Keep document structure
+ * @param {number} options.maxLength - Maximum content length to return
+ * @returns {object} Scraped content result
+ */
+export async function scrapeTargetedUrl(url, options = {}) {
+  const {
+    hsCode = null,
+    searchTerms = [],
+    preserveStructure = true,
+    maxLength = 15000
+  } = options;
+  
+  try {
+    const response = await fetchWithRetry(url, { timeout: 20000 });
+    const contentType = detectContentType(response, url);
+    
+    let rawText = '';
+    let extractionMethod = 'html';
+    
+    if (contentType === ContentType.PDF) {
+      // Extract text from PDF
+      const pdfResult = await extractTextFromPdf(url);
+      if (pdfResult.success) {
+        rawText = pdfResult.text;
+        extractionMethod = 'pdf';
+      } else {
+        return {
+          success: false,
+          url,
+          content_type: contentType,
+          error: `PDF extraction failed: ${pdfResult.error}`
+        };
+      }
+    } else {
+      // Extract from HTML
+      const html = await response.text();
+      rawText = extractTextFromHtml(html, preserveStructure);
+      extractionMethod = 'html';
+    }
+    
+    // Extract relevant section if HS code provided
+    let finalContent = rawText;
+    let sectionInfo = null;
+    
+    if (hsCode && rawText.length > maxLength) {
+      const extracted = extractRelevantSection(rawText, hsCode, maxLength / 2);
+      if (typeof extracted === 'object') {
+        finalContent = extracted.section;
+        sectionInfo = {
+          matched_pattern: extracted.matched_pattern,
+          is_excerpt: extracted.is_excerpt,
+          note: extracted.note
+        };
+      } else {
+        finalContent = extracted;
+      }
+    }
+    
+    // Truncate if still too long
+    if (finalContent.length > maxLength) {
+      finalContent = finalContent.substring(0, maxLength) + '\n[... content truncated ...]';
+    }
+    
+    // Search for specific terms
+    const foundTerms = [];
+    for (const term of searchTerms) {
+      if (finalContent.toLowerCase().includes(term.toLowerCase())) {
+        foundTerms.push(term);
+      }
+    }
+    
+    return {
+      success: true,
+      url,
+      content_type: contentType,
+      extraction_method: extractionMethod,
+      raw_legal_text: finalContent,
+      content_length: finalContent.length,
+      original_length: rawText.length,
+      section_info: sectionInfo,
+      found_terms: foundTerms,
+      hs_code_referenced: hsCode,
+      fetched_at: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    return {
+      success: false,
+      url,
+      error: error.message,
+      fetched_at: new Date().toISOString()
+    };
+  }
+}
+
+/**
+ * Scrape multiple URLs and aggregate results
+ * Used when ResourceManager returns multiple sources
+ * 
+ * @param {string[]} urls - Array of URLs to scrape
+ * @param {object} options - Scraping options (same as scrapeTargetedUrl)
+ * @returns {object} Aggregated scraping results
+ */
+export async function scrapeMultipleUrls(urls, options = {}) {
+  if (!urls || urls.length === 0) {
+    return {
+      success: false,
+      error: 'No URLs provided',
+      results: []
+    };
+  }
+  
+  const tasks = urls.map(url => scrapeTargetedUrl(url, options));
+  const results = await Promise.allSettled(tasks);
+  
+  const processedResults = results.map((r, i) => {
+    if (r.status === 'fulfilled') {
+      return r.value;
+    }
+    return {
+      success: false,
+      url: urls[i],
+      error: r.reason?.message || 'Unknown error'
+    };
+  });
+  
+  const successfulResults = processedResults.filter(r => r.success);
+  
+  return {
+    success: successfulResults.length > 0,
+    total_urls: urls.length,
+    successful: successfulResults.length,
+    failed: urls.length - successfulResults.length,
+    results: processedResults,
+    // Combine all raw legal text for LLM context
+    combined_legal_text: successfulResults
+      .map(r => `\n--- SOURCE: ${r.url} ---\n${r.raw_legal_text}`)
+      .join('\n\n'),
+    fetched_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Validate that HS code exists in scraped content
+ * Part of QA "Existence Check"
+ * 
+ * @param {string} content - Scraped legal text
+ * @param {string} hsCode - Full HS code to validate
+ * @returns {object} Validation result
+ */
+export function validateHsCodeInContent(content, hsCode) {
+  if (!content || !hsCode) {
+    return {
+      valid: false,
+      error: 'Content or HS code missing'
+    };
+  }
+  
+  // Clean the HS code (remove dots, spaces)
+  const cleanCode = hsCode.replace(/[\s.]/g, '');
+  
+  // Check for exact match
+  const exactMatch = content.includes(cleanCode);
+  
+  // Check for formatted variations (with dots, spaces)
+  const formattedVariations = [
+    hsCode,
+    cleanCode.substring(0, 4) + '.' + cleanCode.substring(4, 6) + '.' + cleanCode.substring(6),
+    cleanCode.substring(0, 4) + ' ' + cleanCode.substring(4, 6) + ' ' + cleanCode.substring(6),
+    cleanCode.substring(0, 4) + '.' + cleanCode.substring(4)
+  ];
+  
+  const anyMatch = formattedVariations.some(variant => 
+    content.includes(variant)
+  );
+  
+  // Check for partial match (4-digit heading)
+  const headingMatch = content.includes(cleanCode.substring(0, 4));
+  
+  return {
+    valid: exactMatch || anyMatch,
+    exact_match: exactMatch,
+    formatted_match: anyMatch,
+    heading_match: headingMatch,
+    hs_code: hsCode,
+    checked_variations: formattedVariations
+  };
+}
+
+export { SOURCES, ContentType, extractTextFromHtml, extractTextFromPdf, extractRelevantSection };
