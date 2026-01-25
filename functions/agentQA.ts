@@ -1493,6 +1493,8 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
     console.log(`[AgentQA]   - R&D Compliant: ${enrichedAudit.retrieve_deduce_compliant ? 'YES' : 'NO'}`);
     console.log(`[AgentQA]   - Pre-validation Issues: ${preValidationIssues.length}`);
     console.log(`[AgentQA]   - GIR Issues: ${girIssues.length}`);
+    console.log(`[AgentQA]   - Essential Character: required=${ecValidation.required}, valid=${ecValidation.valid}, issues=${ecIssues.length}`);
+    console.log(`[AgentQA]   - HS Format: valid=${hsFormatValidation.valid}, ${hsFormatValidation.actual_digits}/${hsFormatValidation.expected_digits} digits`);
     console.log(`[AgentQA]   - Citation Issues: ${citationIssues.length}`);
     console.log(`[AgentQA]   - Extraction Issues: ${extractionIssues.length}`);
     console.log(`[AgentQA]   - Composite Issues: ${compositeIssues.length}`);
