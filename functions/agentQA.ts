@@ -724,6 +724,31 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
                                 states_visited: { type: "array", items: { type: "string" } },
                                 essential_character_complete: { type: "boolean" }
                             }
+                        },
+                        citation_validation: {
+                            type: "object",
+                            properties: {
+                                citations_present: { type: "boolean" },
+                                citation_count: { type: "number" },
+                                citations_verified: { type: "boolean" },
+                                fabrication_suspected: { type: "boolean" },
+                                missing_citation_types: { type: "array", items: { type: "string" } }
+                            },
+                            description: "Retrieve & Deduce citation validation results"
+                        },
+                        extraction_validation: {
+                            type: "object",
+                            properties: {
+                                tax_sources_cited: { type: "boolean" },
+                                compliance_sources_cited: { type: "boolean" },
+                                data_gaps_acknowledged: { type: "boolean" },
+                                extraction_confidence_reasonable: { type: "boolean" }
+                            },
+                            description: "Tax and compliance extraction validation"
+                        },
+                        retrieval_quality_score: {
+                            type: "number",
+                            description: "Score for Retrieve & Deduce compliance (0-100)"
                         }
                     }
                 }
@@ -733,23 +758,41 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
     });
 
     const audit = result.qa_audit;
+    
+    // Enrich audit with pre-validation results
+    const enrichedAudit = {
+        ...audit,
+        pre_validation_issues: preValidationIssues,
+        retrieval_quality_score: audit.retrieval_quality_score || retrievalScore,
+        retrieve_deduce_compliant: citationIssues.filter(i => i.severity === 'high').length === 0
+    };
+    
     let finalStatus = 'completed';
     let processingStatus = 'completed';
 
-    if (audit.status === 'failed') {
+    if (enrichedAudit.status === 'failed') {
         finalStatus = 'failed';
         processingStatus = 'failed';
     }
 
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
-        qa_audit: audit,
+        qa_audit: enrichedAudit,
         status: finalStatus,
         processing_status: processingStatus,
-        confidence_score: audit.score,
-        qa_notes: [audit.user_explanation]
+        confidence_score: enrichedAudit.score,
+        qa_notes: [enrichedAudit.user_explanation]
     });
     
-    return Response.json({ success: true, status: finalStatus, audit: audit });
+    return Response.json({ 
+        success: true, 
+        status: finalStatus, 
+        audit: enrichedAudit,
+        retrieval_metadata: {
+            retrieval_quality_score: retrievalScore,
+            citation_issues_count: citationIssues.length,
+            extraction_issues_count: extractionIssues.length
+        }
+    });
 
   } catch (error) {
     console.error('Agent E (QA) Error:', error);
