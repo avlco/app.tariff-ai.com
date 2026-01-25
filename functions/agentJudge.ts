@@ -192,6 +192,207 @@ DECISION: RESOLVED at GRI 4 with the most akin heading.`
 
 // --- END GIR STATE MACHINE ---
 
+// --- GIR OUTPUT VALIDATION (TARIFF-AI 2.0) ---
+
+/**
+ * Validate GIR State Machine output for compliance
+ * Returns array of issues found - used for self-healing
+ */
+function validateGirOutput(results) {
+  const issues = [];
+  const primary = results?.primary || {};
+  const girApplied = primary.gri_applied || primary.gir_applied || '';
+  const stateLog = primary.gir_state_log || [];
+  
+  // Check 1: gir_state_log must exist if GRI > 1
+  if (!girApplied.includes('GRI 1') && !girApplied.includes('GRI_1')) {
+    if (stateLog.length === 0) {
+      issues.push({
+        type: 'no_state_log',
+        severity: 'high',
+        description: 'GRI state log is required when classification uses GRI 2 or higher. You must document each GRI state visited.'
+      });
+    }
+  }
+  
+  // Check 2: GRI hierarchy was followed (no skipping)
+  const GRI_ORDER = ['GRI_1', 'GRI 1', 'GRI_2', 'GRI 2', 'GRI_3a', 'GRI 3(a)', 'GRI_3b', 'GRI 3(b)', 'GRI_3c', 'GRI 3(c)', 'GRI_4', 'GRI 4'];
+  
+  // Find which GRI was applied
+  let appliedIndex = -1;
+  for (let i = 0; i < GRI_ORDER.length; i++) {
+    if (girApplied.includes(GRI_ORDER[i].replace('GRI_', '').replace('GRI ', '').replace('(', '').replace(')', ''))) {
+      appliedIndex = Math.floor(i / 2); // Each GRI has 2 variants in array
+      break;
+    }
+  }
+  
+  // If GRI 3 or higher used, verify GRI 1 was visited
+  if (appliedIndex >= 2 && stateLog.length > 0) {
+    const visitedGRI1 = stateLog.some(s => 
+      s.state?.includes('1') || s.state?.includes('GRI_1') || s.state?.includes('GRI 1')
+    );
+    if (!visitedGRI1) {
+      issues.push({
+        type: 'gir_hierarchy_skipped',
+        severity: 'high',
+        description: `GRI ${girApplied} was applied but GRI 1 analysis is missing from state log. You MUST start at GRI 1 and document why it was insufficient.`
+      });
+    }
+  }
+  
+  // Check 3: GRI 3(b) REQUIRES essential_character_analysis
+  if (girApplied.includes('3(b)') || girApplied.includes('3b') || girApplied.includes('3B')) {
+    const ec = primary.essential_character_analysis;
+    
+    if (!ec) {
+      issues.push({
+        type: 'missing_essential_character',
+        severity: 'high',
+        description: 'GRI 3(b) claims Essential Character but essential_character_analysis object is missing. You MUST provide component breakdown.'
+      });
+    } else {
+      // Validate components exist
+      if (!ec.components || ec.components.length === 0) {
+        issues.push({
+          type: 'empty_components',
+          severity: 'high',
+          description: 'essential_character_analysis.components array is empty. List ALL major components with Nature/Bulk/Value/Role.'
+        });
+      } else {
+        // Validate each component has required fields
+        for (const comp of ec.components) {
+          if (!comp.name || !comp.functional_role) {
+            issues.push({
+              type: 'incomplete_component',
+              severity: 'medium',
+              description: `Component "${comp.name || 'unnamed'}" missing required fields. Each component needs: name, nature, bulk_percent, value_percent, functional_role.`
+            });
+            break; // Only report once
+          }
+        }
+      }
+      
+      // Validate justification
+      if (!ec.justification || ec.justification.length < 50) {
+        issues.push({
+          type: 'weak_justification',
+          severity: 'medium',
+          description: 'essential_character_analysis.justification is missing or too brief. Explain WHY this component gives essential character.'
+        });
+      }
+      
+      // Validate essential_component is identified
+      if (!ec.essential_component) {
+        issues.push({
+          type: 'no_essential_component',
+          severity: 'high',
+          description: 'essential_character_analysis.essential_component not specified. Which component gives the product its essential character?'
+        });
+      }
+    }
+  }
+  
+  // Check 4: legal_citations required
+  if (!primary.legal_citations || primary.legal_citations.length === 0) {
+    issues.push({
+      type: 'no_citations',
+      severity: 'high',
+      description: 'No legal_citations provided. You MUST cite from LEGAL_TEXT_CONTEXT with exact quotes. Include at least HEADING_TEXT or EN citation.'
+    });
+  } else {
+    // Check citations have actual quotes
+    const emptyCitations = primary.legal_citations.filter(c => !c.exact_quote || c.exact_quote.length < 10);
+    if (emptyCitations.length > 0) {
+      issues.push({
+        type: 'empty_citation_quotes',
+        severity: 'medium',
+        description: `${emptyCitations.length} citation(s) have empty or very short exact_quote. Cite the ACTUAL text from LEGAL_TEXT_CONTEXT.`
+      });
+    }
+    
+    // Check for core citation types
+    const citationTypes = primary.legal_citations.map(c => c.source_type);
+    if (!citationTypes.includes('HEADING_TEXT') && !citationTypes.includes('EN')) {
+      issues.push({
+        type: 'missing_core_citation',
+        severity: 'medium',
+        description: 'No HEADING_TEXT or EN (Explanatory Notes) citation. These are the primary legal basis for classification.'
+      });
+    }
+  }
+  
+  // Check 5: HS code format validation
+  const hsCode = primary.hs_code || '';
+  if (hsCode.length < 6) {
+    issues.push({
+      type: 'invalid_hs_code',
+      severity: 'high',
+      description: `HS code "${hsCode}" is too short. Provide at least 6 digits (8-10 preferred for country-specific).`
+    });
+  }
+  
+  // Check 6: Confidence score calibration
+  const confidence = primary.confidence_score || 0;
+  if (confidence > 90 && (!primary.legal_citations?.length || primary.legal_citations.length < 2)) {
+    issues.push({
+      type: 'overconfident',
+      severity: 'low',
+      description: `Confidence ${confidence}% seems high with only ${primary.legal_citations?.length || 0} citations. Score 90+ requires multiple official source confirmations.`
+    });
+  }
+  
+  return issues;
+}
+
+/**
+ * Generate self-healing feedback from validation issues
+ */
+function generateSelfHealingFeedback(issues) {
+  if (issues.length === 0) return null;
+  
+  const highIssues = issues.filter(i => i.severity === 'high');
+  const mediumIssues = issues.filter(i => i.severity === 'medium');
+  
+  let feedback = `
+═══════════════════════════════════════════════════════════════════
+CRITICAL: YOUR PREVIOUS OUTPUT FAILED VALIDATION
+═══════════════════════════════════════════════════════════════════
+
+You MUST fix the following issues:
+
+`;
+
+  if (highIssues.length > 0) {
+    feedback += `**CRITICAL ISSUES (must fix):**\n`;
+    highIssues.forEach((issue, i) => {
+      feedback += `${i + 1}. [${issue.type}] ${issue.description}\n`;
+    });
+    feedback += '\n';
+  }
+  
+  if (mediumIssues.length > 0) {
+    feedback += `**IMPORTANT ISSUES (should fix):**\n`;
+    mediumIssues.forEach((issue, i) => {
+      feedback += `${i + 1}. [${issue.type}] ${issue.description}\n`;
+    });
+  }
+  
+  feedback += `
+═══════════════════════════════════════════════════════════════════
+RETRY INSTRUCTIONS:
+- Review your GRI analysis and ensure hierarchy is followed
+- If GRI 3(b) is used, provide COMPLETE essential_character_analysis
+- Include legal_citations with EXACT quotes from the LEGAL_TEXT_CONTEXT
+- Do not skip any required fields
+═══════════════════════════════════════════════════════════════════
+`;
+
+  return feedback;
+}
+
+// --- END GIR OUTPUT VALIDATION ---
+
 /**
  * Extract and format legal text corpus for prompt injection
  * This is the KEY to "Retrieve & Deduce" - we inject ACTUAL legal text
