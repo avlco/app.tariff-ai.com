@@ -928,9 +928,82 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
                 }
             },
             required: ["classification_results"]
-        },
+        };
+
+    // First LLM call
+    let result = await invokeSpecializedLLM({
+        prompt: fullPrompt,
+        task_type: 'reasoning',
+        response_schema: responseSchema,
         base44_client: base44
     });
+
+    // === SELF-HEALING: Validate GIR output and retry if needed ===
+    let validationIssues = validateGirOutput(result.classification_results);
+    const highSeverityIssues = validationIssues.filter(i => i.severity === 'high');
+    
+    console.log(`[AgentJudge] Validation: ${validationIssues.length} issues (${highSeverityIssues.length} critical)`);
+    
+    // Log validation issues to processing_log
+    if (validationIssues.length > 0) {
+      const issuesSummary = validationIssues.map(i => `[${i.severity}] ${i.type}`).join(', ');
+      try {
+        const currentReport = await base44.entities.ClassificationReport.filter({ id: reportId });
+        const currentLog = currentReport[0]?.processing_log || [];
+        await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+          processing_log: [...currentLog, {
+            timestamp: new Date().toISOString(),
+            stage: 'judge_validation',
+            message: `GIR validation issues: ${issuesSummary}`,
+            status: highSeverityIssues.length > 0 ? 'warning' : 'info'
+          }]
+        });
+      } catch (logError) {
+        console.warn('[AgentJudge] Failed to log validation issues:', logError.message);
+      }
+    }
+    
+    // Self-healing: Retry once if critical issues found
+    if (highSeverityIssues.length > 0) {
+      console.log('[AgentJudge] ⚠️ Critical validation issues - attempting self-healing retry');
+      
+      const selfHealFeedback = generateSelfHealingFeedback(validationIssues);
+      const retryPrompt = fullPrompt + '\n\n' + selfHealFeedback;
+      
+      console.log(`[AgentJudge] Retry prompt length: ${retryPrompt.length} chars`);
+      
+      result = await invokeSpecializedLLM({
+        prompt: retryPrompt,
+        task_type: 'reasoning',
+        response_schema: responseSchema,
+        base44_client: base44
+      });
+      
+      // Re-validate
+      validationIssues = validateGirOutput(result.classification_results);
+      const remainingHighIssues = validationIssues.filter(i => i.severity === 'high');
+      
+      console.log(`[AgentJudge] Post-retry validation: ${validationIssues.length} issues (${remainingHighIssues.length} critical)`);
+      
+      // Log retry result
+      try {
+        const currentReport = await base44.entities.ClassificationReport.filter({ id: reportId });
+        const currentLog = currentReport[0]?.processing_log || [];
+        await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+          processing_log: [...currentLog, {
+            timestamp: new Date().toISOString(),
+            stage: 'judge_self_healing',
+            message: remainingHighIssues.length === 0 
+              ? 'Self-healing successful - all critical issues resolved'
+              : `Self-healing partial - ${remainingHighIssues.length} critical issues remain`,
+            status: remainingHighIssues.length === 0 ? 'success' : 'warning'
+          }]
+        });
+      } catch (logError) {
+        console.warn('[AgentJudge] Failed to log self-healing result:', logError.message);
+      }
+    }
+    // === END SELF-HEALING ===
 
     const duration = Date.now() - startTime;
     
