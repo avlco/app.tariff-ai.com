@@ -246,51 +246,124 @@ function validatePrecedentConsistency(classificationResults, researchFindings) {
 // --- TARIFF-AI 2.0: CITATION VALIDATION LOGIC ---
 
 /**
+ * Normalize text for comparison (remove extra whitespace, lowercase)
+ */
+function normalizeText(text) {
+  if (!text) return '';
+  return text.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Check if a quote appears in corpus using fuzzy matching
+ * Returns true if found, false otherwise
+ */
+function findQuoteInCorpus(quote, corpus, minMatchLength = 30) {
+  if (!quote || !corpus || quote.length < 10) return true; // Skip validation for short quotes
+  
+  const normalizedQuote = normalizeText(quote);
+  const normalizedCorpus = normalizeText(corpus);
+  
+  // Try progressively shorter matches
+  for (let len = Math.min(50, normalizedQuote.length); len >= minMatchLength; len -= 5) {
+    const searchTerm = normalizedQuote.substring(0, len);
+    if (normalizedCorpus.includes(searchTerm)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
  * Validate that legal citations reference actual content from the retrieved corpus
  * This is the KEY validation for "Retrieve & Deduce" architecture
+ * Enhanced in Task 3.2 with better fuzzy matching and duplicate detection
  */
 function validateCitations(classificationResults, researchFindings) {
   const issues = [];
   const legalCitations = classificationResults?.primary?.legal_citations || [];
   const contextGaps = classificationResults?.primary?.context_gaps || [];
   
-  // Check if citations exist at all
+  // === Check 1: Citations exist at all ===
   if (legalCitations.length === 0) {
     issues.push({
       type: 'no_citations',
       severity: 'high',
       description: 'No legal citations provided - Retrieve & Deduce protocol requires explicit citations from LEGAL_TEXT_CONTEXT'
     });
+    return issues; // No point checking further
   }
   
-  // Check citation types distribution
+  // === Check 2: Minimum citation count ===
+  if (legalCitations.length < 2) {
+    issues.push({
+      type: 'insufficient_citations',
+      severity: 'medium',
+      description: `Only ${legalCitations.length} citation provided. Robust classification requires at least 2 citations from different sources.`
+    });
+  }
+  
+  // === Check 3: Citation types distribution ===
   const citationTypes = legalCitations.map(c => c.source_type);
   const hasHeadingText = citationTypes.includes('HEADING_TEXT');
   const hasEN = citationTypes.includes('EN');
-  const hasOfficialSource = citationTypes.some(t => 
-    ['TARIC', 'WCO_OPINION', 'BTI', 'NATIONAL_TARIFF', 'SECTION_NOTE', 'CHAPTER_NOTE'].includes(t)
-  );
   
   if (!hasHeadingText && !hasEN) {
     issues.push({
       type: 'missing_core_citations',
-      severity: 'medium',
-      description: 'Classification missing HEADING_TEXT or EN citations - core legal basis not explicitly cited'
+      severity: 'high',
+      description: 'Classification missing HEADING_TEXT or EN citations - these are the primary legal basis and MUST be cited'
     });
   }
   
-  // Validate citations have actual quotes
+  // === Check 4: Duplicate citations (Task 3.2b) ===
+  const seenCitations = new Set();
+  const duplicates = [];
   for (const citation of legalCitations) {
-    if (!citation.exact_quote || citation.exact_quote.length < 10) {
-      issues.push({
-        type: 'empty_citation',
-        severity: 'medium',
-        description: `Citation ${citation.source_type}/${citation.source_reference} has no exact quote`
-      });
+    const key = `${citation.source_type}|${citation.source_reference || ''}`.toLowerCase();
+    if (seenCitations.has(key)) {
+      duplicates.push(citation.source_reference || citation.source_type);
+    } else {
+      seenCitations.add(key);
     }
   }
   
-  // Check context gaps are flagged
+  if (duplicates.length > 0) {
+    issues.push({
+      type: 'duplicate_citations',
+      severity: 'low',
+      description: `Duplicate citations detected: ${duplicates.join(', ')}. Each source should be cited once.`
+    });
+  }
+  
+  // === Check 5: Validate citations have actual quotes ===
+  const emptyCitations = [];
+  const shortCitations = [];
+  for (const citation of legalCitations) {
+    if (!citation.exact_quote) {
+      emptyCitations.push(`${citation.source_type}/${citation.source_reference || 'unknown'}`);
+    } else if (citation.exact_quote.length < 15) {
+      shortCitations.push(`${citation.source_type}/${citation.source_reference || 'unknown'} (${citation.exact_quote.length} chars)`);
+    }
+  }
+  
+  if (emptyCitations.length > 0) {
+    issues.push({
+      type: 'empty_citation_quotes',
+      severity: 'high',
+      description: `Citations with no exact_quote: ${emptyCitations.join(', ')}. Each citation MUST include the actual quoted text.`
+    });
+  }
+  
+  if (shortCitations.length > 0) {
+    issues.push({
+      type: 'short_citation_quotes',
+      severity: 'medium',
+      description: `Citations with very short quotes: ${shortCitations.join(', ')}. Quotes should be substantial enough to verify.`
+    });
+  }
+  
+  // === Check 6: Context gaps ===
   if (contextGaps.length > 3) {
     issues.push({
       type: 'excessive_context_gaps',
@@ -299,85 +372,94 @@ function validateCitations(classificationResults, researchFindings) {
     });
   }
   
-  // Cross-reference citations with research findings
+  // === Check 7: Cross-reference citations with corpus (Task 3.2a - improved fuzzy match) ===
   const rawCorpus = researchFindings?.raw_legal_text_corpus || '';
   const candidateHeadings = researchFindings?.candidate_headings || [];
   const wcoOpinions = researchFindings?.wco_precedents || [];
+  const btiCases = researchFindings?.bti_cases || [];
+  const legalNotes = researchFindings?.legal_notes_found || [];
   
-  // Task 4.3: Enhanced cross-reference validation
-  // Check if exact_quote appears in raw_legal_text_corpus
-  if (rawCorpus.length > 100) {
+  // Build combined searchable corpus from all sources
+  const combinedCorpus = [
+    rawCorpus,
+    ...candidateHeadings.map(h => `${h.description || ''} ${h.explanatory_note_summary || ''}`),
+    ...legalNotes,
+    ...wcoOpinions.map(w => `${w.reasoning || ''} ${w.product || ''}`),
+    ...btiCases.map(b => `${b.product_description || ''} ${b.hs_code || ''}`)
+  ].join(' ');
+  
+  if (combinedCorpus.length > 100) {
+    const unverifiedCitations = [];
+    
     for (const citation of legalCitations) {
-      if (citation.exact_quote && citation.exact_quote.length > 20) {
-        // Normalize both strings for comparison
-        const normalizedQuote = citation.exact_quote.toLowerCase().replace(/\s+/g, ' ').substring(0, 50);
-        const normalizedCorpus = rawCorpus.toLowerCase().replace(/\s+/g, ' ');
+      if (citation.exact_quote && citation.exact_quote.length >= 20) {
+        const foundInCorpus = findQuoteInCorpus(citation.exact_quote, combinedCorpus, 25);
         
-        // Check if quote appears in corpus (fuzzy - first 50 chars)
-        if (!normalizedCorpus.includes(normalizedQuote.substring(0, 30))) {
-          // Also check in candidate_headings explanatory notes
-          const foundInEN = candidateHeadings.some(h => 
-            h.explanatory_note_summary?.toLowerCase().includes(normalizedQuote.substring(0, 30))
-          );
-          
-          if (!foundInEN) {
-            issues.push({
-              type: 'citation_not_in_corpus',
-              severity: 'medium',
-              description: `Citation "${citation.source_type}/${citation.source_reference}" quote not found in retrieved legal text corpus - may be fabricated`
-            });
-          }
+        if (!foundInCorpus) {
+          unverifiedCitations.push(`${citation.source_type}/${citation.source_reference || 'unknown'}`);
         }
       }
     }
-  }
-  
-  // Verify WCO citations exist in research
-  const wcoCitations = legalCitations.filter(c => c.source_type === 'WCO_OPINION');
-  for (const citation of wcoCitations) {
-    const foundInResearch = wcoOpinions.some(op => 
-      citation.source_reference?.includes(op.opinion_number) ||
-      citation.exact_quote?.includes(op.reasoning?.substring(0, 30))
-    );
-    if (!foundInResearch && wcoOpinions.length > 0) {
+    
+    if (unverifiedCitations.length > 0) {
       issues.push({
-        type: 'unverified_wco_citation',
-        severity: 'medium',
-        description: `WCO citation ${citation.source_reference} not found in research findings - may be fabricated`
+        type: 'citations_not_in_corpus',
+        severity: 'high',
+        description: `${unverifiedCitations.length} citation(s) could not be verified against retrieved corpus: ${unverifiedCitations.slice(0, 3).join(', ')}${unverifiedCitations.length > 3 ? '...' : ''}. These may be fabricated.`
       });
     }
   }
   
-  // Check if EN citations align with candidate headings
+  // === Check 8: EN citations align with candidate headings (Task 3.2c) ===
+  const candidateCodes = candidateHeadings.map(h => h.code_4_digit).filter(Boolean);
   const enCitations = legalCitations.filter(c => c.source_type === 'EN');
+  
   for (const citation of enCitations) {
     const headingCode = citation.source_reference?.match(/\d{4}/)?.[0];
-    if (headingCode) {
-      const foundInCandidates = candidateHeadings.some(h => h.code_4_digit === headingCode);
-      if (!foundInCandidates) {
+    if (headingCode && candidateCodes.length > 0) {
+      if (!candidateCodes.includes(headingCode)) {
         issues.push({
-          type: 'citation_heading_mismatch',
+          type: 'en_heading_not_researched',
           severity: 'medium',
-          description: `EN citation for heading ${headingCode} but heading not in candidate list from research`
+          description: `EN citation references heading ${headingCode} but this heading was not in research candidates (${candidateCodes.join(', ')}). Citation may be unverifiable.`
         });
       }
     }
   }
   
-  // Check BTI citations
+  // === Check 9: Verify WCO citations ===
+  const wcoCitations = legalCitations.filter(c => c.source_type === 'WCO_OPINION');
+  for (const citation of wcoCitations) {
+    if (wcoOpinions.length > 0) {
+      const foundInResearch = wcoOpinions.some(op => 
+        citation.source_reference?.includes(op.opinion_number) ||
+        (citation.exact_quote && op.reasoning && findQuoteInCorpus(citation.exact_quote, op.reasoning, 20))
+      );
+      if (!foundInResearch) {
+        issues.push({
+          type: 'unverified_wco_citation',
+          severity: 'medium',
+          description: `WCO citation "${citation.source_reference}" not found in research findings - may be fabricated`
+        });
+      }
+    }
+  }
+  
+  // === Check 10: Verify BTI citations ===
   const btiCitations = legalCitations.filter(c => c.source_type === 'BTI');
-  const btiCases = researchFindings?.bti_cases || [];
   for (const citation of btiCitations) {
-    const foundInResearch = btiCases.some(b => 
-      citation.source_reference?.includes(b.reference) ||
-      citation.exact_quote?.includes(b.product_description?.substring(0, 20))
-    );
-    if (!foundInResearch && btiCases.length > 0) {
-      issues.push({
-        type: 'unverified_bti_citation',
-        severity: 'low',
-        description: `BTI citation ${citation.source_reference} not found in research findings`
-      });
+    if (btiCases.length > 0) {
+      const foundInResearch = btiCases.some(b => 
+        citation.source_reference?.includes(b.reference) ||
+        (citation.exact_quote && b.product_description && findQuoteInCorpus(citation.exact_quote, b.product_description, 15))
+      );
+      if (!foundInResearch) {
+        issues.push({
+          type: 'unverified_bti_citation',
+          severity: 'low',
+          description: `BTI citation "${citation.source_reference}" not found in research findings`
+        });
+      }
     }
   }
   
