@@ -720,6 +720,223 @@ function calculateRetrievalScore(researchFindings, classificationResults) {
   return Math.max(0, Math.min(100, score));
 }
 
+/**
+ * Task 4.2c: Validate research data completeness
+ * Check if research_findings have sufficient data for classification
+ */
+function validateResearchCompleteness(researchFindings) {
+  const issues = [];
+  
+  // Check 1: raw_legal_text_corpus length (Task 4.2c.1)
+  const corpusLength = researchFindings?.raw_legal_text_corpus?.length || 0;
+  if (corpusLength === 0) {
+    issues.push({
+      type: 'research_no_corpus',
+      severity: 'high',
+      description: 'raw_legal_text_corpus is missing - no legal text was retrieved for citation. Classification cannot be properly grounded.',
+      action_needed: 'expand_search'
+    });
+  } else if (corpusLength < 500) {
+    issues.push({
+      type: 'research_corpus_insufficient',
+      severity: 'high',
+      description: `raw_legal_text_corpus is only ${corpusLength} chars (< 500 minimum). Legal text retrieved is insufficient for robust citation.`,
+      action_needed: 'expand_search'
+    });
+  } else if (corpusLength < 1500) {
+    issues.push({
+      type: 'research_corpus_thin',
+      severity: 'medium',
+      description: `raw_legal_text_corpus is ${corpusLength} chars - may be thin for complex products. Consider expanding search.`,
+      action_needed: 'optional_expand'
+    });
+  }
+  
+  // Check 2: candidate_headings exist (Task 4.2c.2)
+  const candidateHeadings = researchFindings?.candidate_headings || [];
+  if (candidateHeadings.length === 0) {
+    issues.push({
+      type: 'research_no_candidates',
+      severity: 'high',
+      description: 'No candidate_headings identified by research. Cannot proceed with classification without heading candidates.',
+      action_needed: 'expand_search'
+    });
+  } else if (candidateHeadings.length < 2) {
+    issues.push({
+      type: 'research_few_candidates',
+      severity: 'medium',
+      description: `Only ${candidateHeadings.length} candidate heading found. Consider if more alternatives exist.`,
+      action_needed: 'optional_expand'
+    });
+  }
+  
+  // Check 3: verified_sources exist (Task 4.2c.2)
+  const verifiedSources = researchFindings?.verified_sources || [];
+  if (verifiedSources.length === 0) {
+    issues.push({
+      type: 'research_no_sources',
+      severity: 'high',
+      description: 'No verified_sources found by research. Classification relies on unverified data.',
+      action_needed: 'expand_search'
+    });
+  } else {
+    // Check for Tier 1 sources
+    const tier1Sources = verifiedSources.filter(s => s.authority_tier === '1' || s.authority_tier === 1);
+    if (tier1Sources.length === 0) {
+      issues.push({
+        type: 'research_no_tier1_sources',
+        severity: 'medium',
+        description: 'No Tier 1 (official government/WCO) sources found. Classification relies on lower-authority sources.',
+        action_needed: 'optional_expand'
+      });
+    }
+  }
+  
+  // Check 4: legal_notes_found
+  const legalNotes = researchFindings?.legal_notes_found || [];
+  if (legalNotes.length === 0) {
+    issues.push({
+      type: 'research_no_legal_notes',
+      severity: 'medium',
+      description: 'No Section/Chapter notes retrieved. These are important for accurate classification.',
+      action_needed: 'optional_expand'
+    });
+  }
+  
+  // Check 5: EN summaries in candidate_headings
+  const headingsWithEN = candidateHeadings.filter(h => h.explanatory_note_summary);
+  if (candidateHeadings.length > 0 && headingsWithEN.length === 0) {
+    issues.push({
+      type: 'research_no_en_summaries',
+      severity: 'medium',
+      description: 'Candidate headings lack explanatory_note_summary. EN guidance not retrieved.',
+      action_needed: 'optional_expand'
+    });
+  }
+  
+  return issues;
+}
+
+/**
+ * Task 4.2b: Generate detailed self-healing feedback based on issues
+ * Returns structured feedback for the orchestrator to pass to faulty agent
+ */
+function generateDetailedFeedback(issues, faultyAgent) {
+  const highIssues = issues.filter(i => i.severity === 'high');
+  const mediumIssues = issues.filter(i => i.severity === 'medium');
+  
+  let feedback = `
+═══════════════════════════════════════════════════════════════════
+QA AUDIT FAILED - SELF-HEALING REQUIRED
+Faulty Agent: ${faultyAgent}
+═══════════════════════════════════════════════════════════════════
+
+`;
+
+  // Group issues by type for clearer feedback
+  const issuesByCategory = {
+    gir: issues.filter(i => i.type?.includes('gir') || i.type?.includes('hierarchy') || i.type?.includes('essential_character')),
+    citation: issues.filter(i => i.type?.includes('citation') || i.type?.includes('no_citations')),
+    research: issues.filter(i => i.type?.includes('research')),
+    extraction: issues.filter(i => i.type?.includes('tax') || i.type?.includes('compliance') || i.type?.includes('vat')),
+    composite: issues.filter(i => i.type?.includes('composite'))
+  };
+  
+  // GIR Issues
+  if (issuesByCategory.gir.length > 0) {
+    feedback += `**GIR/CLASSIFICATION ISSUES (${issuesByCategory.gir.length}):**\n`;
+    for (const issue of issuesByCategory.gir) {
+      feedback += `• [${issue.severity.toUpperCase()}] ${issue.description}\n`;
+    }
+    feedback += `
+FIX GUIDANCE FOR GIR ISSUES:
+1. Review gir_state_log - ensure GRI 1 is always analyzed first
+2. If GRI 3(b) is used, provide COMPLETE essential_character_analysis:
+   - components[] with name, nature, bulk_percent, value_percent, functional_role
+   - essential_component clearly identified
+   - justification (100+ chars) citing Nature/Bulk/Value/Role factors
+3. Document transition reasoning for each GRI state visited
+
+`;
+  }
+  
+  // Citation Issues
+  if (issuesByCategory.citation.length > 0) {
+    feedback += `**CITATION ISSUES (${issuesByCategory.citation.length}):**\n`;
+    for (const issue of issuesByCategory.citation) {
+      feedback += `• [${issue.severity.toUpperCase()}] ${issue.description}\n`;
+    }
+    feedback += `
+FIX GUIDANCE FOR CITATION ISSUES:
+1. Each citation MUST have: source_type, source_reference, exact_quote
+2. exact_quote must be ACTUAL text from LEGAL_TEXT_CONTEXT (not paraphrased)
+3. Include at least 2 citations, with at least one EN or HEADING_TEXT
+4. Do NOT fabricate citations - if text not found, add to context_gaps
+
+`;
+  }
+  
+  // Research Issues
+  if (issuesByCategory.research.length > 0) {
+    feedback += `**RESEARCH DATA ISSUES (${issuesByCategory.research.length}):**\n`;
+    for (const issue of issuesByCategory.research) {
+      feedback += `• [${issue.severity.toUpperCase()}] ${issue.description}\n`;
+      if (issue.action_needed) {
+        feedback += `  → Action: ${issue.action_needed}\n`;
+      }
+    }
+    feedback += `
+FIX GUIDANCE FOR RESEARCH ISSUES:
+1. Re-run agentResearch with expand_search: true
+2. Focus on official sources (WCO, government customs sites)
+3. Retrieve full heading text and explanatory notes
+4. Ensure raw_legal_text_corpus has >500 chars of legal text
+
+`;
+  }
+  
+  // Extraction Issues
+  if (issuesByCategory.extraction.length > 0) {
+    feedback += `**TAX/COMPLIANCE EXTRACTION ISSUES (${issuesByCategory.extraction.length}):**\n`;
+    for (const issue of issuesByCategory.extraction) {
+      feedback += `• [${issue.severity.toUpperCase()}] ${issue.description}\n`;
+    }
+    feedback += `
+FIX GUIDANCE FOR EXTRACTION ISSUES:
+1. Each rate MUST have a source citation (duty_rate_source, vat_rate_source)
+2. Each requirement MUST have source_citation
+3. If data not found in context, mark as "NOT_FOUND_IN_CONTEXT"
+4. Provide data_gaps array listing missing information
+
+`;
+  }
+  
+  // Composite Issues
+  if (issuesByCategory.composite.length > 0) {
+    feedback += `**COMPOSITE CONSISTENCY ISSUES (${issuesByCategory.composite.length}):**\n`;
+    for (const issue of issuesByCategory.composite) {
+      feedback += `• [${issue.severity.toUpperCase()}] ${issue.description}\n`;
+    }
+    feedback += `
+FIX GUIDANCE FOR COMPOSITE ISSUES:
+1. If Analyst detected composite, Judge should use GRI 3(b) or explain why not
+2. essential_character_component should match between Analyst and Judge
+3. Review composite_analysis and align classification approach
+
+`;
+  }
+  
+  // Summary counts
+  feedback += `
+═══════════════════════════════════════════════════════════════════
+SUMMARY: ${highIssues.length} CRITICAL issues, ${mediumIssues.length} MEDIUM issues
+${highIssues.length > 0 ? 'CRITICAL issues MUST be fixed before approval.' : ''}
+═══════════════════════════════════════════════════════════════════
+`;
+
+  return feedback;
+}
+
 // --- END CITATION VALIDATION LOGIC ---
 
 // --- END INLINED GATEWAY ---
@@ -761,16 +978,22 @@ export default Deno.serve(async (req) => {
     const extractionIssues = validateExtractionQuality(report.tax_data, report.compliance_data);
     // Task 4.2: Composite consistency check
     const compositeIssues = validateCompositeConsistency(report.structural_analysis, report.classification_results);
+    // Task 4.2c: Research completeness validation
+    const researchIssues = validateResearchCompleteness(report.research_findings);
     const retrievalScore = calculateRetrievalScore(report.research_findings, report.classification_results);
     
     // Task 4.5: Enhanced logging
     console.log(`[AgentQA] GIR issues: ${girIssues.length}, EN issues: ${enIssues.length}`);
+    console.log(`[AgentQA] Research completeness issues: ${researchIssues.length}`);
     console.log(`[AgentQA] Citation issues: ${citationIssues.length}, Extraction issues: ${extractionIssues.length}`);
     console.log(`[AgentQA] Composite consistency issues: ${compositeIssues.length}`);
     console.log(`[AgentQA] Retrieval quality score: ${retrievalScore}`);
     
-    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues, ...citationIssues, ...extractionIssues, ...compositeIssues];
+    const preValidationIssues = [...girIssues, ...enIssues, ...precedentIssues, ...citationIssues, ...extractionIssues, ...compositeIssues, ...researchIssues];
     const criticalIssues = preValidationIssues.filter(i => i.severity === 'high');
+    
+    // Task 4.2c.3: Check if research needs expansion
+    const researchNeedsExpansion = researchIssues.some(i => i.action_needed === 'expand_search');
     
     const preValidationContext = preValidationIssues.length > 0 ? `
 ═══════════════════════════════════════════════════════════════════
@@ -780,6 +1003,8 @@ ${preValidationIssues.map(i => `• [${i.severity.toUpperCase()}] ${i.type}: ${i
 
 RETRIEVAL QUALITY SCORE: ${retrievalScore}/100
 ${citationIssues.length > 0 ? `CITATION ISSUES: ${citationIssues.length} - Review legal citations carefully` : ''}
+${researchIssues.length > 0 ? `RESEARCH ISSUES: ${researchIssues.length} - Research data may be incomplete` : ''}
+${researchNeedsExpansion ? '⚠️ RESEARCH EXPANSION RECOMMENDED - Insufficient legal text corpus for reliable classification' : ''}
 ${criticalIssues.length > 0 ? 'CRITICAL ISSUES FOUND - Likely FAIL unless reasoning explains why these are acceptable.' : ''}
 ` : '';
 
@@ -1164,8 +1389,16 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
         ...audit,
         pre_validation_issues: preValidationIssues,
         retrieval_quality_score: audit.retrieval_quality_score || retrievalScore,
-        retrieve_deduce_compliant: citationIssues.filter(i => i.severity === 'high').length === 0
+        retrieve_deduce_compliant: citationIssues.filter(i => i.severity === 'high').length === 0,
+        research_needs_expansion: researchNeedsExpansion,
+        research_issues: researchIssues
     };
+    
+    // Task 4.2b: Generate detailed self-healing feedback if failed
+    if (enrichedAudit.status === 'failed') {
+        const detailedFeedback = generateDetailedFeedback(preValidationIssues, enrichedAudit.faulty_agent || 'unknown');
+        enrichedAudit.detailed_fix_instructions = detailedFeedback;
+    }
     
     let finalStatus = 'completed';
     let processingStatus = 'completed';
@@ -1186,9 +1419,12 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
     console.log(`[AgentQA]   - Citation Issues: ${citationIssues.length}`);
     console.log(`[AgentQA]   - Extraction Issues: ${extractionIssues.length}`);
     console.log(`[AgentQA]   - Composite Issues: ${compositeIssues.length}`);
+    console.log(`[AgentQA]   - Research Issues: ${researchIssues.length}`);
+    console.log(`[AgentQA]   - Research Needs Expansion: ${researchNeedsExpansion ? 'YES' : 'NO'}`);
     if (enrichedAudit.status === 'failed') {
         console.log(`[AgentQA]   - Faulty Agent: ${enrichedAudit.faulty_agent}`);
         console.log(`[AgentQA]   - Fix Instructions: ${enrichedAudit.fix_instructions?.substring(0, 100)}...`);
+        console.log(`[AgentQA]   - Detailed Feedback Generated: YES`);
     }
     console.log(`[AgentQA]   - Duration: ${duration}ms`);
     console.log(`[AgentQA] ═══════════════════════════════════════════`);
@@ -1221,7 +1457,9 @@ OUTPUT FORMAT: Return valid JSON matching the schema.
             citation_issues_count: citationIssues.length,
             extraction_issues_count: extractionIssues.length,
             composite_issues_count: compositeIssues.length,
-            gir_issues_count: girIssues.length
+            gir_issues_count: girIssues.length,
+            research_issues_count: researchIssues.length,
+            research_needs_expansion: researchNeedsExpansion
         },
         duration_ms: duration
     });
