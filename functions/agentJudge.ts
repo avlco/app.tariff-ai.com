@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import OpenAI from 'npm:openai@^4.28.0';
+import Anthropic from 'npm:@anthropic-ai/sdk@^0.18.0';
 
 // --- TARIFF-AI 2.0: JURIST - GRI STATE MACHINE WITH LEGAL TEXT INJECTION ---
 // This agent now operates on RETRIEVED legal text, not general AI knowledge.
@@ -605,6 +606,83 @@ RETRY INSTRUCTIONS:
 }
 
 // --- END GIR OUTPUT VALIDATION ---
+
+// --- CROSS-VALIDATION WITH CLAUDE (TARIFF-AI 2.0 - Task 3.2) ---
+
+/**
+ * Cross-validate classification with Claude for low-confidence results
+ * Returns agreement status and alternative reasoning if disagreement
+ */
+async function crossValidateWithClaude(primaryResult, legalTextContext, productProfile) {
+  const crossValidationPrompt = `
+You are a CUSTOMS CLASSIFICATION EXPERT providing a SECOND OPINION.
+
+═══════════════════════════════════════════════════════════════════
+ORIGINAL CLASSIFICATION (by GPT-4o):
+═══════════════════════════════════════════════════════════════════
+HS Code: ${primaryResult.hs_code}
+GRI Applied: ${primaryResult.gri_applied || 'Not specified'}
+Confidence: ${primaryResult.confidence_score}%
+
+Key Reasoning:
+${primaryResult.reasoning?.substring(0, 2000) || 'No reasoning provided'}
+
+Essential Character (if GRI 3b):
+${primaryResult.essential_character_analysis?.justification || 'Not applicable'}
+
+═══════════════════════════════════════════════════════════════════
+PRODUCT PROFILE:
+═══════════════════════════════════════════════════════════════════
+${JSON.stringify(productProfile, null, 2).substring(0, 3000)}
+
+═══════════════════════════════════════════════════════════════════
+LEGAL TEXT CONTEXT (same as original classifier):
+═══════════════════════════════════════════════════════════════════
+${legalTextContext.substring(0, 15000)}
+
+═══════════════════════════════════════════════════════════════════
+YOUR TASK:
+═══════════════════════════════════════════════════════════════════
+1. Review the original classification INDEPENDENTLY
+2. Apply GRI rules to the LEGAL TEXT CONTEXT provided
+3. Either CONFIRM or PROPOSE ALTERNATIVE
+
+If you CONFIRM: Return the same HS code with brief explanation why you agree.
+If you DISAGREE: Return your proposed HS code with detailed GRI analysis.
+
+RESPOND WITH JSON:
+{
+  "agrees_with_primary": true/false,
+  "hs_code": "XXXX.XX.XX",
+  "gri_applied": "GRI X",
+  "brief_reasoning": "...",
+  "key_difference": "..." (only if disagrees)
+}
+`;
+
+  try {
+    const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!apiKey) {
+      console.warn('[CrossValidation] ANTHROPIC_API_KEY not set - skipping cross-validation');
+      return null;
+    }
+
+    const anthropic = new Anthropic({ apiKey });
+    const msg = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2048,
+      messages: [{ role: "user", content: crossValidationPrompt }]
+    });
+    
+    const content = msg.content[0].text;
+    return cleanJson(content);
+  } catch (e) {
+    console.error('[CrossValidation] Claude cross-validation failed:', e.message);
+    return null;
+  }
+}
+
+// --- END CROSS-VALIDATION ---
 
 /**
  * Extract and format legal text corpus for prompt injection
@@ -1282,6 +1360,27 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
 
     const duration = Date.now() - startTime;
     
+    // === CROSS-VALIDATION FOR LOW CONFIDENCE (Task 3.2) ===
+    let crossValidationResult = null;
+    const primaryConfidence = result.classification_results?.primary?.confidence_score || 0;
+    
+    if (primaryConfidence < 75) {
+      console.log(`[AgentJudge] Low confidence (${primaryConfidence}%) - triggering Claude cross-validation`);
+      crossValidationResult = await crossValidateWithClaude(
+        result.classification_results.primary,
+        legalTextContext,
+        report.structural_analysis
+      );
+      
+      if (crossValidationResult) {
+        console.log(`[AgentJudge] Cross-validation result: ${crossValidationResult.agrees_with_primary ? 'AGREES' : 'DISAGREES'}`);
+        if (!crossValidationResult.agrees_with_primary) {
+          console.log(`[AgentJudge] Claude suggests: ${crossValidationResult.hs_code} (${crossValidationResult.gri_applied})`);
+        }
+      }
+    }
+    // === END CROSS-VALIDATION ===
+
     // Enrich results with citation metadata and validation info
     const enrichedResults = {
         ...result.classification_results,
@@ -1293,7 +1392,15 @@ Include in the "reasoning" field your complete GRI analysis with EN references.
             citation_count: result.classification_results.primary?.legal_citations?.length || 0,
             // Add validation metadata
             validation_issues_count: validationIssues.length,
-            self_healing_applied: highSeverityIssues.length > 0
+            self_healing_applied: highSeverityIssues.length > 0,
+            // Add cross-validation metadata
+            cross_validation: crossValidationResult ? {
+              performed: true,
+              agrees: crossValidationResult.agrees_with_primary,
+              claude_hs_code: crossValidationResult.hs_code,
+              claude_gri: crossValidationResult.gri_applied,
+              key_difference: crossValidationResult.key_difference || null
+            } : { performed: false }
         }
     };
 
