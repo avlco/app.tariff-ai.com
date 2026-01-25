@@ -3,10 +3,21 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 /**
  * startClassification - Entry point for classification workflow
  * 
- * Now delegates to the new Conversation-Based Orchestrator for intelligent,
- * dynamic classification with confidence-driven decisions and self-healing.
+ * TARIFF-AI 2.0: "Retrieve & Deduce" Architecture
+ * ================================================
  * 
- * The legacy linear pipeline is preserved as fallback (USE_LEGACY_PIPELINE=true)
+ * Agent Pipeline (in order):
+ * 1. agentAnalyze - Product Analysis with Composite Detection
+ * 2. agentResearch - Legal Text Retrieval from CountryTradeResource
+ * 3. agentJudge - GIR Classification with Citation Protocol
+ * 4. agentTax - Tax Rate Extraction with Source Citations
+ * 5. agentCompliance - Compliance Requirements Extraction
+ * 6. agentQA - Citation Validation & Retrieval Quality Audit
+ * 
+ * Delegates to Conversation-Based Orchestrator for intelligent,
+ * confidence-driven decisions and self-healing with citation enforcement.
+ * 
+ * Legacy linear pipeline preserved as fallback.
  */
 
 const USE_CONVERSATION_ORCHESTRATOR = true; // Toggle to switch between new and legacy
