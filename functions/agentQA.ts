@@ -645,6 +645,15 @@ Deductions:
 - Country code format wrong: -10 (CRITICAL - FAIL)
 - Tax/compliance mismatch: -10 (CRITICAL - FAIL)
 
+RETRIEVE & DEDUCE DEDUCTIONS:
+- No legal_citations at all: -25 (CRITICAL - FAIL)
+- Citations without exact_quote: -15
+- Unverified/fabricated citations: -20 (CRITICAL - FAIL)
+- Tax rates without source: -10
+- Compliance requirements without source: -10
+- Excessive context_gaps (>5): -10
+- Low extraction_confidence without justification: -5
+
 Final Score Interpretation:
 90-100: EXCELLENT - Ready to publish
 75-89: GOOD - Minor improvements possible
