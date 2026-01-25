@@ -451,17 +451,25 @@ export default Deno.serve(async (req) => {
             feedback: decision.specific_request?.reason,
             conversationContext: { round: conversationState.current_round, focus: decision.specific_request?.focus }
           });
-          
+
+          // Null safety: validate response
+          if (!res.data || res.data.error) {
+            await logProgress('error', `agentAnalyze returned error: ${res.data?.error || 'No data returned'}`);
+            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+            break;
+          }
+
           if (res.data.status === 'waiting_for_user') {
             conversationState = updateStatus(conversationState, 'waiting_for_user', 'Awaiting user input');
             await base44.asServiceRole.entities.ConversationState.update(conversationId, conversationState);
             return Response.json({ success: true, status: 'waiting_for_user', question: res.data.question });
           }
-          
+
           actionOutput = res.data;
+          const spec = res.data.spec || res.data.technical_spec || {};
           newStateUpdates = { 
-            product_profile: res.data.spec || res.data.technical_spec,
-            product_readiness: res.data.spec?.readiness_score || 85
+            product_profile: spec,
+            product_readiness: spec.readiness_score || 85
           };
           break;
         }
@@ -505,33 +513,47 @@ export default Deno.serve(async (req) => {
             expandSearch: decision.specific_request?.expand_search,
             focusAreas: decision.specific_request?.focus_areas
           });
+
+          // Null safety: validate response
+          if (!res.data || res.data.error) {
+            await logProgress('error', `agentResearch returned error: ${res.data?.error || 'No data returned'}`);
+            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+            break;
+          }
+
           actionOutput = res.data;
-          
+
           const findings = res.data.findings || {};
-          
+
           // TARIFF-AI 2.0: Track raw legal text corpus quality
           const rawCorpusLength = findings.raw_legal_text_corpus?.length || 0;
           console.log(`[Orchestrator] Raw legal text corpus: ${rawCorpusLength} chars`);
-          
+
           newStateUpdates = {
-            candidate_headings: findings.candidate_headings?.map(h => h.code_4_digit) || [],
+            candidate_headings: (findings.candidate_headings || []).map(h => h.code_4_digit || h).filter(Boolean),
             legal_research: {
               en_documents: findings.candidate_headings || [],
               notes: findings.legal_notes_found || [],
               verified_sources: findings.verified_sources || [],
-              raw_legal_text_corpus_length: rawCorpusLength, // Track for confidence calc
+              raw_legal_text_corpus_length: rawCorpusLength,
               retrieval_metadata: res.data.retrieval_metadata || {}
             },
             precedents: {
               bti_cases: findings.bti_cases || [],
               wco_opinions: findings.wco_precedents || [],
-              consensus: { agreement_rate: findings.wco_precedents?.length > 0 ? 0.7 : 0 }
+              consensus: { agreement_rate: (findings.wco_precedents?.length || 0) > 0 ? 0.7 : 0 }
             }
           };
           break;
         }
 
         case ACTIONS.CLASSIFY: {
+          // TARIFF-AI 2.0: Reset validation before reclassifying (prevent infinite loop)
+          conversationState = updateCurrentState(conversationState, { 
+            validation_result: null,
+            gir_decision: null
+          });
+
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'classifying_hs' });
           const res = await base44.functions.invoke('agentJudge', { 
             reportId, 
@@ -540,27 +562,40 @@ export default Deno.serve(async (req) => {
             enforceHierarchy: decision.specific_request?.enforce_hierarchy,
             enforceCitations: decision.specific_request?.enforce_citations
           });
+
+          // Null safety: validate response
+          if (!res.data || res.data.error) {
+            await logProgress('error', `agentJudge returned error: ${res.data?.error || 'No data returned'}`);
+            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+            break;
+          }
+
           actionOutput = res.data;
-          
-          const results = res.data.results || res.data.classification_results;
-          
+
+          const results = res.data.results || res.data.classification_results || {};
+          const primary = results.primary || {};
+
+          // Validate critical field
+          if (!primary.hs_code) {
+            await logProgress('warning', 'agentJudge returned no HS code');
+          }
+
           // TARIFF-AI 2.0: Track citation and retrieval metadata
-          const citationCount = results?.primary?.legal_citations?.length || 0;
-          const contextGaps = results?.primary?.context_gaps || [];
+          const citationCount = primary.legal_citations?.length || 0;
+          const contextGaps = primary.context_gaps || [];
           console.log(`[Orchestrator] Classification with ${citationCount} citations, ${contextGaps.length} context gaps`);
-          
+
           newStateUpdates = {
             gir_decision: {
-              hs_code: results?.primary?.hs_code,
-              gir_applied: results?.primary?.gri_applied || results?.primary?.gir_applied,
-              confidence: results?.primary?.confidence_score,
-              reasoning: results?.primary?.reasoning,
-              audit_trail: results?.primary?.gir_state_log || [{ state: results?.primary?.gri_applied, result: 'resolved', timestamp: new Date().toISOString() }],
-              // TARIFF-AI 2.0: New fields from Judge
-              essential_character_analysis: results?.primary?.essential_character_analysis,
-              legal_citations: results?.primary?.legal_citations || [],
+              hs_code: primary.hs_code || null,
+              gir_applied: primary.gri_applied || primary.gir_applied || null,
+              confidence: primary.confidence_score || 0,
+              reasoning: primary.reasoning || '',
+              audit_trail: primary.gir_state_log || [{ state: primary.gri_applied || 'unknown', result: 'resolved', timestamp: new Date().toISOString() }],
+              essential_character_analysis: primary.essential_character_analysis || null,
+              legal_citations: primary.legal_citations || [],
               context_gaps: contextGaps,
-              legal_text_based: results?.primary?.legal_text_based || false
+              legal_text_based: primary.legal_text_based || false
             }
           };
           break;
@@ -569,41 +604,48 @@ export default Deno.serve(async (req) => {
         case ACTIONS.VALIDATE: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'qa_pending' });
           const res = await base44.functions.invoke('agentQA', { reportId });
+
+          // Null safety: validate response
+          if (!res.data || res.data.error) {
+            await logProgress('error', `agentQA returned error: ${res.data?.error || 'No data returned'}`);
+            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+            break;
+          }
+
           actionOutput = res.data;
-          
-          const audit = res.data.audit || res.data.qa_audit;
-          
+
+          const audit = res.data.audit || res.data.qa_audit || {};
+
           // TARIFF-AI 2.0: Extract all QA validation results including R&D checks
           const retrievalMetadata = res.data.retrieval_metadata || {};
-          console.log(`[Orchestrator] QA Retrieval Score: ${retrievalMetadata.retrieval_quality_score}, Citation Issues: ${retrievalMetadata.citation_issues_count}`);
-          
+          console.log(`[Orchestrator] QA Retrieval Score: ${retrievalMetadata.retrieval_quality_score || 'N/A'}, Citation Issues: ${retrievalMetadata.citation_issues_count || 'N/A'}`);
+
           // Collect all issues from QA including pre-validation
           const allIssues = [];
-          if (audit?.status !== 'passed' && audit?.fix_instructions) {
+          if (audit.status !== 'passed' && audit.fix_instructions) {
             allIssues.push({ type: 'qa_failed', description: audit.fix_instructions, severity: 'high' });
           }
-          if (audit?.issues_found?.length > 0) {
+          if (Array.isArray(audit.issues_found)) {
             allIssues.push(...audit.issues_found);
           }
-          if (audit?.pre_validation_issues?.length > 0) {
+          if (Array.isArray(audit.pre_validation_issues)) {
             allIssues.push(...audit.pre_validation_issues);
           }
-          
+
           newStateUpdates = {
             validation_result: {
-              passed: audit?.status === 'passed',
-              score: audit?.score,
+              passed: audit.status === 'passed',
+              score: audit.score || 0,
               issues: allIssues,
-              // TARIFF-AI 2.0: New validation fields
-              gir_compliance: audit?.gir_compliance,
-              citation_validation: audit?.citation_validation,
-              extraction_validation: audit?.extraction_validation,
-              retrieval_quality_score: audit?.retrieval_quality_score || retrievalMetadata.retrieval_quality_score,
-              retrieve_deduce_compliant: audit?.retrieve_deduce_compliant
+              gir_compliance: audit.gir_compliance || null,
+              citation_validation: audit.citation_validation || null,
+              extraction_validation: audit.extraction_validation || null,
+              retrieval_quality_score: audit.retrieval_quality_score || retrievalMetadata.retrieval_quality_score || null,
+              retrieve_deduce_compliant: audit.retrieve_deduce_compliant || false
             }
           };
-          
-          if (audit?.status !== 'passed') {
+
+          if (audit.status !== 'passed') {
             conversationState = incrementSelfHealing(conversationState);
           }
           break;
@@ -616,16 +658,24 @@ export default Deno.serve(async (req) => {
             knowledgeBase,
             feedback: decision.specific_request?.feedback
           });
+
+          // Null safety: validate response
+          if (!res.data || res.data.error) {
+            await logProgress('error', `agentTax returned error: ${res.data?.error || 'No data returned'}`);
+            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+            break;
+          }
+
           actionOutput = res.data;
-          
+
           // TARIFF-AI 2.0: Track extraction metadata
-          const taxData = res.data.data || res.data;
-          console.log(`[Orchestrator] Tax extraction confidence: ${taxData?.extraction_confidence}`);
-          
+          const taxData = res.data.data || res.data || {};
+          console.log(`[Orchestrator] Tax extraction confidence: ${taxData.extraction_confidence || 'N/A'}`);
+
           newStateUpdates = { 
             tax_data: {
               ...taxData,
-              extraction_metadata: taxData?.extraction_metadata || res.data.retrieval_metadata
+              extraction_metadata: taxData.extraction_metadata || res.data.retrieval_metadata || {}
             }
           };
           break;
@@ -638,16 +688,24 @@ export default Deno.serve(async (req) => {
             knowledgeBase,
             feedback: decision.specific_request?.feedback
           });
+
+          // Null safety: validate response
+          if (!res.data || res.data.error) {
+            await logProgress('error', `agentCompliance returned error: ${res.data?.error || 'No data returned'}`);
+            actionOutput = { error: res.data?.error || 'Agent returned no data' };
+            break;
+          }
+
           actionOutput = res.data;
-          
+
           // TARIFF-AI 2.0: Track extraction metadata
-          const complianceData = res.data.data || res.data;
-          console.log(`[Orchestrator] Compliance extraction confidence: ${complianceData?.extraction_confidence}`);
-          
+          const complianceData = res.data.data || res.data || {};
+          console.log(`[Orchestrator] Compliance extraction confidence: ${complianceData.extraction_confidence || 'N/A'}`);
+
           newStateUpdates = { 
             compliance_data: {
               ...complianceData,
-              extraction_metadata: complianceData?.extraction_metadata || res.data.retrieval_metadata
+              extraction_metadata: complianceData.extraction_metadata || res.data.retrieval_metadata || {}
             }
           };
           break;
