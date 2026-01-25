@@ -374,18 +374,9 @@ IMPORTANT: Do NOT invent requirements. Only extract what is explicitly stated.
     console.log(`[AgentCompliance]   - Duration: ${duration}ms`);
     console.log(`[AgentCompliance] ═══════════════════════════════════════════`);
     
+    // TARIFF-AI 2.0: Write to dedicated compliance_data field (not regulatory_data)
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
-        regulatory_data: {
-            ...(report.regulatory_data || {}),
-            primary: {
-                ...(report.regulatory_data?.primary || {}),
-                import_requirements: enrichedComplianceData.import_requirements || [],
-                standards_requirements: enrichedComplianceData.mandatory_standards || [],
-                import_legality: enrichedComplianceData.import_legality || 'unknown'
-            },
-            compliance_details: enrichedComplianceData,
-            compliance_extraction_metadata: enrichedComplianceData.extraction_metadata
-        }
+        compliance_data: enrichedComplianceData
     });
     
     return Response.json({ 

@@ -299,19 +299,11 @@ If not found:
         }
     };
     
+    // TARIFF-AI 2.0: Write to dedicated tax_data field (not regulatory_data)
     await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
-        regulatory_data: {
-            ...report.regulatory_data,
-            primary: { 
-                ...(report.regulatory_data?.primary || {}), 
-                ...enrichedTaxData.primary,
-                preferential_rates: enrichedTaxData.preferential_rates
-            },
-            alternatives: enrichedTaxData.alternatives,
-            tax_extraction_metadata: enrichedTaxData.extraction_metadata
-        },
-        // Legacy support
-        tariff_description: `Duty: ${enrichedTaxData.primary.duty_rate}, VAT: ${enrichedTaxData.primary.vat_rate}`
+        tax_data: enrichedTaxData,
+        // Legacy support - also update tariff_description
+        tariff_description: `Duty: ${enrichedTaxData.primary?.duty_rate || 'N/A'}, VAT: ${enrichedTaxData.primary?.vat_rate || 'N/A'}`
     });
     
     return Response.json({ 
