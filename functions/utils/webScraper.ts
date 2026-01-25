@@ -97,15 +97,144 @@ async function fetchWithRetry(url, options = {}, maxRetries = 3) {
 }
 
 /**
- * Extract text content from HTML (simple extraction without DOM parser)
+ * Extract text content from HTML (enhanced extraction)
+ * Preserves structure for legal documents
  */
-function extractTextFromHtml(html) {
-  return html
+function extractTextFromHtml(html, preserveStructure = false) {
+  let text = html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '') // Remove navigation
+    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '') // Remove headers
+    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, ''); // Remove footers
+  
+  if (preserveStructure) {
+    // Preserve headings and list structure
+    text = text
+      .replace(/<h[1-6][^>]*>/gi, '\n\n### ')
+      .replace(/<\/h[1-6]>/gi, '\n')
+      .replace(/<li[^>]*>/gi, '\n• ')
+      .replace(/<\/li>/gi, '')
+      .replace(/<tr[^>]*>/gi, '\n')
+      .replace(/<td[^>]*>/gi, ' | ')
+      .replace(/<th[^>]*>/gi, ' | ')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<p[^>]*>/gi, '\n\n')
+      .replace(/<\/p>/gi, '');
+  }
+  
+  return text
     .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
     .replace(/\s+/g, ' ')
+    .replace(/\n\s*\n\s*\n/g, '\n\n')
     .trim();
+}
+
+/**
+ * Extract PDF text using PDFShift API
+ * Requires PDFSHIFT_API_KEY secret
+ */
+async function extractTextFromPdf(pdfUrl) {
+  const apiKey = Deno.env.get('PDFSHIFT_API_KEY');
+  
+  if (!apiKey) {
+    console.warn('[WebScraper] PDFSHIFT_API_KEY not set, PDF extraction disabled');
+    return {
+      success: false,
+      error: 'PDF extraction not configured',
+      text: null
+    };
+  }
+  
+  try {
+    // First, fetch the PDF
+    const pdfResponse = await fetchWithRetry(pdfUrl, { timeout: 30000 });
+    const pdfBuffer = await pdfResponse.arrayBuffer();
+    const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfBuffer)));
+    
+    // Use PDFShift to convert to text
+    const response = await fetch('https://api.pdfshift.io/v3/convert/text', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${btoa('api:' + apiKey)}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        source: `data:application/pdf;base64,${pdfBase64}`
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`PDFShift error: ${response.status}`);
+    }
+    
+    const text = await response.text();
+    
+    return {
+      success: true,
+      text: text,
+      source_url: pdfUrl,
+      extracted_at: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('[WebScraper] PDF extraction failed:', error.message);
+    return {
+      success: false,
+      error: error.message,
+      text: null
+    };
+  }
+}
+
+/**
+ * Extract relevant section from legal text based on HS code
+ * Optimizes context window by focusing on relevant chapter/heading
+ */
+function extractRelevantSection(fullText, hsCode, windowSize = 5000) {
+  if (!fullText || !hsCode) return fullText;
+  
+  const code4 = hsCode.substring(0, 4);
+  const code2 = hsCode.substring(0, 2);
+  
+  // Search patterns in order of specificity
+  const patterns = [
+    new RegExp(`(${hsCode}[\\s\\S]{0,${windowSize}})`, 'i'),
+    new RegExp(`(${code4}[\\s\\S]{0,${windowSize}})`, 'i'),
+    new RegExp(`(chapter\\s*${code2}[\\s\\S]{0,${windowSize}})`, 'i'),
+    new RegExp(`(heading\\s*${code4}[\\s\\S]{0,${windowSize}})`, 'i')
+  ];
+  
+  for (const pattern of patterns) {
+    const match = fullText.match(pattern);
+    if (match) {
+      // Get context before and after the match
+      const matchIndex = fullText.indexOf(match[1]);
+      const start = Math.max(0, matchIndex - 500);
+      const end = Math.min(fullText.length, matchIndex + match[1].length + 500);
+      
+      return {
+        section: fullText.substring(start, end),
+        matched_pattern: pattern.source,
+        hs_code: hsCode,
+        is_excerpt: true
+      };
+    }
+  }
+  
+  // No specific match found, return truncated full text
+  return {
+    section: fullText.substring(0, windowSize * 2),
+    matched_pattern: null,
+    hs_code: hsCode,
+    is_excerpt: true,
+    note: 'No specific HS code section found, returning document excerpt'
+  };
 }
 
 /**
