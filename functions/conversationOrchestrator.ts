@@ -799,7 +799,7 @@ export default Deno.serve(async (req) => {
 
         case ACTIONS.CALCULATE_TAX: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'calculating_duties' });
-          
+
           let res;
           try {
             res = await base44.functions.invoke('agentTax', { 
@@ -820,7 +820,7 @@ export default Deno.serve(async (req) => {
             actionOutput = { error: 'Agent returned no data' };
             break;
           }
-          
+
           if (res.data.error) {
             await logProgress('error', `agentTax returned error: ${res.data.error}`);
             actionOutput = { error: res.data.error };
@@ -835,22 +835,32 @@ export default Deno.serve(async (req) => {
           console.log(`[Orchestrator] Tax extraction confidence: ${taxData.extraction_confidence || 'N/A'}`);
           console.log(`[Orchestrator] Duty rate: ${taxPrimary.duty_rate || 'N/A'}`);
 
-          newStateUpdates = { 
-            tax_data: {
-              primary: taxPrimary,
-              preferential_rates: taxData.preferential_rates || [],
-              alternatives: taxData.alternatives || [],
-              data_gaps: taxData.data_gaps || [],
-              extraction_confidence: taxData.extraction_confidence || 'unknown',
-              extraction_metadata: taxData.extraction_metadata || res.data.retrieval_metadata || {}
-            }
+          const taxDataToSave = {
+            primary: taxPrimary,
+            preferential_rates: taxData.preferential_rates || [],
+            alternatives: taxData.alternatives || [],
+            data_gaps: taxData.data_gaps || [],
+            extraction_confidence: taxData.extraction_confidence || 'unknown',
+            extraction_metadata: taxData.extraction_metadata || res.data.retrieval_metadata || {}
           };
+
+          // TARIFF-AI 2.0 FIX: Save tax_data directly to ClassificationReport
+          try {
+            await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+              tax_data: taxDataToSave
+            });
+            console.log(`[Orchestrator] ✓ tax_data saved to ClassificationReport`);
+          } catch (saveError) {
+            console.error(`[Orchestrator] Failed to save tax_data: ${saveError.message}`);
+          }
+
+          newStateUpdates = { tax_data: taxDataToSave };
           break;
         }
 
         case ACTIONS.CHECK_COMPLIANCE: {
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'checking_regulations' });
-          
+
           let res;
           try {
             res = await base44.functions.invoke('agentCompliance', { 
@@ -871,7 +881,7 @@ export default Deno.serve(async (req) => {
             actionOutput = { error: 'Agent returned no data' };
             break;
           }
-          
+
           if (res.data.error) {
             await logProgress('error', `agentCompliance returned error: ${res.data.error}`);
             actionOutput = { error: res.data.error };
@@ -885,20 +895,30 @@ export default Deno.serve(async (req) => {
           console.log(`[Orchestrator] Compliance extraction confidence: ${complianceData.extraction_confidence || 'N/A'}`);
           console.log(`[Orchestrator] Import legality: ${complianceData.import_legality || 'N/A'}`);
 
-          newStateUpdates = { 
-            compliance_data: {
-              import_requirements: complianceData.import_requirements || [],
-              mandatory_standards: complianceData.mandatory_standards || [],
-              labeling_laws: complianceData.labeling_laws || [],
-              prohibitions: complianceData.prohibitions || [],
-              licenses_required: complianceData.licenses_required || [],
-              certifications_needed: complianceData.certifications_needed || [],
-              import_legality: complianceData.import_legality || 'unknown',
-              data_gaps: complianceData.data_gaps || [],
-              extraction_confidence: complianceData.extraction_confidence || 'unknown',
-              extraction_metadata: complianceData.extraction_metadata || res.data.retrieval_metadata || {}
-            }
+          const complianceDataToSave = {
+            import_requirements: complianceData.import_requirements || [],
+            mandatory_standards: complianceData.mandatory_standards || [],
+            labeling_laws: complianceData.labeling_laws || [],
+            prohibitions: complianceData.prohibitions || [],
+            licenses_required: complianceData.licenses_required || [],
+            certifications_needed: complianceData.certifications_needed || [],
+            import_legality: complianceData.import_legality || 'unknown',
+            data_gaps: complianceData.data_gaps || [],
+            extraction_confidence: complianceData.extraction_confidence || 'unknown',
+            extraction_metadata: complianceData.extraction_metadata || res.data.retrieval_metadata || {}
           };
+
+          // TARIFF-AI 2.0 FIX: Save compliance_data directly to ClassificationReport
+          try {
+            await base44.asServiceRole.entities.ClassificationReport.update(reportId, {
+              compliance_data: complianceDataToSave
+            });
+            console.log(`[Orchestrator] ✓ compliance_data saved to ClassificationReport`);
+          } catch (saveError) {
+            console.error(`[Orchestrator] Failed to save compliance_data: ${saveError.message}`);
+          }
+
+          newStateUpdates = { compliance_data: complianceDataToSave };
           break;
         }
 
