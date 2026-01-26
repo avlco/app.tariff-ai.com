@@ -641,11 +641,16 @@ export default Deno.serve(async (req) => {
         }
 
         case ACTIONS.CLASSIFY: {
-          // TARIFF-AI 2.0: Reset validation before reclassifying (prevent infinite loop)
+          // TARIFF-AI 2.0: Reset validation AND clear previous issues before reclassifying (prevent infinite loop)
           conversationState = updateCurrentState(conversationState, { 
             validation_result: null,
             gir_decision: null
           });
+          
+          // P2 FIX: Log that we're resetting state for self-healing
+          if (conversationState.self_healing_attempts > 0) {
+            console.log(`[Orchestrator] Self-healing attempt ${conversationState.self_healing_attempts}: Resetting validation state before re-classification`);
+          }
 
           await base44.asServiceRole.entities.ClassificationReport.update(reportId, { processing_status: 'classifying_hs' });
           
