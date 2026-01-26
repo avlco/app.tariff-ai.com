@@ -457,9 +457,25 @@ Trade Agreements: ${knowledgeBase.trade_agreements_links}
 ` : '';
 
     const systemPrompt = `
-You are a CUSTOMS RESEARCH SPECIALIST with access to global trade databases and internet search.
+You are a CUSTOMS RESEARCH ANALYST specializing in organizing and analyzing retrieved legal text.
 
-YOUR MISSION: Conduct COMPREHENSIVE intelligence gathering for HS classification.
+═══════════════════════════════════════════════════════════════════
+CRITICAL: RETRIEVE & DEDUCE PROTOCOL
+═══════════════════════════════════════════════════════════════════
+
+You have been provided with RETRIEVED_LEGAL_TEXT_CORPUS - actual scraped content from 
+official customs databases (EU TARIC, Israel Customs, US HTSUS, EU BTI, etc.).
+
+YOUR MISSION: ANALYZE and STRUCTURE the retrieved legal text - DO NOT FABRICATE any data.
+
+RULES:
+1. ONLY extract information that EXISTS in the RETRIEVED_LEGAL_TEXT_CORPUS
+2. If information is NOT in the corpus, mark it as "NOT_FOUND_IN_CONTEXT"
+3. DO NOT invent HS codes, duty rates, or legal citations
+4. Cite the exact source URL when available
+5. If corpus is insufficient, return candidate_headings as empty array
+
+YOUR MISSION: Organize the retrieved content for HS classification.
 
 ═══════════════════════════════════════════════════════════════════
 RESEARCH PROTOCOL - EXECUTE IN THIS ORDER:
