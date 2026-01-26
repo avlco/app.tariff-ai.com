@@ -440,15 +440,35 @@ ${spec.components_breakdown ? `- Components: ${JSON.stringify(spec.components_br
 `;
 
     // Include retrieved legal text as primary context (use processed corpus)
-    const retrievedContext = processedCorpus ? `
+    // TARIFF-AI 2.0 FIX: This is now REAL scraped data, not LLM-generated
+    const retrievedContext = processedCorpus && processedCorpus.length > 100 ? `
 ═══════════════════════════════════════════════════════════════════
-RETRIEVED LEGAL TEXT CORPUS (from Official Sources)
-Use this as PRIMARY reference. Do NOT contradict this information.
+RETRIEVED LEGAL TEXT CORPUS (REAL SCRAPED DATA from Official Sources)
+═══════════════════════════════════════════════════════════════════
+
+IMPORTANT: This text was ACTUALLY RETRIEVED from official customs databases.
+- Extract candidate headings ONLY from this text
+- Extract duty rates ONLY from this text  
+- Extract legal notes ONLY from this text
+- If data is not here, it is NOT_FOUND_IN_CONTEXT
+
 ${expandSearch ? '⚠️ EXPANDED SEARCH MODE - Additional sources retrieved' : ''}
+
+CORPUS LENGTH: ${processedCorpus.length} characters
+SOURCES SCRAPED: ${officialSources.scrape_successes || 0} successful, ${officialSources.scrape_failures || 0} failed
+
 ═══════════════════════════════════════════════════════════════════
 ${processedCorpus.substring(0, 35000)}
 ═══════════════════════════════════════════════════════════════════
-` : '';
+` : `
+═══════════════════════════════════════════════════════════════════
+⚠️ WARNING: NO LEGAL TEXT CORPUS RETRIEVED
+═══════════════════════════════════════════════════════════════════
+Web scraping returned insufficient data.
+DO NOT fabricate any HS codes, duty rates, or citations.
+Return empty candidate_headings array if no real data is available.
+═══════════════════════════════════════════════════════════════════
+`;
 
     const kbContext = knowledgeBase ? `
 Knowledge Base for ${knowledgeBase.country}:
