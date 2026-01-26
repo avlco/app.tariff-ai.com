@@ -345,6 +345,10 @@ async function retrieveOfficialSources(base44, destCountry, spec, options = {}) 
 }
 
 export default Deno.serve(async (req) => {
+  const startTime = Date.now();
+  console.log('[AgentResearch] ═══════════════════════════════════════════');
+  console.log('[AgentResearch] Starting TARIFF-AI 2.0 Research (RETRIEVE & DEDUCE)');
+  
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
