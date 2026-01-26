@@ -78,111 +78,265 @@ async function invokeSpecializedLLM({ prompt, task_type, response_schema, base44
 
 /**
  * PHASE 0: Retrieve official sources from CountryTradeResource
- * This is the NEW primary data gathering method
+ * TARIFF-AI 2.0 FIX: This function now ACTUALLY scrapes URLs using webScraper utilities
+ * instead of relying on LLM to generate fake data.
  */
 async function retrieveOfficialSources(base44, destCountry, spec, options = {}) {
   const { expandSearch = false, focusAreas = null } = options;
   
-  console.log(`[AgentResearch] Phase 0: Retrieving official sources for ${destCountry}${expandSearch ? ' (EXPAND MODE)' : ''}`);
+  console.log(`[AgentResearch] ═══════════════════════════════════════════`);
+  console.log(`[AgentResearch] Phase 0: REAL RETRIEVAL for ${destCountry}${expandSearch ? ' (EXPAND MODE)' : ''}`);
   
   const results = {
     country_validated: false,
     sources_retrieved: [],
     raw_legal_text: '',
-    scrape_errors: []
+    scrape_errors: [],
+    scrape_successes: 0,
+    scrape_failures: 0
   };
   
   // Validate country exists in knowledge base
-  const countryValidation = await validateCountry(base44, destCountry);
+  let countryValidation = { valid: false };
+  try {
+    countryValidation = await validateCountry(base44, destCountry);
+  } catch (e) {
+    console.warn(`[AgentResearch] Country validation failed: ${e.message}`);
+  }
+  
   results.country_validated = countryValidation.valid;
-  results.normalized_country = countryValidation.normalized_name;
+  results.normalized_country = countryValidation.normalized_name || destCountry;
   results.hs_structure = countryValidation.hs_structure;
   
-  if (!countryValidation.valid) {
-    console.warn(`[AgentResearch] Country ${destCountry} not found in knowledge base`);
-    return results;
-  }
-  
-  // Get all available sources
-  const allSources = await fetchAllSources(base44, destCountry);
-  
-  if (!allSources.success) {
-    console.warn(`[AgentResearch] Failed to fetch sources: ${allSources.error}`);
-    return results;
-  }
-  
-  results.metadata = allSources.metadata;
+  // Get suggested HS code from spec
+  const suggestedHsCode = spec?.industry_specific_data?.suggested_hs_code || 
+                          spec?.suggested_hs_code || 
+                          null;
   
   // Prepare search options based on product spec
-  // Task 5.5: Enhanced options for expand_search mode
   const baseSearchTerms = [
-    spec.standardized_name,
-    spec.material_composition,
-    spec.function
+    spec?.standardized_name,
+    spec?.material_composition,
+    spec?.function
   ].filter(Boolean);
   
-  // Add focus areas to search terms if provided
   const focusSearchTerms = focusAreas 
     ? focusAreas.split(';').map(s => s.trim()).filter(Boolean)
     : [];
   
   const scrapeOptions = {
-    hsCode: spec.industry_specific_data?.suggested_hs_code || null,
+    hsCode: suggestedHsCode,
     searchTerms: [...baseSearchTerms, ...focusSearchTerms],
     preserveStructure: true,
-    maxLength: expandSearch ? 20000 : 12000,  // Larger corpus for expand mode
-    maxDepth: expandSearch ? 2 : 0,           // Enable deep scraping for expand mode
-    maxLinks: expandSearch ? 3 : 0            // Follow internal links in expand mode
+    maxLength: expandSearch ? 20000 : 12000,
+    maxDepth: expandSearch ? 2 : 0,
+    maxLinks: expandSearch ? 3 : 0,
+    useCache: true
   };
   
-  // Scrape customs links (primary priority)
-  // Task 5.5: Use deep scraping for expand_search mode
-  if (allSources.sources.customs?.length > 0) {
-    const customsUrls = allSources.sources.customs.slice(0, expandSearch ? 5 : 3);
-    console.log(`[AgentResearch] Scraping ${customsUrls.length} customs URLs ${expandSearch ? '(EXPAND MODE)' : ''}`);
-    
-    if (expandSearch && scrapeOptions.maxDepth > 0) {
-      // Use deep scraping with link following
-      for (const url of customsUrls) {
-        const deepResult = await scrapeWithDepth(url, scrapeOptions);
-        if (deepResult.success) {
-          results.sources_retrieved.push({
-            ...deepResult,
-            authority_tier: classifySourceAuthority(url)
-          });
-          results.raw_legal_text += deepResult.raw_legal_text || '';
-          console.log(`[AgentResearch] Deep scraped ${url}: ${deepResult.raw_legal_text?.length || 0} chars, depth ${deepResult.depth_reached}, links ${deepResult.links_followed || 0}`);
-        } else {
-          results.scrape_errors.push(deepResult.error);
+  console.log(`[AgentResearch] Search terms: ${scrapeOptions.searchTerms.join(', ')}`);
+  console.log(`[AgentResearch] HS Code hint: ${suggestedHsCode || 'none'}`);
+  
+  // === STEP 1: Try CountryTradeResource sources first ===
+  if (countryValidation.valid) {
+    try {
+      const allSources = await fetchAllSources(base44, destCountry);
+      
+      if (allSources.success) {
+        results.metadata = allSources.metadata;
+        
+        // Scrape customs links (primary priority)
+        if (allSources.sources.customs?.length > 0) {
+          const customsUrls = allSources.sources.customs.slice(0, expandSearch ? 5 : 3);
+          console.log(`[AgentResearch] Scraping ${customsUrls.length} customs URLs from CountryTradeResource`);
+          
+          if (expandSearch && scrapeOptions.maxDepth > 0) {
+            for (const url of customsUrls) {
+              try {
+                const deepResult = await scrapeWithDepth(url, scrapeOptions);
+                if (deepResult.success && deepResult.raw_legal_text) {
+                  results.sources_retrieved.push({
+                    ...deepResult,
+                    authority_tier: classifySourceAuthority(url),
+                    source_type: 'customs_kb'
+                  });
+                  results.raw_legal_text += `\n\n=== SOURCE: ${url} ===\n${deepResult.raw_legal_text}`;
+                  results.scrape_successes++;
+                  console.log(`[AgentResearch] ✓ Deep scraped: ${url.substring(0, 50)}... (${deepResult.raw_legal_text?.length || 0} chars)`);
+                } else {
+                  results.scrape_errors.push({ url, error: deepResult.error || 'No content' });
+                  results.scrape_failures++;
+                }
+              } catch (e) {
+                results.scrape_errors.push({ url, error: e.message });
+                results.scrape_failures++;
+              }
+            }
+          } else {
+            try {
+              const customsResults = await scrapeMultipleUrls(customsUrls, scrapeOptions);
+              if (customsResults.success) {
+                results.sources_retrieved.push(...customsResults.results.filter(r => r.success).map(r => ({
+                  ...r,
+                  authority_tier: classifySourceAuthority(r.url),
+                  source_type: 'customs_kb'
+                })));
+                results.raw_legal_text += customsResults.combined_legal_text || '';
+                results.scrape_successes += customsResults.successful || 0;
+                results.scrape_failures += customsResults.failed || 0;
+              }
+            } catch (e) {
+              console.warn(`[AgentResearch] Customs scraping failed: ${e.message}`);
+            }
+          }
+        }
+        
+        // Scrape trade agreement links
+        if (allSources.sources.trade_agreements?.length > 0) {
+          try {
+            const ftaUrls = allSources.sources.trade_agreements.slice(0, 2);
+            console.log(`[AgentResearch] Scraping ${ftaUrls.length} trade agreement URLs`);
+            const ftaResults = await scrapeMultipleUrls(ftaUrls, scrapeOptions);
+            
+            if (ftaResults.success) {
+              results.sources_retrieved.push(...ftaResults.results.filter(r => r.success).map(r => ({
+                ...r,
+                source_type: 'trade_agreement'
+              })));
+              results.raw_legal_text += '\n\n=== TRADE AGREEMENTS ===\n' + (ftaResults.combined_legal_text || '');
+              results.scrape_successes += ftaResults.successful || 0;
+            }
+          } catch (e) {
+            console.warn(`[AgentResearch] Trade agreement scraping failed: ${e.message}`);
+          }
         }
       }
-    } else {
-      // Standard scraping
-      const customsResults = await scrapeMultipleUrls(customsUrls, scrapeOptions);
-      
-      if (customsResults.success) {
-        results.sources_retrieved.push(...customsResults.results.filter(r => r.success).map(r => ({
-          ...r,
-          authority_tier: classifySourceAuthority(r.url)
-        })));
-        results.raw_legal_text += customsResults.combined_legal_text || '';
+    } catch (e) {
+      console.warn(`[AgentResearch] CountryTradeResource fetch failed: ${e.message}`);
+    }
+  }
+  
+  // === STEP 2: ALWAYS scrape standard international sources ===
+  // This ensures we get REAL data even if CountryTradeResource is empty
+  console.log(`[AgentResearch] Scraping standard international sources...`);
+  
+  // EU TARIC (always relevant for international trade)
+  if (suggestedHsCode) {
+    try {
+      const taricResult = await scrapeEuTaric(suggestedHsCode);
+      if (taricResult.success && taricResult.raw_excerpt) {
+        results.sources_retrieved.push({
+          ...taricResult,
+          authority_tier: '1',
+          source_type: 'eu_taric'
+        });
+        results.raw_legal_text += `\n\n=== EU TARIC DATABASE (HS ${suggestedHsCode}) ===\n${taricResult.raw_excerpt}`;
+        results.scrape_successes++;
+        console.log(`[AgentResearch] ✓ EU TARIC: ${taricResult.raw_excerpt?.length || 0} chars`);
       }
-      results.scrape_errors.push(...customsResults.results.filter(r => !r.success).map(r => r.error));
+    } catch (e) {
+      console.warn(`[AgentResearch] EU TARIC scrape failed: ${e.message}`);
+      results.scrape_failures++;
     }
   }
   
-  // Scrape trade agreement links
-  if (allSources.sources.trade_agreements?.length > 0) {
-    console.log(`[AgentResearch] Scraping ${allSources.sources.trade_agreements.length} trade agreement URLs`);
-    const ftaResults = await scrapeMultipleUrls(allSources.sources.trade_agreements.slice(0, 2), scrapeOptions);
-    
-    if (ftaResults.success) {
-      results.sources_retrieved.push(...ftaResults.results.filter(r => r.success));
-      results.raw_legal_text += '\n\n--- TRADE AGREEMENTS ---\n' + (ftaResults.combined_legal_text || '');
+  // EU BTI (precedent search)
+  const productName = spec?.standardized_name || baseSearchTerms[0];
+  if (productName) {
+    try {
+      const btiResult = await scrapeEuBti(productName, suggestedHsCode);
+      if (btiResult.success && (btiResult.raw_excerpt || btiResult.bti_references?.length > 0)) {
+        results.sources_retrieved.push({
+          ...btiResult,
+          authority_tier: '1',
+          source_type: 'eu_bti'
+        });
+        if (btiResult.raw_excerpt) {
+          results.raw_legal_text += `\n\n=== EU BTI PRECEDENTS ===\n${btiResult.raw_excerpt}`;
+        }
+        results.scrape_successes++;
+        console.log(`[AgentResearch] ✓ EU BTI: ${btiResult.bti_references?.length || 0} references found`);
+      }
+    } catch (e) {
+      console.warn(`[AgentResearch] EU BTI scrape failed: ${e.message}`);
+      results.scrape_failures++;
     }
   }
   
-  console.log(`[AgentResearch] Retrieved ${results.sources_retrieved.length} sources, ${results.raw_legal_text.length} chars of legal text`);
+  // Explanatory Notes search
+  if (suggestedHsCode && productName) {
+    try {
+      const enResult = await searchExplanatoryNotes(suggestedHsCode, productName);
+      if (enResult.success && enResult.results?.length > 0) {
+        const enText = enResult.results.map(r => 
+          `Source: ${r.source_url}\n${r.en_excerpts?.join('\n') || ''}`
+        ).join('\n\n');
+        
+        results.sources_retrieved.push({
+          ...enResult,
+          authority_tier: '2',
+          source_type: 'explanatory_notes'
+        });
+        results.raw_legal_text += `\n\n=== EXPLANATORY NOTES ===\n${enText}`;
+        results.scrape_successes++;
+        console.log(`[AgentResearch] ✓ EN Search: ${enResult.results.length} sources`);
+      }
+    } catch (e) {
+      console.warn(`[AgentResearch] EN search failed: ${e.message}`);
+    }
+  }
+  
+  // === STEP 3: Country-specific scraping ===
+  const destLower = destCountry?.toLowerCase() || '';
+  
+  if (destLower.includes('israel') || destLower.includes('ישראל')) {
+    if (suggestedHsCode) {
+      try {
+        const israelResult = await scrapeIsraelCustoms(suggestedHsCode);
+        if (israelResult.success && israelResult.raw_excerpt) {
+          results.sources_retrieved.push({
+            ...israelResult,
+            authority_tier: '1',
+            source_type: 'israel_customs'
+          });
+          results.raw_legal_text += `\n\n=== ISRAEL CUSTOMS (Shaar Olami) ===\n${israelResult.raw_excerpt}`;
+          results.scrape_successes++;
+          console.log(`[AgentResearch] ✓ Israel Customs: ${israelResult.raw_excerpt?.length || 0} chars`);
+        }
+      } catch (e) {
+        console.warn(`[AgentResearch] Israel Customs scrape failed: ${e.message}`);
+      }
+    }
+  }
+  
+  if (destLower.includes('us') || destLower.includes('united states') || destLower.includes('america')) {
+    if (suggestedHsCode) {
+      try {
+        const usResult = await scrapeUsHtsus(suggestedHsCode);
+        if (usResult.success && usResult.raw_excerpt) {
+          results.sources_retrieved.push({
+            ...usResult,
+            authority_tier: '1',
+            source_type: 'us_htsus'
+          });
+          results.raw_legal_text += `\n\n=== US HTSUS ===\n${usResult.raw_excerpt}`;
+          results.scrape_successes++;
+          console.log(`[AgentResearch] ✓ US HTSUS: ${usResult.raw_excerpt?.length || 0} chars`);
+        }
+      } catch (e) {
+        console.warn(`[AgentResearch] US HTSUS scrape failed: ${e.message}`);
+      }
+    }
+  }
+  
+  // === Summary ===
+  console.log(`[AgentResearch] ───────────────────────────────────────────`);
+  console.log(`[AgentResearch] RETRIEVAL COMPLETE:`);
+  console.log(`[AgentResearch]   Sources retrieved: ${results.sources_retrieved.length}`);
+  console.log(`[AgentResearch]   Successful scrapes: ${results.scrape_successes}`);
+  console.log(`[AgentResearch]   Failed scrapes: ${results.scrape_failures}`);
+  console.log(`[AgentResearch]   Total legal text: ${results.raw_legal_text.length} chars`);
+  console.log(`[AgentResearch] ═══════════════════════════════════════════`);
   
   return results;
 }
