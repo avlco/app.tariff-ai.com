@@ -985,22 +985,38 @@ OUTPUT: Return comprehensive JSON with all research findings.
         research_findings: enrichedResult
     });
     
+    const duration = Date.now() - startTime;
+
+    console.log(`[AgentResearch] ✓ Research complete in ${duration}ms`);
+    console.log(`[AgentResearch]   - Candidate headings: ${enrichedResult.candidate_headings?.length || 0}`);
+    console.log(`[AgentResearch]   - Legal notes: ${enrichedResult.legal_notes_found?.length || 0}`);
+    console.log(`[AgentResearch]   - Verified sources: ${enrichedResult.verified_sources?.length || 0}`);
+    console.log(`[AgentResearch]   - Raw corpus length: ${legalTextCorpus.length} chars`);
+    console.log(`[AgentResearch]   - Scrape success rate: ${officialSources.scrape_successes}/${officialSources.scrape_successes + officialSources.scrape_failures}`);
+    console.log(`[AgentResearch] ═══════════════════════════════════════════`);
+
     return Response.json({ 
       success: true, 
       status: 'research_completed', 
       findings: enrichedResult,
       retrieval_summary: {
         official_sources_used: officialSources.sources_retrieved?.length || 0,
-        legal_text_available: legalTextCorpus.length > 0,
+        legal_text_available: legalTextCorpus.length > 100,
+        raw_corpus_length: legalTextCorpus.length,
         processed_corpus_length: processedCorpus.length,
         country_in_knowledge_base: officialSources.country_validated,
         expand_search_mode: expandSearch || false,
-        tier1_sources_count: tier1Count
+        tier1_sources_count: tier1Count,
+        scrape_successes: officialSources.scrape_successes || 0,
+        scrape_failures: officialSources.scrape_failures || 0,
+        duration_ms: duration
       }
     });
 
-  } catch (error) {
-    console.error('Agent B (Researcher) Error:', error);
+    } catch (error) {
+    console.error('[AgentResearch] ❌ ERROR:', error.message);
+    console.error('[AgentResearch] Stack:', error.stack);
+    console.log(`[AgentResearch] ═══════════════════════════════════════════`);
     return Response.json({ success: false, error: error.message }, { status: 500 });
-  }
-});
+    }
+    });
