@@ -2,6 +2,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import OpenAI from 'npm:openai@^4.28.0';
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.18.0';
 
+// TARIFF-AI 2.0: Import EN and BTI database utilities for structured legal context
+import { parseEnText, buildEnContext, validateAgainstEn, extractLegalNotes } from './utils/enDatabase.js';
+import { analyzeBtiConsensus, buildBtiContext, validateAgainstBti, calculateBtiRelevance } from './utils/btiDatabase.js';
+
 // --- TARIFF-AI 2.0: JURIST - GRI STATE MACHINE WITH LEGAL TEXT INJECTION ---
 // This agent now operates on RETRIEVED legal text, not general AI knowledge.
 // All citations must reference the LEGAL_TEXT_CORPUS provided.
@@ -687,6 +691,7 @@ RESPOND WITH JSON:
 /**
  * Extract and format legal text corpus for prompt injection
  * This is the KEY to "Retrieve & Deduce" - we inject ACTUAL legal text
+ * TARIFF-AI 2.0: Now uses enDatabase and btiDatabase utilities for structured analysis
  */
 function buildLegalTextContext(researchFindings, structuralAnalysis) {
   const sections = [];
@@ -702,8 +707,29 @@ ${researchFindings.raw_legal_text_corpus.substring(0, 25000)}
 ═══════════════════════════════════════════════════════════════════`);
   }
   
-  // 2. Candidate Headings with EN Summaries
+  // 2. TARIFF-AI 2.0: Parse and structure EN data using enDatabase utility
+  const parsedEnList = [];
   if (researchFindings?.candidate_headings?.length > 0) {
+    for (const heading of researchFindings.candidate_headings) {
+      // Parse EN text for each candidate heading
+      const enText = heading.explanatory_note_summary || heading.structured_en?.raw_text || '';
+      if (enText) {
+        const parsedEn = parseEnText(enText, heading.code_4_digit);
+        parsedEnList.push(parsedEn);
+      }
+    }
+    
+    // Build structured EN context using enDatabase utility
+    if (parsedEnList.length > 0 && structuralAnalysis) {
+      const structuredEnContext = buildEnContext(parsedEnList, structuralAnalysis);
+      sections.push(`
+═══════════════════════════════════════════════════════════════════
+STRUCTURED EXPLANATORY NOTES ANALYSIS (enDatabase)
+═══════════════════════════════════════════════════════════════════
+${structuredEnContext}`);
+    }
+    
+    // Also include raw candidate headings for reference
     const headingsText = researchFindings.candidate_headings.map(h => `
 HEADING ${h.code_4_digit}: ${h.description}
 Likelihood: ${h.likelihood}
@@ -735,8 +761,25 @@ WCO CLASSIFICATION PRECEDENTS
 ${precedentsText}`);
   }
   
-  // 4. BTI Cases
+  // 4. TARIFF-AI 2.0: BTI Cases with structured analysis using btiDatabase utility
   if (researchFindings?.bti_cases?.length > 0) {
+    const productKeywords = structuralAnalysis?.standardized_name || '';
+    const targetHsCode = researchFindings?.candidate_headings?.[0]?.code_4_digit || '0000';
+    
+    // Build structured BTI context using btiDatabase utility
+    const structuredBtiContext = buildBtiContext(
+      researchFindings.bti_cases, 
+      targetHsCode, 
+      productKeywords
+    );
+    
+    sections.push(`
+═══════════════════════════════════════════════════════════════════
+STRUCTURED BTI PRECEDENT ANALYSIS (btiDatabase)
+═══════════════════════════════════════════════════════════════════
+${structuredBtiContext}`);
+    
+    // Also include raw BTI data
     const btiText = researchFindings.bti_cases.map(b => `
 BTI ${b.reference} (${b.country}, ${b.date}):
 Product: ${b.product_description}
@@ -750,7 +793,7 @@ BINDING TARIFF INFORMATION (BTI) CASES
 ${btiText}`);
   }
   
-  // 5. Section/Chapter Notes
+  // 5. Section/Chapter Notes - also extract using enDatabase
   if (researchFindings?.legal_notes_found?.length > 0) {
     sections.push(`
 ═══════════════════════════════════════════════════════════════════
@@ -844,37 +887,52 @@ export default Deno.serve(async (req) => {
     
     // Always inject GIR state machine context for better hierarchy compliance
     const girStateContext = `
-═══════════════════════════════════════════════════════════════════
-GIR STATE MACHINE - STRICT SEQUENTIAL ENFORCEMENT
-═══════════════════════════════════════════════════════════════════
+    ═══════════════════════════════════════════════════════════════════
+    GIR STATE MACHINE - STRICT SEQUENTIAL ENFORCEMENT
+    ═══════════════════════════════════════════════════════════════════
 
-You MUST process GRI rules as a STATE MACHINE:
-1. Start at GRI 1
-2. Only transition to next state if current state CANNOT resolve
-3. Document the TRANSITION REASON for each state change
-4. Record your decision at EACH state visited
+    You MUST process GRI rules as a STATE MACHINE:
+    1. Start at GRI 1
+    2. Only transition to next state if current state CANNOT resolve
+    3. Document the TRANSITION REASON for each state change
+    4. Record your decision at EACH state visited
 
-STATE TRANSITION LOG (you must fill this):
-┌─────────┬──────────────────────────────────────────┬─────────────┐
-│ State   │ Analysis Result                          │ Transition  │
-├─────────┼──────────────────────────────────────────┼─────────────┤
-│ GRI 1   │ [Your analysis here]                     │ [RESOLVED/NEXT] │
-│ GRI 2   │ [If reached - your analysis]             │ [RESOLVED/NEXT] │
-│ GRI 3(a)│ [If reached - your analysis]             │ [RESOLVED/NEXT] │
-│ GRI 3(b)│ [If reached - FULL component analysis]   │ [RESOLVED/NEXT] │
-│ GRI 3(c)│ [If reached - last numerical]            │ [RESOLVED/NEXT] │
-└─────────┴──────────────────────────────────────────┴─────────────┘
+    ═══════════════════════════════════════════════════════════════════
+    ⚠️ MANDATORY: gir_state_log ARRAY MUST BE POPULATED ⚠️
+    ═══════════════════════════════════════════════════════════════════
 
-CRITICAL: If GRI 3(b) is reached, you MUST provide:
-- Component breakdown table with Nature/Bulk/Value/Role
-- Clear justification for essential character determination
+    You MUST populate the gir_state_log array with AT LEAST ONE entry.
+    Even if classification is resolved at GRI 1, you must include:
 
-${isComposite ? `
-⚠️ COMPOSITE PRODUCT DETECTED: "${compositeType}"
-Product Analyst has pre-analyzed this as composite. You will likely need GRI 3(b).
-Essential Character pre-analysis: ${report.structural_analysis?.composite_analysis?.essential_character_component || 'See composite_analysis'}
-` : ''}
-`;
+    {
+    "state": "GRI_1",
+    "analysis": "[Your detailed analysis of why GRI 1 resolves or doesn't resolve]",
+    "result": "resolved" | "next",
+    "reason": "[Why you stopped here or moved to next state]"
+    }
+
+    If you proceed to GRI 2 or beyond, add an entry for EACH state visited:
+
+    [
+    { "state": "GRI_1", "analysis": "...", "result": "next", "reason": "Multiple headings could apply" },
+    { "state": "GRI_2a", "analysis": "...", "result": "next", "reason": "Product is complete, not unfinished" },
+    { "state": "GRI_3b", "analysis": "...", "result": "resolved", "reason": "Essential character determines heading" }
+    ]
+
+    FAILURE TO POPULATE gir_state_log WILL CAUSE QA REJECTION.
+
+    ═══════════════════════════════════════════════════════════════════
+
+    CRITICAL: If GRI 3(b) is reached, you MUST provide:
+    - Component breakdown table with Nature/Bulk/Value/Role
+    - Clear justification for essential character determination
+
+    ${isComposite ? `
+    ⚠️ COMPOSITE PRODUCT DETECTED: "${compositeType}"
+    Product Analyst has pre-analyzed this as composite. You will likely need GRI 3(b).
+    Essential Character pre-analysis: ${report.structural_analysis?.composite_analysis?.essential_character_component || 'See composite_analysis'}
+    ` : ''}
+    `;
 
     // Task 2.4b: Get HS structure from CountryTradeResource if available
     let hsStructure = null;
